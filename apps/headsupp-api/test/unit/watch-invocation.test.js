@@ -62,6 +62,9 @@ test('invokes WatchEvaluator DO for affected signal watches', async () => {
     signalId: 'sig_123',
     bucketType: 'hour',
     bucketStartAt: '2026-05-24T10:00:00.000Z',
+    dimensionsHash: 'd0',
+    dimensionsJson: '{}',
+    eventContext: null,
     now: '2026-05-24T10:05:00.000Z',
   });
 });

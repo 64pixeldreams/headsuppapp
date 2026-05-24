@@ -128,11 +128,23 @@ Generic alert webhook payload:
   "channel_id": "ch_123",
   "severity": "critical",
   "summary": "Revenue forecast is critical at 64%.",
+  "fields": {
+    "forecast_id": "fc_123",
+    "status": "critical"
+  },
   "cta": {
     "label": "View forecast",
     "url": "https://foretic.io/forecasts/fc_123"
   }
 }
+```
+
+Outbound webhook deliveries are signed when an outbound signing secret is configured (`subscriber.config_json.signing_secret` or `OUTBOUND_WEBHOOK_SIGNING_SECRET`):
+
+```text
+X-HeadsUp-Timestamp: <unix seconds>
+X-HeadsUp-Signature: v1=<hmac_sha256_hex(timestamp + "." + raw_body)>
+X-HeadsUp-Delivery-Id: <delivery id>
 ```
 
 Foretic should classify generic alert callbacks by `type = "heads_up.alert"` and dedupe retries by `alert_id`. CTA fields should point back to the source forecast or source system view.

@@ -25,16 +25,48 @@ export function bucketStartAt(occurredAt, bucketType) {
 }
 
 export function extractDimensions(event, dimensions = []) {
-  return Object.fromEntries(dimensions.map((dimension) => [dimension, event.fields?.[dimension] ?? null]));
+  return Object.fromEntries(
+    dimensions.map((dimension) => {
+      const path = String(dimension || '');
+      const parts = path.split('.').filter(Boolean);
+      const value = parts.reduce((current, segment) => {
+        if (current === null || current === undefined) return undefined;
+        return current[segment];
+      }, event.fields || {});
+      return [path, value ?? null];
+    }),
+  );
+}
+
+function stableDimensionsJson(dimensions) {
+  const sorted = Object.keys(dimensions || {})
+    .sort()
+    .reduce((acc, key) => {
+      acc[key] = dimensions[key];
+      return acc;
+    }, {});
+  return JSON.stringify(sorted);
+}
+
+export function dimensionsHash(dimensions) {
+  const json = stableDimensionsJson(dimensions);
+  let hash = 2166136261;
+  for (let i = 0; i < json.length; i += 1) {
+    hash ^= json.charCodeAt(i);
+    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+  }
+  return `d${(hash >>> 0).toString(16)}`;
 }
 
 export function eventToAggregateDeltas({ message, signal, contract, now = new Date().toISOString() }) {
   const bucketTypes = contract.default_bucket_types || ['minute', 'hour', 'day'];
   const dimensions = extractDimensions(message.event, contract.dimensions || []);
+  const dimensions_json = stableDimensionsJson(dimensions);
+  const dimensions_hash = dimensionsHash(dimensions);
   const value = message.event.value.num;
 
   return bucketTypes.map((bucketType) => ({
-    id: `${signal.id}:${bucketType}:${bucketStartAt(message.event.occurred_at, bucketType)}`,
+    id: `${signal.id}:${bucketType}:${bucketStartAt(message.event.occurred_at, bucketType)}:${dimensions_hash}`,
     workspace_id: message.workspaceId,
     channel_id: message.channelId,
     signal_id: signal.id,
@@ -42,6 +74,12 @@ export function eventToAggregateDeltas({ message, signal, contract, now = new Da
     bucket_type: bucketType,
     bucket_start_at: bucketStartAt(message.event.occurred_at, bucketType),
     dimensions,
+    dimensions_json,
+    dimensions_hash,
+    event_context: {
+      cta: message.event.cta || null,
+      fields: message.event.fields || {},
+    },
     sum_value: value,
     count_value: 1,
     min_value: value,

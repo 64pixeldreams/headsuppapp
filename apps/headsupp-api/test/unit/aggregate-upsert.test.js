@@ -10,6 +10,8 @@ const delta = {
   signal_id: 'sig_1',
   bucket_type: 'minute',
   bucket_start_at: '2026-05-24T10:00:00.000Z',
+  dimensions_hash: 'd0',
+  dimensions_json: '{}',
   sum_value: 30,
   count_value: 2,
   min_value: 10,
@@ -22,9 +24,10 @@ const delta = {
 };
 
 test('aggregate upsert SQL uses atomic conflict update', () => {
-  assert.match(AGGREGATE_UPSERT_SQL, /ON CONFLICT\(signal_id, bucket_type, bucket_start_at\)/);
+  assert.match(AGGREGATE_UPSERT_SQL, /ON CONFLICT\(signal_id, bucket_type, bucket_start_at, dimensions_hash\)/);
   assert.match(AGGREGATE_UPSERT_SQL, /sum_value = aggregates\.sum_value \+ excluded\.sum_value/);
   assert.match(AGGREGATE_UPSERT_SQL, /count_value = aggregates\.count_value \+ excluded\.count_value/);
+  assert.match(AGGREGATE_UPSERT_SQL, /excluded\.last_event_at >= aggregates\.last_event_at/);
 });
 
 test('upserts aggregate delta with bound values', async () => {
@@ -48,6 +51,7 @@ test('upserts aggregate delta with bound values', async () => {
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].params[0], delta.id);
-  assert.equal(calls[0].params[6], 30);
-  assert.equal(calls[0].params[14], delta.updated_at);
+  assert.equal(calls[0].params[6], 'd0');
+  assert.equal(calls[0].params[8], 30);
+  assert.equal(calls[0].params[16], delta.updated_at);
 });

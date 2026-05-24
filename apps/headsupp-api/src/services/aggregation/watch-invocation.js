@@ -34,17 +34,24 @@ export async function invokeWatchEvaluator(env, input) {
 
 export async function invokeAffectedWatchEvaluators({ db, env, aggregateDeltas, now = new Date().toISOString() }) {
   const invocations = [];
+  const seen = new Set();
 
   for (const delta of aggregateDeltas) {
     const watches = await getActiveWatchesForSignal(db, delta.channel_id, delta.signal_id);
     for (const watch of watches) {
       const watchId = watch.watch_id || watch.id;
+      const invocationKey = `${watchId}:${delta.bucket_type}:${delta.bucket_start_at}:${delta.dimensions_hash || 'd0'}`;
+      if (seen.has(invocationKey)) continue;
+      seen.add(invocationKey);
       const result = await invokeWatchEvaluator(env, {
         watchId,
         reason: 'aggregate_updated',
         signalId: delta.signal_id,
         bucketType: delta.bucket_type,
         bucketStartAt: delta.bucket_start_at,
+        dimensionsHash: delta.dimensions_hash || 'd0',
+        dimensionsJson: delta.dimensions_json || '{}',
+        eventContext: delta.event_context || null,
         now,
       });
       invocations.push(result);

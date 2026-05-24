@@ -18,6 +18,7 @@ export async function processAggregateDeliveryMessage(message, env, options = {}
     db: env.DB,
     delivery: bundle.delivery,
     subscriber: bundle.subscriber,
+    env,
     fetchFn: options.fetchFn,
     now: options.now,
   });

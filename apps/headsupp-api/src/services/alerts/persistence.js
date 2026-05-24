@@ -11,6 +11,7 @@ export function buildAlert({ watch, evaluation, decision, input, now = new Date(
     current_value: decision.current_value,
     threshold: evaluation.threshold,
     cta: evaluation.cta || null,
+    fields: evaluation.fields || {},
   };
 
   return {

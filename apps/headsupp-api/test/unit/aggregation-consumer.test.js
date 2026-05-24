@@ -13,6 +13,9 @@ function createConsumerDb({ duplicate = false } = {}) {
           calls.push({ sql, params });
           return {
             async first() {
+              if (sql.includes('SELECT processed_at')) {
+                return duplicate ? { processed_at: '2026-05-24T10:38:00.000Z', status: 'processed' } : { processed_at: null, status: 'processing' };
+              }
               if (sql.includes('FROM signals')) {
                 return { id: 'sig_123', signal_key: 'forecast.revenue.pace' };
               }

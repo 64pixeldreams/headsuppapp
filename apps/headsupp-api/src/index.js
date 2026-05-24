@@ -42,6 +42,22 @@ function corsPreflight() {
   });
 }
 
+function extractBearerToken(request) {
+  const header = request.headers.get('Authorization');
+  if (!header) return null;
+  const [scheme, token] = header.split(' ');
+  if (!scheme || !token || scheme.toLowerCase() !== 'bearer') return null;
+  return token.trim();
+}
+
+function isAuthorizedObservabilityRequest(request, env) {
+  const provided =
+    extractBearerToken(request) || request.headers.get('X-HeadsUp-Operator-Token') || request.headers.get('X-HeadsUp-Bootstrap-Token');
+  if (!provided) return false;
+  const expected = [env.HEADSUPP_OPERATOR_TOKEN, env.HEADSUPP_BOOTSTRAP_TOKEN].filter(Boolean);
+  return expected.includes(provided);
+}
+
 async function getCloudFunction(env) {
   if (cloudFunction) return cloudFunction;
   cloudFunction = new CloudFunction(env);
@@ -110,6 +126,18 @@ export default {
       }
 
       if (url.pathname === '/api/v1/observability/overview' && request.method === 'GET') {
+        if (!isAuthorizedObservabilityRequest(request, env)) {
+          return json(
+            {
+              success: false,
+              error: {
+                code: 'UNAUTHORIZED',
+                message: 'Operator authentication is required.',
+              },
+            },
+            { status: 401 },
+          );
+        }
         if (!env.DB) {
           return json(
             {

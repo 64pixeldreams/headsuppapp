@@ -23,7 +23,7 @@ If a story creates or changes an endpoint, auth rule, event payload, delivery pa
 
 ## Current Story Count
 
-There are 65 story files.
+There are 76 story files.
 
 Stories marked `_done` are complete. Pending stories should be built one at a time or in an agreed batch, with tests and docs updated before marking `_done`.
 
@@ -60,4 +60,20 @@ Release automation and operations:
 63 CI release automation_done
 64 Operational health and alerting_done
 65 Production error handling and runbooks_done
+```
+
+## Correctness Closure Batch
+
+```text
+66 Foretic D1 canonical provisioning
+67 Contract path extraction
+68 Dimensioned aggregates
+69 Late event last value correctness
+70 Idempotency processed state
+71 CTA and data preservation
+72 Foretic recovery semantics
+73 Outbound webhook signing
+74 Protected observability
+75 Delta watch types
+76 Release soak test
 ```

@@ -13,18 +13,20 @@ export async function loadWatchState(db, watchId) {
 export async function loadAggregatesForWatch(db, watch, input) {
   const config = watchConfig(watch);
   const bucketType = input.bucketType || config.bucket_type;
+  const dimensionsHash = input.dimensionsHash || null;
 
-  if (watch.watch_type.startsWith('WINDOW_')) {
-    const limit = Number(config.window?.size || 60);
+  if (watch.watch_type.startsWith('WINDOW_') || watch.watch_type.startsWith('DELTA_')) {
+    const limit = watch.watch_type.startsWith('DELTA_') ? 2 : Number(config.window?.size || 60);
     const result = await db
       .prepare(
         `SELECT *
          FROM aggregates
          WHERE signal_id = ? AND bucket_type = ? AND bucket_start_at <= ?
+           AND (? IS NULL OR dimensions_hash = ?)
          ORDER BY bucket_start_at DESC
          LIMIT ?`,
       )
-      .bind(watch.signal_id || input.signalId, bucketType, input.bucketStartAt, limit)
+      .bind(watch.signal_id || input.signalId, bucketType, input.bucketStartAt, dimensionsHash, dimensionsHash, limit)
       .all();
     return (result?.results || []).reverse();
   }
@@ -34,9 +36,10 @@ export async function loadAggregatesForWatch(db, watch, input) {
       `SELECT *
        FROM aggregates
        WHERE signal_id = ? AND bucket_type = ? AND bucket_start_at = ?
+         AND (? IS NULL OR dimensions_hash = ?)
        LIMIT 1`,
     )
-    .bind(watch.signal_id || input.signalId, bucketType, input.bucketStartAt)
+    .bind(watch.signal_id || input.signalId, bucketType, input.bucketStartAt, dimensionsHash, dimensionsHash)
     .first();
 
   return aggregate ? [aggregate] : [];
@@ -76,6 +79,10 @@ export async function evaluateWatchRequest({ db, env = {}, input, now = input.no
     loadAggregatesForWatch(db, watch, input),
   ]);
   const evaluation = evaluateWatchAgainstAggregates(watch, aggregates);
+  if (input.eventContext) {
+    evaluation.cta = input.eventContext.cta || evaluation.cta || null;
+    evaluation.fields = input.eventContext.fields || evaluation.fields || {};
+  }
   const decision = decideAlertAction({ watch, evaluation, state, now });
 
   if (!['alert', 'escalation', 'recovery'].includes(decision.action)) {

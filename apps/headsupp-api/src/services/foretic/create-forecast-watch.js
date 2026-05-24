@@ -3,6 +3,7 @@ import { generateConnectorSecret, publicConnector } from '../connectors/secrets.
 import { stableId } from '../ids/stable-id.js';
 import { ownershipFieldsFromContext } from '../ownership/tenant-scope.js';
 import { createSubscriber } from '../subscribers/create-subscriber.js';
+import { redactUrl } from '../subscribers/urls.js';
 import { buildForeticForecastContext } from './tenant-context.js';
 import { foreticForecastSignalContract, foreticForecastWatchDefinitions } from './forecast-watch-defaults.js';
 import { provisionForeticWorkspace } from './provision-workspace.js';
@@ -19,7 +20,40 @@ async function putIfMissing(store, type, key, valueFactory) {
   return { created: true, value };
 }
 
-async function createForecastChannel({ store, workspace, context, now }) {
+async function insertIgnore(db, table, row) {
+  const columns = Object.keys(row);
+  const placeholders = columns.map(() => '?').join(', ');
+  await db
+    .prepare(`INSERT OR IGNORE INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`)
+    .bind(...columns.map((column) => row[column]))
+    .run();
+}
+
+async function first(db, sql, params) {
+  return db.prepare(sql).bind(...params).first();
+}
+
+async function createForecastChannel({ store, db, workspace, context, now }) {
+  if (db) {
+    const channelKey = context.channel_key;
+    const existing = await first(db, 'SELECT * FROM channels WHERE channel_key = ? LIMIT 1', [channelKey]);
+    if (existing) return { created: false, value: existing };
+    const channel = {
+      id: stableId('ch', channelKey),
+      channel_id: stableId('ch', channelKey),
+      channel_key: channelKey,
+      workspace_id: workspace.workspace_id,
+      name: context.forecast_name || context.forecast_id,
+      channel_type: 'forecast',
+      status: 'active',
+      created_at: now,
+      updated_at: now,
+      ...ownershipFieldsFromContext(context),
+    };
+    await insertIgnore(db, 'channels', channel);
+    return { created: true, value: channel };
+  }
+
   return putIfMissing(store, 'channel', context.channel_key, () => ({
     channel_id: stableId('ch', context.channel_key),
     channel_key: context.channel_key,
@@ -33,8 +67,34 @@ async function createForecastChannel({ store, workspace, context, now }) {
   }));
 }
 
-async function createForecastConnector({ store, workspace, channel, context, now, secretFactory }) {
+async function createForecastConnector({ store, db, workspace, channel, context, now, secretFactory }) {
   const connectorKey = `${context.channel_key}:webhook`;
+  if (db) {
+    const connectorId = stableId('conn', connectorKey);
+    const existing = await first(db, 'SELECT * FROM connectors WHERE connector_id = ? OR id = ? LIMIT 1', [connectorId, connectorId]);
+    if (existing) {
+      if (store) await store.put('connector_by_key', existing.connector_key, existing);
+      return { created: false, value: existing };
+    }
+    const connector = {
+      id: connectorId,
+      connector_id: connectorId,
+      connector_key: stableId('ck', connectorKey),
+      connector_type: 'webhook',
+      connector_secret: secretFactory(),
+      workspace_id: workspace.workspace_id,
+      channel_id: channel.channel_id,
+      status: 'active',
+      enabled: 1,
+      created_at: now,
+      updated_at: now,
+      ...ownershipFieldsFromContext(context),
+    };
+    await insertIgnore(db, 'connectors', connector);
+    if (store) await store.put('connector_by_key', connector.connector_key, connector);
+    return { created: true, value: connector };
+  }
+
   const result = await putIfMissing(store, 'connector', connectorKey, () => ({
     connector_id: stableId('conn', connectorKey),
     connector_key: stableId('ck', connectorKey),
@@ -55,16 +115,81 @@ async function createForecastConnector({ store, workspace, channel, context, now
   return result;
 }
 
-async function createSignalContract({ store, channel, context, now }) {
+async function createSignalContract({ store, db, signal, channel, context, now }) {
   const contract = foreticForecastSignalContract({ channel, context, now });
+  if (db) {
+    const existing = await first(db, 'SELECT * FROM signal_contracts WHERE signal_id = ? LIMIT 1', [signal.id || signal.signal_id]);
+    if (existing) {
+      return { created: false, value: { ...contract, ...JSON.parse(existing.contract_json || '{}') } };
+    }
+    const signalContract = {
+      id: stableId('sigct', signal.id || signal.signal_id),
+      signal_contract_id: stableId('sigct', signal.id || signal.signal_id),
+      signal_id: signal.id || signal.signal_id,
+      contract_json: JSON.stringify(contract),
+      created_at: now,
+      updated_at: now,
+    };
+    await insertIgnore(db, 'signal_contracts', signalContract);
+    return { created: true, value: contract };
+  }
   return putIfMissing(store, 'signal_contract', contract.signal_contract_id, () => contract);
 }
 
-async function createDefaultWatches({ store, channel, context, now }) {
+async function createSignal({ db, workspace, channel, context, now }) {
+  const signalKey = 'forecast.revenue.pace';
+  const id = stableId('sig', `${channel.channel_id}:${signalKey}`);
+  const existing = await first(db, 'SELECT * FROM signals WHERE id = ? OR signal_id = ? LIMIT 1', [id, id]);
+  if (existing) return { created: false, value: existing };
+  const signal = {
+    id,
+    signal_id: id,
+    workspace_id: workspace.workspace_id,
+    channel_id: channel.channel_id,
+    signal_key: signalKey,
+    signal_type: 'metric',
+    value_mode: 'last',
+    status: 'active',
+    created_at: now,
+    updated_at: now,
+    ...ownershipFieldsFromContext(context),
+  };
+  await insertIgnore(db, 'signals', signal);
+  return { created: true, value: signal };
+}
+
+async function createDefaultWatches({ store, db, signal, channel, context, now }) {
   const definitions = foreticForecastWatchDefinitions({ channel, context, now });
   const results = [];
 
   for (const watch of definitions) {
+    if (db) {
+      const existing = await first(db, 'SELECT * FROM watches WHERE watch_id = ? OR id = ? LIMIT 1', [watch.watch_id, watch.watch_id]);
+      if (existing) {
+        results.push(existing);
+        continue;
+      }
+      const watchRow = {
+        id: watch.watch_id,
+        watch_id: watch.watch_id,
+        workspace_id: channel.workspace_id,
+        channel_id: channel.channel_id,
+        signal_id: signal.id || signal.signal_id,
+        name: watch.name,
+        watch_type: watch.watch_type,
+        config_json: JSON.stringify({ threshold: watch.threshold, bucket_type: 'minute', severity: watch.severity }),
+        cooldown_seconds: watch.cooldown_seconds,
+        escalation_json: watch.escalation_json ? JSON.stringify(watch.escalation_json) : null,
+        recovery_json: watch.recovery_json ? JSON.stringify(watch.recovery_json) : null,
+        enabled: 1,
+        created_at: now,
+        updated_at: now,
+      };
+      await insertIgnore(db, 'watches', watchRow);
+      results.push({ ...watch, signal_id: signal.id || signal.signal_id });
+      continue;
+    }
+
     const result = await putIfMissing(store, 'watch', watch.watch_key, () => watch);
     results.push(result.value);
   }
@@ -72,41 +197,78 @@ async function createDefaultWatches({ store, channel, context, now }) {
   return results;
 }
 
-async function createRequestedSubscribers({ input, context, workspace, channel, store, now }) {
+async function createRequestedSubscribers({ input, context, workspace, channel, store, db, now }) {
   const subscribers = [];
+  const upsertDbSubscriber = async ({ subscriber_type, destination_url, display_name, mode }) => {
+    const subscriberId = stableId('sub', `${workspace.workspace_id}:${channel.channel_id}:${subscriber_type}:${mode}:${destination_url}`);
+    const existing = await first(db, 'SELECT * FROM subscribers WHERE id = ? OR subscriber_id = ? LIMIT 1', [subscriberId, subscriberId]);
+    if (existing) return { ok: true, subscriber: { ...existing, destination_url: undefined }, created: false };
+    const subscriber = {
+      id: subscriberId,
+      subscriber_id: subscriberId,
+      workspace_id: workspace.workspace_id,
+      channel_id: channel.channel_id,
+      subscriber_type,
+      name: display_name,
+      destination_url,
+      destination_url_redacted: redactUrl(destination_url),
+      mode,
+      enabled: 1,
+      config_json: '{}',
+      created_at: now,
+      updated_at: now,
+      ...ownershipFieldsFromContext(context),
+    };
+    await insertIgnore(db, 'subscribers', subscriber);
+    return { ok: true, subscriber: { ...subscriber, destination_url: undefined }, created: true };
+  };
 
   if (input.slack_webhook_url) {
-    const slack = await createSubscriber({
-      input: {
-        subscriber_type: 'slack_webhook',
-        destination_url: input.slack_webhook_url,
-        display_name: input.slack_display_name || 'Foretic forecast Slack alerts',
-        mode: 'alert',
-      },
-      context,
-      workspace,
-      channel,
-      store,
-      now,
-    });
+    const slack = db
+      ? await upsertDbSubscriber({
+          subscriber_type: 'slack_webhook',
+          destination_url: input.slack_webhook_url,
+          display_name: input.slack_display_name || 'Foretic forecast Slack alerts',
+          mode: 'alert',
+        })
+      : await createSubscriber({
+          input: {
+            subscriber_type: 'slack_webhook',
+            destination_url: input.slack_webhook_url,
+            display_name: input.slack_display_name || 'Foretic forecast Slack alerts',
+            mode: 'alert',
+          },
+          context,
+          workspace,
+          channel,
+          store,
+          now,
+        });
     if (!slack.ok) return slack;
     subscribers.push(slack.subscriber);
   }
 
   if (input.foretic_callback_url) {
-    const callback = await createSubscriber({
-      input: {
-        subscriber_type: 'webhook',
-        destination_url: input.foretic_callback_url,
-        display_name: input.foretic_callback_name || 'Foretic callback',
-        mode: 'aggregate_forward',
-      },
-      context,
-      workspace,
-      channel,
-      store,
-      now,
-    });
+    const callback = db
+      ? await upsertDbSubscriber({
+          subscriber_type: 'webhook',
+          destination_url: input.foretic_callback_url,
+          display_name: input.foretic_callback_name || 'Foretic callback',
+          mode: 'aggregate_forward',
+        })
+      : await createSubscriber({
+          input: {
+            subscriber_type: 'webhook',
+            destination_url: input.foretic_callback_url,
+            display_name: input.foretic_callback_name || 'Foretic callback',
+            mode: 'aggregate_forward',
+          },
+          context,
+          workspace,
+          channel,
+          store,
+          now,
+        });
     if (!callback.ok) return callback;
     subscribers.push(callback.subscriber);
   }
@@ -121,6 +283,7 @@ export async function createForeticForecastWatch({
   auth,
   input,
   store,
+  db,
   now = new Date().toISOString(),
   secretFactory = generateConnectorSecret,
   baseUrl = 'https://headsupp_app.example.workers.dev',
@@ -146,12 +309,14 @@ export async function createForeticForecastWatch({
       name: input.workspace_name || input.forecast_name || input.name,
     },
     store,
+    db,
     now,
   });
   if (!workspaceResult.ok) return workspaceResult;
 
   const channelResult = await createForecastChannel({
     store,
+    db,
     workspace: workspaceResult.workspace,
     context,
     now,
@@ -159,6 +324,7 @@ export async function createForeticForecastWatch({
 
   const connectorResult = await createForecastConnector({
     store,
+    db,
     workspace: workspaceResult.workspace,
     channel: channelResult.value,
     context,
@@ -166,8 +332,25 @@ export async function createForeticForecastWatch({
     secretFactory,
   });
 
+  const signalResult = db
+    ? await createSignal({
+        db,
+        workspace: workspaceResult.workspace,
+        channel: channelResult.value,
+        context,
+        now,
+      })
+    : {
+        created: true,
+        value: {
+          id: stableId('sig', `${channelResult.value.channel_id}:forecast.revenue.pace`),
+        },
+      };
+
   const signalContract = await createSignalContract({
     store,
+    db,
+    signal: signalResult.value,
     channel: channelResult.value,
     context,
     now,
@@ -175,6 +358,8 @@ export async function createForeticForecastWatch({
 
   const watches = await createDefaultWatches({
     store,
+    db,
+    signal: signalResult.value,
     channel: channelResult.value,
     context,
     now,
@@ -186,6 +371,7 @@ export async function createForeticForecastWatch({
     workspace: workspaceResult.workspace,
     channel: channelResult.value,
     store,
+    db,
     now,
   });
   if (!subscriberResult.ok) return subscriberResult;

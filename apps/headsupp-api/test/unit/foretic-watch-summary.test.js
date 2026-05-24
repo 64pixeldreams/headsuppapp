@@ -35,7 +35,6 @@ test('Foretic watch setup summary captures end-to-end provisioning state', async
     [
       ['LAST_VALUE_LT', 85, 'warning'],
       ['LAST_VALUE_LT', 70, 'critical'],
-      ['LAST_VALUE_GT', 95, 'recovery'],
     ],
   );
   assert.equal(result.summary.subscribers.some((subscriber) => subscriber.mode === 'aggregate_forward'), true);

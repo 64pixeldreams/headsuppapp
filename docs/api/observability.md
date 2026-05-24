@@ -8,6 +8,14 @@ Heads Up exposes read-only operational endpoints for debugging and build verific
 
 Returns counts for active watches, aggregate rows, delivery states, retry backlog, stale pending deliveries, and scheduled task health.
 
+Authentication is required. Provide either:
+
+```text
+Authorization: Bearer <HEADSUPP_OPERATOR_TOKEN>
+X-HeadsUp-Operator-Token: <HEADSUPP_OPERATOR_TOKEN>
+X-HeadsUp-Bootstrap-Token: <HEADSUPP_BOOTSTRAP_TOKEN>
+```
+
 Example response:
 
 ```json

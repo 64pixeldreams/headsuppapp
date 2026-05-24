@@ -16,6 +16,7 @@ HEADSUPP_SMOKE_WEBHOOK_URL
 HEADSUPP_SMOKE_RETRY_FAIL_URL
 HEADSUPP_SMOKE_RETRY_SUCCESS_URL
 HEADSUPP_SMOKE_PERMANENT_FAIL_URL
+HEADSUPP_OPERATOR_TOKEN
 ```
 
 Most deployed smokes require `CLOUDFLARE_API_TOKEN` because the operator harness provisions deterministic D1/KV test resources. Slack-specific smokes also require `HEADSUPP_SMOKE_SLACK_WEBHOOK_URL`.
@@ -33,6 +34,7 @@ npm run smoke:alert-decisions
 npm run smoke:scheduled
 npm run smoke:delivery-retry
 npm run smoke:tenant-isolation
+npm run soak:release
 ```
 
 If Slack is unavailable, do not claim human notification proof. You can still run the non-Slack deployed smokes to prove scheduler, retry, and tenant isolation behavior in D1.
@@ -99,6 +101,29 @@ input_events: 10000
 queue_messages: 10000
 folded_deltas much lower than aggregate_deltas
 ok: true
+```
+
+Command:
+
+```bash
+npm run soak:release
+```
+
+Optional tuning:
+
+```text
+HEADSUPP_SOAK_DURATION_SECONDS
+HEADSUPP_SOAK_INTERVAL_MS
+HEADSUPP_SOAK_EVENTS_PER_TICK
+```
+
+Expected output:
+
+```text
+ok: true
+summary.total_events > 0
+summary.fold_compression_ratio < 1
+summary.throughput_events_per_second > 0
 ```
 
 ## Deployed Generic Slack Smoke

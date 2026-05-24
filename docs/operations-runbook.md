@@ -24,7 +24,7 @@ Then inspect deployed health:
 
 ```powershell
 curl https://headsupp_app.martin-598.workers.dev/health
-curl https://headsupp_app.martin-598.workers.dev/api/v1/observability/overview
+curl -H "Authorization: Bearer <operator token>" https://headsupp_app.martin-598.workers.dev/api/v1/observability/overview
 ```
 
 The observability response is safe for operators. It must not include raw event payloads, connector secrets, API keys, or full webhook URLs.
@@ -137,6 +137,7 @@ Apply migration:
 ```powershell
 cd apps/headsupp-api
 npx wrangler d1 execute headsup_db --remote --file "migrations/0001_headsupp_core.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/0002_correctness_closure.sql"
 ```
 
 The migration is written with `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`. It should add missing schema without dropping existing data.

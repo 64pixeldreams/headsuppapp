@@ -87,7 +87,15 @@ Response shape matches `GET /health`.
 
 Purpose: read-only operational counts for verification. This is not a dashboard API and must not return secrets, raw event bodies, or subscriber payload bodies.
 
-Authentication: currently none.
+Authentication: operator token required.
+
+Accepted headers:
+
+```text
+Authorization: Bearer <HEADSUPP_OPERATOR_TOKEN>
+X-HeadsUp-Operator-Token: <HEADSUPP_OPERATOR_TOKEN>
+X-HeadsUp-Bootstrap-Token: <HEADSUPP_BOOTSTRAP_TOKEN>
+```
 
 Response `200`:
 
@@ -140,6 +148,18 @@ Error `501`:
   "error": {
     "code": "DB_NOT_CONFIGURED",
     "message": "DB binding is required for observability."
+  }
+}
+```
+
+Error `401`:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "Operator authentication is required."
   }
 }
 ```

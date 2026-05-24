@@ -154,7 +154,7 @@ Runtime secrets such as Cloudflare API tokens and Slack webhook URLs must be pas
 - Delivery services: `apps/headsupp-api/src/services/delivery/`
 - Scheduled tasks: `apps/headsupp-api/src/services/scheduler/scheduled-tasks.js`
 - Observability: `apps/headsupp-api/src/services/observability/overview.js`
-- D1 schema: `apps/headsupp-api/migrations/0001_headsupp_core.sql`
+- D1 schema: `apps/headsupp-api/migrations/0001_headsupp_core.sql`, `apps/headsupp-api/migrations/0002_correctness_closure.sql`
 
 ## CI And Release
 

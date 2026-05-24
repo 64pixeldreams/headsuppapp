@@ -5,6 +5,7 @@ function aggregateKey(delta) {
     delta.signal_id,
     delta.bucket_type,
     delta.bucket_start_at,
+    delta.dimensions_hash || 'd0',
   ].join('|');
 }
 
@@ -32,6 +33,7 @@ export function foldAggregateDeltas(deltas) {
     if (delta.last_event_at >= current.last_event_at) {
       current.last_event_at = delta.last_event_at;
       current.last_value = delta.last_value;
+      current.event_context = delta.event_context || current.event_context || null;
     }
 
     if (delta.updated_at > current.updated_at) {

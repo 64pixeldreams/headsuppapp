@@ -39,9 +39,9 @@ test('creates Foretic forecast watch setup resources', async () => {
     [
       ['LAST_VALUE_LT', 85, 'warning'],
       ['LAST_VALUE_LT', 70, 'critical'],
-      ['LAST_VALUE_GT', 95, 'recovery'],
     ],
   );
+  assert.equal(result.watches[0].recovery_json?.condition, 'value >= 95');
   assert.equal(result.subscribers.length, 2);
   assert.equal(result.subscribers[0].subscriber_type, 'slack_webhook');
   assert.equal(result.subscribers[0].destination_url, undefined);

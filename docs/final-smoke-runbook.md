@@ -34,6 +34,7 @@ Local:
 ```bash
 cd apps/headsupp-api
 npx wrangler d1 execute headsup_db --local --file "migrations/0001_headsupp_core.sql"
+npx wrangler d1 execute headsup_db --local --file "migrations/0002_correctness_closure.sql"
 ```
 
 Remote, only when the Cloudflare token has D1 import permissions:
@@ -41,6 +42,7 @@ Remote, only when the Cloudflare token has D1 import permissions:
 ```bash
 cd apps/headsupp-api
 npx wrangler d1 execute headsup_db --remote --file "migrations/0001_headsupp_core.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/0002_correctness_closure.sql"
 ```
 
 The migration uses `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`.
@@ -50,7 +52,7 @@ After schema-changing stories, apply the remote migration before running deploye
 ## Observability Check
 
 ```bash
-curl https://headsupp_app.martin-598.workers.dev/api/v1/observability/overview
+curl -H "Authorization: Bearer <operator token>" https://headsupp_app.martin-598.workers.dev/api/v1/observability/overview
 ```
 
 Expected:
@@ -193,6 +195,19 @@ cd apps/headsupp-api
 $env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
 npm run smoke:tenant-isolation
 Remove-Item Env:CLOUDFLARE_API_TOKEN
+```
+
+## Release Soak Test
+
+```powershell
+cd apps/headsupp-api
+$env:HEADSUPP_SOAK_DURATION_SECONDS='60'
+$env:HEADSUPP_SOAK_INTERVAL_MS='5000'
+$env:HEADSUPP_SOAK_EVENTS_PER_TICK='1500'
+npm run soak:release
+Remove-Item Env:HEADSUPP_SOAK_DURATION_SECONDS
+Remove-Item Env:HEADSUPP_SOAK_INTERVAL_MS
+Remove-Item Env:HEADSUPP_SOAK_EVENTS_PER_TICK
 ```
 
 Expected:

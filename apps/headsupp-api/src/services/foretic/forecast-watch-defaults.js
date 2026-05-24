@@ -46,6 +46,16 @@ export function foreticForecastWatchDefinitions({ channel, context, now }) {
       threshold: 85,
       severity: 'warning',
       cooldown_seconds: 3600,
+      escalation_json: {
+        enabled: true,
+        condition: 'value < 70',
+        severity: 'critical',
+      },
+      recovery_json: {
+        enabled: true,
+        condition: 'value >= 95',
+        severity: 'recovery',
+      },
     },
     {
       ...base,
@@ -56,16 +66,11 @@ export function foreticForecastWatchDefinitions({ channel, context, now }) {
       threshold: 70,
       severity: 'critical',
       cooldown_seconds: 3600,
-    },
-    {
-      ...base,
-      watch_id: `${channel.channel_id}:watch:pace_recovery`,
-      watch_key: `${channel.channel_id}:pace_recovery`,
-      name: 'Forecast pace recovery',
-      watch_type: 'LAST_VALUE_GT',
-      threshold: 95,
-      severity: 'recovery',
-      cooldown_seconds: 3600,
+      recovery_json: {
+        enabled: true,
+        condition: 'value >= 95',
+        severity: 'recovery',
+      },
     },
   ];
 }

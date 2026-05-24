@@ -1,6 +1,13 @@
 import { classifyDeliveryResult } from './backoff.js';
+import { buildSignedWebhookHeaders } from './signing.js';
 
 export function genericAlertPayload(alert) {
+  let payload = {};
+  try {
+    payload = alert.payload_json ? JSON.parse(alert.payload_json) : {};
+  } catch {
+    payload = {};
+  }
   return {
     type: 'heads_up.alert',
     alert_id: alert.id,
@@ -13,6 +20,7 @@ export function genericAlertPayload(alert) {
     current_value: alert.current_value,
     threshold_value: alert.threshold_value,
     triggered_at: alert.triggered_at,
+    fields: payload.fields || {},
     cta: alert.cta_url
       ? {
           label: alert.cta_label,
@@ -60,6 +68,7 @@ export async function dispatchAlertDelivery({
   delivery,
   alert,
   subscriber,
+  env = {},
   fetchFn = fetch,
   now = new Date().toISOString(),
 }) {
@@ -68,12 +77,21 @@ export async function dispatchAlertDelivery({
   let error = null;
 
   try {
+    const body = JSON.stringify(alertDeliveryPayload(alert, subscriber));
+    const signedHeaders = await buildSignedWebhookHeaders({
+      body,
+      deliveryId: delivery.id,
+      subscriber,
+      env,
+      timestamp: Math.floor(Date.parse(now) / 1000),
+    });
     const response = await fetchFn(delivery.destination_url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...signedHeaders,
       },
-      body: JSON.stringify(alertDeliveryPayload(alert, subscriber)),
+      body,
     });
     responseStatus = response.status;
     responseBody = await response.text();

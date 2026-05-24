@@ -12,6 +12,7 @@
     "test:integration": "node --test \"test/integration/**/*.test.js\"",
     "check": "npm test",
     "load:smoke": "node scripts/load-smoke.mjs",
+    "soak:release": "node scripts/release-soak.mjs",
     "smoke:foretic": "node scripts/foretic-smoke.mjs",
     "smoke:generic-slack": "node scripts/generic-slack-smoke.mjs",
     "smoke:alert-decisions": "node scripts/alert-decisions-smoke.mjs",

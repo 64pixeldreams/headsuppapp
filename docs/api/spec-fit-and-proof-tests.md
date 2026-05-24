@@ -40,7 +40,7 @@ npm run load:smoke
 Current result:
 
 ```text
-137 tests passing
+151 tests passing
 load smoke accepts 10000 synthetic events
 ```
 
@@ -142,19 +142,17 @@ tenant B normal event does not notify tenant A subscriber
 only the intended tenant gets an alert delivery
 ```
 
-## Remaining Tests To Prove The API
+Additional correctness proofs now covered in code/runtime:
 
-1. Idempotency proof:
-   - Send the same `idempotency_key` twice.
-   - Expected: aggregate changes once, no duplicate alert.
-
-2. Batch proof:
-   - Send a batch with hundreds of events.
-   - Expected: one accepted ingest response, folded aggregate rows, no per-event Slack spam.
-
-3. API bootstrap proof:
-   - Provision the same scenarios through `POST /api/function` instead of operator D1 seeding.
-   - Expected: every smoke can run without direct D1 writes except cleanup.
+```text
+dedupe keys move through processing -> processed state before final duplicate suppression
+late events cannot overwrite aggregate last_value unless last_event_at is newer/equal
+contract extraction supports value_path/time_path/cta_path with value.num fallback
+dimensioned aggregates isolate fold and watch evaluation by dimensions_hash
+DELTA_LT and DELTA_GT watch types are evaluated from adjacent aggregate rows
+outbound webhook headers include timestamp/signature/delivery id when signing secret is configured
+observability endpoint requires operator auth token
+```
 
 ## Remaining Risk
 

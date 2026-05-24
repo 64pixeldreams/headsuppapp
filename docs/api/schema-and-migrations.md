@@ -4,6 +4,7 @@ The core D1 schema lives in:
 
 ```text
 apps/headsupp-api/migrations/0001_headsupp_core.sql
+apps/headsupp-api/migrations/0002_correctness_closure.sql
 ```
 
 It creates the MVP tables required by the product spec:
@@ -30,7 +31,7 @@ Important constraints:
 
 ```text
 signals: channel_id + signal_key unique
-aggregates: signal_id + bucket_type + bucket_start_at unique
+aggregates: signal_id + bucket_type + bucket_start_at + dimensions_hash unique
 aggregate_deliveries: subscriber_id + signal_id + bucket_type + bucket_start_at unique
 raw_event_dedupe: idempotency_key primary key
 control_plane_audit_logs: request/action/actor/target metadata only, no secrets
@@ -42,3 +43,13 @@ These constraints are required for idempotency, atomic aggregate upsert, and dup
 `control_plane_audit_logs` records low-volume admin/operator actions. It must not contain raw API keys, connector secrets, Slack webhook URLs, generic webhook destination URLs, or raw event payloads.
 
 `operational_status` records small status rows such as `scheduled_tasks`. It is used by observability to report whether cron-compatible work last succeeded or failed.
+
+`0002_correctness_closure.sql` adds:
+
+```text
+aggregates.dimensions_hash
+raw_event_dedupe.status
+raw_event_dedupe.processing_started_at
+raw_event_dedupe.processed_at
+raw_event_dedupe.updated_at
+```

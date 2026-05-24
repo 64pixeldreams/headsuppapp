@@ -32,6 +32,7 @@ export async function processAlertDeliveryMessage(message, env, options = {}) {
     delivery: bundle.delivery,
     alert: bundle.alert,
     subscriber: bundle.subscriber,
+    env,
     fetchFn: options.fetchFn,
     now: options.now,
   });

@@ -29,6 +29,7 @@ export async function registerForeticFunctions(cloudFunction) {
         auth,
         input: payload,
         store,
+        db: env.DB,
       });
 
       return resultToResponse(result);
@@ -53,6 +54,7 @@ export async function registerForeticFunctions(cloudFunction) {
         auth,
         input: payload,
         store,
+        db: env.DB,
         baseUrl: env.HEADSUPP_PUBLIC_URL || url?.origin || 'https://headsupp_app.example.workers.dev',
       });
 

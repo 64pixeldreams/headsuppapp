@@ -5,6 +5,8 @@ const WATCH_TYPES = new Set([
   'WINDOW_AVG_GT',
   'WINDOW_SUM_GT',
   'WINDOW_COUNT_GT',
+  'DELTA_LT',
+  'DELTA_GT',
 ]);
 
 export function parseWatchJson(value) {
@@ -75,6 +77,17 @@ export function evaluateWatchAgainstAggregates(watch, aggregates = []) {
   if (watch.watch_type === 'WINDOW_COUNT_GT') {
     currentValue = stats.count;
     triggered = currentValue > config.threshold;
+  }
+
+  if (watch.watch_type === 'DELTA_LT' || watch.watch_type === 'DELTA_GT') {
+    if (aggregates.length >= 2) {
+      const previous = Number(aggregates[aggregates.length - 2]?.last_value);
+      const latestValue = Number(latest?.last_value);
+      if (Number.isFinite(previous) && Number.isFinite(latestValue)) {
+        currentValue = latestValue - previous;
+        triggered = watch.watch_type === 'DELTA_LT' ? currentValue < config.threshold : currentValue > config.threshold;
+      }
+    }
   }
 
   return {

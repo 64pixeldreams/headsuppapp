@@ -50,7 +50,18 @@ test('GET /api/v1/observability/overview returns read-only counts', async () => 
       },
     },
   };
-  const response = await worker.fetch(new Request('https://example.com/api/v1/observability/overview'), env, ctx);
+  const response = await worker.fetch(
+    new Request('https://example.com/api/v1/observability/overview', {
+      headers: {
+        Authorization: 'Bearer test-operator-token',
+      },
+    }),
+    {
+      ...env,
+      HEADSUPP_OPERATOR_TOKEN: 'test-operator-token',
+    },
+    ctx,
+  );
   const body = await response.json();
 
   assert.equal(response.status, 200);

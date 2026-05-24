@@ -42,7 +42,8 @@ Rules:
 
 ```text
 single event and { "events": [...] } batch payloads are accepted
-each event requires signal_key, occurred_at, and numeric value.num
+each event requires signal_key and occurred_at
+numeric value can come from contract value_path or fallback value.num
 fields and cta must be objects when present
 batch messages are split into RAW_EVENTS_QUEUE sendBatch chunks of 100
 timestamp must be within allowed skew
@@ -161,13 +162,15 @@ The queue consumer processes raw messages in this order:
 
 ```text
 validate event shape again
-insert raw_event_dedupe row with INSERT OR IGNORE
-skip aggregate/watch work for duplicate idempotency keys
+mark raw_event_dedupe status as processing
+skip aggregate/watch work for already-processed idempotency keys
 resolve or lazily create signal and signal_contract
+extract value/time/cta from contract paths with value.num fallback
 create aggregate deltas for configured bucket types
-fold deltas by workspace/channel/signal/bucket
-upsert aggregates with SQL ON CONFLICT
+fold deltas by workspace/channel/signal/bucket/dimensions_hash
+upsert aggregates with SQL ON CONFLICT and timestamp-safe last_value update
 invoke WATCH_EVALUATOR for affected active watches
+mark dedupe status as processed only after successful aggregate and watch steps
 ```
 
 Watch evaluation is invoked through `WATCH_EVALUATOR.idFromName(watchId)` with:
@@ -179,6 +182,12 @@ Watch evaluation is invoked through `WATCH_EVALUATOR.idFromName(watchId)` with:
   "signalId": "sig_123",
   "bucketType": "hour",
   "bucketStartAt": "2026-05-24T10:00:00.000Z",
+  "dimensionsHash": "d7a4bf91",
+  "dimensionsJson": "{\"forecast_id\":\"fc_123\",\"status\":\"critical\"}",
+  "eventContext": {
+    "cta": { "label": "View forecast", "url": "https://foretic.io/forecasts/fc_123" },
+    "fields": { "forecast_id": "fc_123", "status": "critical" }
+  },
   "now": "2026-05-24T10:05:00.000Z"
 }
 ```

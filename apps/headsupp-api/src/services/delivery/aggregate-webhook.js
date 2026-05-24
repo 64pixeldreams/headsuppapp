@@ -1,4 +1,5 @@
 import { classifyDeliveryResult } from './backoff.js';
+import { buildSignedWebhookHeaders } from './signing.js';
 
 export async function updateAggregateDeliveryState(db, deliveryId, state, responseBody = null) {
   await db
@@ -25,6 +26,7 @@ export async function dispatchAggregateDelivery({
   db,
   delivery,
   subscriber,
+  env = {},
   fetchFn = fetch,
   now = new Date().toISOString(),
 }) {
@@ -32,9 +34,16 @@ export async function dispatchAggregateDelivery({
   let responseBody = null;
   let error = null;
   try {
+    const signedHeaders = await buildSignedWebhookHeaders({
+      body: delivery.payload_json,
+      deliveryId: delivery.id,
+      subscriber,
+      env,
+      timestamp: Math.floor(Date.parse(now) / 1000),
+    });
     const response = await fetchFn(subscriber.destination_url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...signedHeaders },
       body: delivery.payload_json,
     });
     responseStatus = response.status;

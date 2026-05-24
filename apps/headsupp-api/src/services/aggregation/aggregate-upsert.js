@@ -5,6 +5,8 @@ export const AGGREGATE_UPSERT_SQL = `INSERT INTO aggregates (
   signal_id,
   bucket_type,
   bucket_start_at,
+  dimensions_hash,
+  dimensions_json,
   sum_value,
   count_value,
   min_value,
@@ -14,11 +16,12 @@ export const AGGREGATE_UPSERT_SQL = `INSERT INTO aggregates (
   first_event_at,
   last_event_at,
   updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(signal_id, bucket_type, bucket_start_at)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(signal_id, bucket_type, bucket_start_at, dimensions_hash)
 DO UPDATE SET
   sum_value = aggregates.sum_value + excluded.sum_value,
   count_value = aggregates.count_value + excluded.count_value,
+  dimensions_json = excluded.dimensions_json,
   min_value = CASE
     WHEN aggregates.min_value IS NULL THEN excluded.min_value
     WHEN excluded.min_value IS NULL THEN aggregates.min_value
@@ -29,7 +32,10 @@ DO UPDATE SET
     WHEN excluded.max_value IS NULL THEN aggregates.max_value
     ELSE MAX(aggregates.max_value, excluded.max_value)
   END,
-  last_value = excluded.last_value,
+  last_value = CASE
+    WHEN excluded.last_event_at >= aggregates.last_event_at THEN excluded.last_value
+    ELSE aggregates.last_value
+  END,
   avg_value = (aggregates.sum_value + excluded.sum_value) / (aggregates.count_value + excluded.count_value),
   last_event_at = CASE
     WHEN excluded.last_event_at > aggregates.last_event_at THEN excluded.last_event_at
@@ -47,6 +53,8 @@ export async function upsertAggregateDelta(db, delta) {
       delta.signal_id,
       delta.bucket_type,
       delta.bucket_start_at,
+      delta.dimensions_hash || 'd0',
+      delta.dimensions_json || '{}',
       delta.sum_value,
       delta.count_value,
       delta.min_value,

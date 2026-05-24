@@ -259,7 +259,7 @@ Accepted response:
 ## Observability
 
 ```bash
-curl https://headsupp_app.martin-598.workers.dev/api/v1/observability/overview
+curl -H "Authorization: Bearer <operator token>" https://headsupp_app.martin-598.workers.dev/api/v1/observability/overview
 ```
 
 This returns operational counts for active watches, aggregate rows, alerts, and delivery states. It does not return raw event payloads or subscriber secrets.

@@ -85,7 +85,19 @@ Response:
 }
 ```
 
-The first implementation uses the Heads Up cache KV namespace as the control-plane store. Later stories can move metadata into D1/DataModel tables without changing the public API shape.
+Foretic provisioning is D1-canonical for runtime entities:
+
+```text
+workspaces
+channels
+connectors
+signals
+signal_contracts
+watches
+subscribers
+```
+
+KV remains ingest-only for `connector_by_key` lookup.
 
 ## Create Forecast Watch
 
@@ -130,9 +142,19 @@ Response:
       "signal_key": "forecast.revenue.pace"
     },
     "watches": [
-      { "watch_type": "LAST_VALUE_LT", "threshold": 85, "severity": "warning" },
-      { "watch_type": "LAST_VALUE_LT", "threshold": 70, "severity": "critical" },
-      { "watch_type": "LAST_VALUE_GT", "threshold": 95, "severity": "recovery" }
+      {
+        "watch_type": "LAST_VALUE_LT",
+        "threshold": 85,
+        "severity": "warning",
+        "escalation_json": { "enabled": true, "condition": "value < 70", "severity": "critical" },
+        "recovery_json": { "enabled": true, "condition": "value >= 95", "severity": "recovery" }
+      },
+      {
+        "watch_type": "LAST_VALUE_LT",
+        "threshold": 70,
+        "severity": "critical",
+        "recovery_json": { "enabled": true, "condition": "value >= 95", "severity": "recovery" }
+      }
     ],
     "subscribers": [
       { "subscriber_type": "slack_webhook", "destination_url_redacted": "https://hooks.slack.com/services/T_TEST/..." },
@@ -177,4 +199,6 @@ The `connector_secret` is returned only when the webhook connector is first crea
 43-foretic-external-tenant-context.md
 45-foretic-provision-workspace.md
 48-foretic-create-forecast-watch.md
+66-foretic-d1-canonical-provisioning.md
+72-foretic-recovery-semantics.md
 ```

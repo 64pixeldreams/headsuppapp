@@ -55,15 +55,15 @@ test('rejects event missing signal key', () => {
   assert.equal(result.code, 'MISSING_SIGNAL_KEY');
 });
 
-test('rejects event missing numeric value', () => {
+test('allows non-numeric value for contract-path extraction fallback', () => {
   const result = normalizeIncomingPayload({
     signal_key: 'oxygen.percent',
     occurred_at: '2026-05-23T14:00:00Z',
     value: { num: '10' },
   });
 
-  assert.equal(result.ok, false);
-  assert.equal(result.code, 'INVALID_VALUE');
+  assert.equal(result.ok, true);
+  assert.equal(result.events[0].value.num, null);
 });
 
 test('rejects invalid batch shape', () => {

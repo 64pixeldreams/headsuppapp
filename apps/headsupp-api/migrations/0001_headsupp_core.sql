@@ -145,6 +145,7 @@ CREATE TABLE IF NOT EXISTS aggregates (
   signal_key TEXT,
   bucket_type TEXT NOT NULL,
   bucket_start_at TEXT NOT NULL,
+  dimensions_hash TEXT NOT NULL DEFAULT 'd0',
   dimensions_json TEXT,
   sum_value REAL NOT NULL DEFAULT 0,
   count_value INTEGER NOT NULL DEFAULT 0,
@@ -157,7 +158,7 @@ CREATE TABLE IF NOT EXISTS aggregates (
   updated_at TEXT NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS ux_aggregates_signal_bucket ON aggregates(signal_id, bucket_type, bucket_start_at);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_aggregates_signal_bucket ON aggregates(signal_id, bucket_type, bucket_start_at, dimensions_hash);
 CREATE INDEX IF NOT EXISTS idx_aggregates_signal_bucket_time ON aggregates(signal_id, bucket_type, bucket_start_at);
 
 CREATE TABLE IF NOT EXISTS raw_event_dedupe (
@@ -165,7 +166,11 @@ CREATE TABLE IF NOT EXISTS raw_event_dedupe (
   workspace_id TEXT NOT NULL,
   channel_id TEXT NOT NULL,
   signal_key TEXT,
-  received_at TEXT NOT NULL
+  received_at TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'processing',
+  processing_started_at TEXT,
+  processed_at TEXT,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_raw_event_dedupe_received_at ON raw_event_dedupe(received_at);

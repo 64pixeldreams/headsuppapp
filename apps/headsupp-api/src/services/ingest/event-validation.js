@@ -32,8 +32,8 @@ export function validateIncomingEvent(event, index = 0) {
     return error('INVALID_OCCURRED_AT', `Event at index ${index} requires a valid occurred_at timestamp.`);
   }
 
-  if (!isObject(event.value) || !Number.isFinite(event.value.num)) {
-    return error('INVALID_VALUE', `Event at index ${index} requires value.num as a number.`);
+  if (event.value !== undefined && !isObject(event.value)) {
+    return error('INVALID_VALUE', `Event at index ${index} value must be an object when provided.`);
   }
 
   if (event.fields !== undefined && !isObject(event.fields)) {
@@ -51,7 +51,7 @@ export function validateIncomingEvent(event, index = 0) {
       signal_key: signalKey,
       occurred_at: new Date(occurredAt).toISOString(),
       value: {
-        num: event.value.num,
+        num: Number.isFinite(event.value?.num) ? event.value.num : null,
       },
       fields: event.fields || {},
       cta: event.cta || null,
