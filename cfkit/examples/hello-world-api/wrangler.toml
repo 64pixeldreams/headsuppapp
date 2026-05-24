@@ -1,0 +1,11 @@
+name = "hello-world-api"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+account_id = "YOUR_CLOUDFLARE_ACCOUNT_ID"
+
+[vars]
+ENVIRONMENT = "development"
+
+# Note: This example doesn't require KV namespaces or D1 databases
+# It only uses CloudFunctions, so no additional resources are needed
+

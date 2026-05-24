@@ -1,0 +1,6 @@
+{
+  "name": "@headsupp/cfkit-vendor",
+  "version": "0.0.0-vendored",
+  "private": true,
+  "type": "module"
+}

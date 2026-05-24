@@ -1,0 +1,27 @@
+export default {
+  project: 'headsupp_app',
+  rules: [
+    'Use the vendored CFKit framework for control-plane auth, logging, CloudFunctions, and metadata patterns.',
+    'Do not touch Foretic code or any other app while building Heads Up.',
+    'Build story by story from the stories folder; expand the story before implementation.',
+    'Write focused tests first where practical, then run npm test or npm run check from apps/headsupp-api.',
+    'Fix failing tests and rerun before moving to the next story.',
+    'Keep public API docs in docs/api current with every endpoint, auth, payload, or integration change.',
+    'Keep code modular with small files; avoid large catch-all modules.',
+    'Use direct D1, Queues, Durable Objects, and Cron for the hot event path; do not force high-volume aggregation through CFKit DataModel.',
+    'Use source_app, external_tenant_id, external_user_id, and workspace_id for tenant boundaries.',
+    'Never commit real Slack webhook URLs, API keys, connector secrets, or tokens.',
+    'Prefer clear, minimal comments around non-obvious behavior only.',
+  ],
+  requiredDocs: [
+    'SPEC_BREIF.md',
+    'Curosr_headsupp_product_brief.md',
+    'docs/cursor-build-loop.md',
+    'docs/testing-harness.md',
+    'docs/story-execution.md',
+    'docs/cfkit-integration.md',
+    'docs/foretic-auth-subscriber-foundation-plan.md',
+    'docs/cursor-plan-build-foundation-stories.md',
+    'docs/api/README.md',
+  ],
+};

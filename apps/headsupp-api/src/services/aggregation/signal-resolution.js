@@ -1,0 +1,107 @@
+import { stableId } from '../ids/stable-id.js';
+
+export const DEFAULT_SIGNAL_CONTRACT = Object.freeze({
+  dimensions: [],
+  default_bucket_types: ['minute', 'hour', 'day'],
+  default_aggregate: 'avg',
+});
+
+function parseContract(value) {
+  if (!value) return DEFAULT_SIGNAL_CONTRACT;
+  if (typeof value === 'object') return { ...DEFAULT_SIGNAL_CONTRACT, ...value };
+  try {
+    return { ...DEFAULT_SIGNAL_CONTRACT, ...JSON.parse(value) };
+  } catch {
+    return DEFAULT_SIGNAL_CONTRACT;
+  }
+}
+
+async function getSignal(db, channelId, signalKey) {
+  return db
+    .prepare('SELECT * FROM signals WHERE channel_id = ? AND signal_key = ? LIMIT 1')
+    .bind(channelId, signalKey)
+    .first();
+}
+
+async function createSignal(db, message, now) {
+  const signal = {
+    id: stableId('sig', `${message.channelId}:${message.event.signal_key}`),
+    workspace_id: message.workspaceId,
+    channel_id: message.channelId,
+    signal_key: message.event.signal_key,
+    signal_type: 'metric',
+    value_mode: 'avg',
+    status: 'active',
+    created_at: now,
+    updated_at: now,
+  };
+
+  await db
+    .prepare(
+      `INSERT INTO signals (
+        id, workspace_id, channel_id, signal_key, signal_type, value_mode, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      signal.id,
+      signal.workspace_id,
+      signal.channel_id,
+      signal.signal_key,
+      signal.signal_type,
+      signal.value_mode,
+      signal.status,
+      signal.created_at,
+      signal.updated_at,
+    )
+    .run();
+
+  return signal;
+}
+
+async function getContract(db, signalId) {
+  return db.prepare('SELECT * FROM signal_contracts WHERE signal_id = ? LIMIT 1').bind(signalId).first();
+}
+
+async function createDefaultContract(db, signal, now) {
+  const contractRow = {
+    id: stableId('contract', signal.id),
+    signal_id: signal.id,
+    contract_json: JSON.stringify(DEFAULT_SIGNAL_CONTRACT),
+    created_at: now,
+    updated_at: now,
+  };
+
+  await db
+    .prepare(
+      `INSERT INTO signal_contracts (
+        id, signal_id, contract_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?)`,
+    )
+    .bind(contractRow.id, contractRow.signal_id, contractRow.contract_json, contractRow.created_at, contractRow.updated_at)
+    .run();
+
+  return contractRow;
+}
+
+export async function resolveSignalAndContract(db, message, now = new Date().toISOString()) {
+  let signal = await getSignal(db, message.channelId, message.event.signal_key);
+  let signalCreated = false;
+  if (!signal) {
+    signal = await createSignal(db, message, now);
+    signalCreated = true;
+  }
+
+  let contractRow = await getContract(db, signal.id);
+  let contractCreated = false;
+  if (!contractRow) {
+    contractRow = await createDefaultContract(db, signal, now);
+    contractCreated = true;
+  }
+
+  return {
+    signal,
+    contract: parseContract(contractRow.contract_json),
+    signalCreated,
+    contractCreated,
+  };
+}

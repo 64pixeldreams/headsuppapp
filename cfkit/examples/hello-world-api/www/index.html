@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hello World API - CFKit Example</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        
+        .endpoint {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-left: 4px solid #667eea;
+            border-radius: 8px;
+        }
+        
+        .endpoint h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 20px;
+        }
+        
+        .endpoint p {
+            color: #666;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        
+        input {
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin-top: 15px;
+            font-size: 13px;
+            line-height: 1.5;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .success {
+            color: #28a745;
+            border-color: #28a745;
+        }
+        
+        .error {
+            color: #dc3545;
+            border-color: #dc3545;
+        }
+        
+        .loading {
+            color: #667eea;
+        }
+        
+        .code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+    </style>
+    <script src="../../www/cframeworkjs/cframework.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Hello World API - CFKit Example</h1>
+        <p class="subtitle">Interactive test page demonstrating CFKit CloudFunction API</p>
+
+        <!-- Hello World Endpoint -->
+        <div class="endpoint">
+            <h3>1. hello.world</h3>
+            <p>Simple hello world endpoint (no parameters required)</p>
+            <button onclick="testHelloWorld()">Test hello.world</button>
+            <pre id="result1" class="loading">Click button to test...</pre>
+        </div>
+
+        <!-- Greet Endpoint -->
+        <div class="endpoint">
+            <h3>2. hello.greet</h3>
+            <p>Greet someone by name (requires <span class="code">name</span> parameter)</p>
+            <div class="input-group">
+                <input type="text" id="nameInput" placeholder="Enter your name" value="Alice">
+                <button onclick="testGreet()">Test hello.greet</button>
+            </div>
+            <pre id="result2" class="loading">Click button to test...</pre>
+        </div>
+
+        <!-- Echo Endpoint -->
+        <div class="endpoint">
+            <h3>3. hello.echo</h3>
+            <p>Echo back a message (requires <span class="code">message</span> parameter)</p>
+            <div class="input-group">
+                <input type="text" id="messageInput" placeholder="Enter message" value="Hello from CFKit!">
+                <button onclick="testEcho()">Test hello.echo</button>
+            </div>
+            <pre id="result3" class="loading">Click button to test...</pre>
+        </div>
+
+        <!-- Health Check -->
+        <div class="endpoint">
+            <h3>4. Health Check</h3>
+            <p>Simple GET endpoint (not a CloudFunction, direct route)</p>
+            <button onclick="testHealth()">Test /health</button>
+            <pre id="result4" class="loading">Click button to test...</pre>
+        </div>
+    </div>
+
+    <script>
+        // Initialize CFramework
+        // Auto-detect server URL based on current location
+        const serverUrl = window.location.origin.includes('localhost') 
+            ? 'http://localhost:8787' 
+            : window.location.origin;
+        
+        cf.init({
+            serverUrl: serverUrl,
+            appName: 'hello-world-api'
+        });
+
+        // Helper function to update result display
+        function updateResult(elementId, data, isError = false) {
+            const resultEl = document.getElementById(elementId);
+            resultEl.className = isError ? 'error' : 'success';
+            resultEl.textContent = JSON.stringify(data, null, 2);
+        }
+
+        // Test functions
+        async function testHelloWorld() {
+            const resultEl = document.getElementById('result1');
+            resultEl.className = 'loading';
+            resultEl.textContent = 'Calling hello.world...';
+            
+            try {
+                const result = await cf.run('hello.world', {});
+                updateResult('result1', result);
+            } catch (error) {
+                updateResult('result1', { error: error.message }, true);
+            }
+        }
+
+        async function testGreet() {
+            const resultEl = document.getElementById('result2');
+            const name = document.getElementById('nameInput').value.trim();
+            
+            if (!name) {
+                updateResult('result2', { error: 'Name is required' }, true);
+                return;
+            }
+            
+            resultEl.className = 'loading';
+            resultEl.textContent = `Calling hello.greet with name: ${name}...`;
+            
+            try {
+                const result = await cf.run('hello.greet', { name });
+                updateResult('result2', result);
+            } catch (error) {
+                updateResult('result2', { error: error.message }, true);
+            }
+        }
+
+        async function testEcho() {
+            const resultEl = document.getElementById('result3');
+            const message = document.getElementById('messageInput').value.trim();
+            
+            if (!message) {
+                updateResult('result3', { error: 'Message is required' }, true);
+                return;
+            }
+            
+            resultEl.className = 'loading';
+            resultEl.textContent = `Calling hello.echo with message: ${message}...`;
+            
+            try {
+                const result = await cf.run('hello.echo', { message });
+                updateResult('result3', result);
+            } catch (error) {
+                updateResult('result3', { error: error.message }, true);
+            }
+        }
+
+        async function testHealth() {
+            const resultEl = document.getElementById('result4');
+            resultEl.className = 'loading';
+            resultEl.textContent = 'Calling /health...';
+            
+            try {
+                const response = await fetch(serverUrl + '/health');
+                const data = await response.json();
+                updateResult('result4', data);
+            } catch (error) {
+                updateResult('result4', { error: error.message }, true);
+            }
+        }
+    </script>
+</body>
+</html>
+

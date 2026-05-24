@@ -1,0 +1,24 @@
+{
+  "name": "hello-world-api",
+  "version": "1.0.0",
+  "description": "CFKit Hello World API Example - Minimal example demonstrating CloudFunction usage",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "cfkit",
+    "example",
+    "api"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}
+

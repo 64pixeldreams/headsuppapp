@@ -1,0 +1,107 @@
+import { evaluateWatchAgainstAggregates, watchConfig } from './evaluate-watch.js';
+import { decideAlertAction } from './alert-decision.js';
+import { persistAlertWithDeliveries } from '../alerts/persistence.js';
+
+export async function loadWatch(db, watchId) {
+  return db.prepare('SELECT * FROM watches WHERE id = ? OR watch_id = ? LIMIT 1').bind(watchId, watchId).first();
+}
+
+export async function loadWatchState(db, watchId) {
+  return db.prepare('SELECT * FROM watch_states WHERE watch_id = ? LIMIT 1').bind(watchId).first();
+}
+
+export async function loadAggregatesForWatch(db, watch, input) {
+  const config = watchConfig(watch);
+  const bucketType = input.bucketType || config.bucket_type;
+
+  if (watch.watch_type.startsWith('WINDOW_')) {
+    const limit = Number(config.window?.size || 60);
+    const result = await db
+      .prepare(
+        `SELECT *
+         FROM aggregates
+         WHERE signal_id = ? AND bucket_type = ? AND bucket_start_at <= ?
+         ORDER BY bucket_start_at DESC
+         LIMIT ?`,
+      )
+      .bind(watch.signal_id || input.signalId, bucketType, input.bucketStartAt, limit)
+      .all();
+    return (result?.results || []).reverse();
+  }
+
+  const aggregate = await db
+    .prepare(
+      `SELECT *
+       FROM aggregates
+       WHERE signal_id = ? AND bucket_type = ? AND bucket_start_at = ?
+       LIMIT 1`,
+    )
+    .bind(watch.signal_id || input.signalId, bucketType, input.bucketStartAt)
+    .first();
+
+  return aggregate ? [aggregate] : [];
+}
+
+async function enqueueAlertDeliveries(queue, deliveries) {
+  if (!queue?.sendBatch || deliveries.length === 0) return 0;
+
+  await queue.sendBatch(
+    deliveries.map((delivery) => ({
+      body: {
+        alertDeliveryId: delivery.id,
+      },
+    })),
+  );
+  return deliveries.length;
+}
+
+export async function evaluateWatchRequest({ db, env = {}, input, now = input.now || new Date().toISOString() }) {
+  const watch = await loadWatch(db, input.watchId);
+  if (!watch) {
+    return {
+      evaluated: false,
+      reason: 'WATCH_NOT_FOUND',
+    };
+  }
+
+  if (watch.enabled === 0 || watch.enabled === false) {
+    return {
+      evaluated: false,
+      reason: 'WATCH_DISABLED',
+    };
+  }
+
+  const [state, aggregates] = await Promise.all([
+    loadWatchState(db, watch.id || watch.watch_id),
+    loadAggregatesForWatch(db, watch, input),
+  ]);
+  const evaluation = evaluateWatchAgainstAggregates(watch, aggregates);
+  const decision = decideAlertAction({ watch, evaluation, state, now });
+
+  if (!['alert', 'escalation', 'recovery'].includes(decision.action)) {
+    return {
+      evaluated: true,
+      action: decision.action,
+      reason: decision.reason,
+      evaluation,
+    };
+  }
+
+  const persisted = await persistAlertWithDeliveries({
+    db,
+    watch,
+    evaluation,
+    decision,
+    input,
+    now,
+  });
+  const enqueued_deliveries = await enqueueAlertDeliveries(env.ALERT_DELIVERY_QUEUE, persisted.deliveries);
+
+  return {
+    evaluated: true,
+    action: decision.action,
+    alert_id: persisted.alert.id,
+    deliveries: persisted.deliveries.length,
+    enqueued_deliveries,
+  };
+}

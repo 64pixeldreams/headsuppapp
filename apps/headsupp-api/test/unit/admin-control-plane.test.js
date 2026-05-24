@@ -1,0 +1,112 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import {
+  buildConnectorRow,
+  buildSubscriberRow,
+  buildWatchRow,
+  createAdminSignal,
+  createAdminWorkspace,
+} from '../../src/services/admin/control-plane.js';
+
+function dbRecorder(calls = []) {
+  return {
+    prepare(sql) {
+      return {
+        bind(...params) {
+          calls.push({ sql, params });
+          return {
+            async run() {
+              return { meta: { changes: 1 } };
+            },
+          };
+        },
+      };
+    },
+  };
+}
+
+const auth = {
+  user_id: 'user_admin',
+  permissions: ['workspace:create', 'signal:create'],
+};
+
+test('admin workspace creation requires permission and inserts D1 row', async () => {
+  const calls = [];
+  const result = await createAdminWorkspace({
+    auth,
+    db: dbRecorder(calls),
+    input: { name: 'Foretic Demo', source_app: 'foretic', external_tenant_id: 'user:123' },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.workspace.source_app, 'foretic');
+  assert.match(calls[0].sql, /INSERT OR IGNORE INTO workspaces/);
+});
+
+test('admin workspace creation rejects missing permission', async () => {
+  const result = await createAdminWorkspace({
+    auth: { user_id: 'user_admin', permissions: [] },
+    db: dbRecorder(),
+    input: { name: 'Denied' },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'PERMISSION_DENIED');
+});
+
+test('admin signal creation can persist a contract', async () => {
+  const calls = [];
+  const result = await createAdminSignal({
+    auth,
+    db: dbRecorder(calls),
+    input: {
+      workspace_id: 'ws_123',
+      channel_id: 'ch_123',
+      signal_key: 'forecast.revenue.pace',
+      contract: { default_bucket_types: ['hour'], dimensions: ['forecast_id'] },
+    },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(calls.length, 2);
+  assert.match(calls[1].sql, /INSERT OR IGNORE INTO signal_contracts/);
+});
+
+test('connector row includes one-time secret material', () => {
+  const row = buildConnectorRow(
+    { workspace_id: 'ws_123', channel_id: 'ch_123', connector_type: 'webhook' },
+    '2026-05-24T10:00:00.000Z',
+    () => 'hu_sec_test',
+  );
+
+  assert.equal(row.connector_secret, 'hu_sec_test');
+  assert.equal(row.enabled, 1);
+});
+
+test('subscriber row validates and redacts destination URL', () => {
+  const built = buildSubscriberRow({
+    workspace_id: 'ws_123',
+    channel_id: 'ch_123',
+    subscriber_type: 'webhook',
+    destination_url: 'https://api.example.com/hooks/abc123',
+  });
+
+  assert.equal(built.ok, true);
+  assert.equal(built.row.destination_url_redacted, 'https://api.example.com/hooks/abc123/...');
+});
+
+test('watch row serializes config JSON', () => {
+  const row = buildWatchRow({
+    workspace_id: 'ws_123',
+    channel_id: 'ch_123',
+    signal_id: 'sig_123',
+    name: 'Pace behind',
+    watch_type: 'LAST_VALUE_LT',
+    config: { threshold: 85 },
+  });
+
+  assert.deepEqual(JSON.parse(row.config_json), { threshold: 85 });
+});

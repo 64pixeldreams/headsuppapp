@@ -1,0 +1,228 @@
+CREATE TABLE IF NOT EXISTS workspaces (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT UNIQUE,
+  workspace_key TEXT UNIQUE,
+  name TEXT NOT NULL,
+  source_app TEXT,
+  external_tenant_id TEXT,
+  external_user_id TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL,
+  updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS channels (
+  id TEXT PRIMARY KEY,
+  channel_id TEXT UNIQUE,
+  workspace_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  channel_key TEXT NOT NULL UNIQUE,
+  purpose TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  source_app TEXT,
+  external_tenant_id TEXT,
+  external_user_id TEXT,
+  external_resource_id TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_channels_workspace_id ON channels(workspace_id);
+
+CREATE TABLE IF NOT EXISTS connectors (
+  id TEXT PRIMARY KEY,
+  connector_id TEXT UNIQUE,
+  workspace_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  connector_type TEXT NOT NULL,
+  connector_key TEXT NOT NULL UNIQUE,
+  secret_hash TEXT,
+  connector_secret TEXT,
+  config_json TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  source_app TEXT,
+  external_tenant_id TEXT,
+  external_user_id TEXT,
+  external_resource_id TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_connectors_channel_id ON connectors(channel_id);
+
+CREATE TABLE IF NOT EXISTS subscribers (
+  id TEXT PRIMARY KEY,
+  subscriber_id TEXT UNIQUE,
+  workspace_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  subscriber_type TEXT NOT NULL,
+  name TEXT NOT NULL,
+  destination_url TEXT NOT NULL,
+  destination_url_redacted TEXT,
+  secret_hash TEXT,
+  mode TEXT NOT NULL DEFAULT 'alert',
+  config_json TEXT,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  source_app TEXT,
+  external_tenant_id TEXT,
+  external_user_id TEXT,
+  external_resource_id TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_subscribers_channel_id ON subscribers(channel_id);
+
+CREATE TABLE IF NOT EXISTS signals (
+  id TEXT PRIMARY KEY,
+  signal_id TEXT UNIQUE,
+  workspace_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  signal_key TEXT NOT NULL,
+  signal_type TEXT NOT NULL,
+  value_mode TEXT NOT NULL,
+  unit TEXT,
+  description TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_signals_channel_key ON signals(channel_id, signal_key);
+CREATE INDEX IF NOT EXISTS idx_signals_channel_id ON signals(channel_id);
+
+CREATE TABLE IF NOT EXISTS signal_contracts (
+  id TEXT PRIMARY KEY,
+  signal_contract_id TEXT UNIQUE,
+  signal_id TEXT NOT NULL,
+  contract_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS watches (
+  id TEXT PRIMARY KEY,
+  watch_id TEXT UNIQUE,
+  workspace_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  signal_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  watch_type TEXT NOT NULL,
+  config_json TEXT NOT NULL,
+  cooldown_seconds INTEGER NOT NULL DEFAULT 86400,
+  escalation_json TEXT,
+  recovery_json TEXT,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_watches_signal_id ON watches(signal_id);
+CREATE INDEX IF NOT EXISTS idx_watches_channel_id ON watches(channel_id);
+CREATE INDEX IF NOT EXISTS idx_watches_enabled ON watches(enabled);
+
+CREATE TABLE IF NOT EXISTS watch_states (
+  watch_id TEXT PRIMARY KEY,
+  last_status TEXT,
+  last_evaluated_at TEXT,
+  last_alert_at TEXT,
+  last_alert_value REAL,
+  last_alert_severity TEXT,
+  cooldown_until TEXT,
+  last_emitted_bucket_start_at TEXT,
+  last_digest_at TEXT,
+  last_recovery_at TEXT,
+  state_json TEXT,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS aggregates (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  signal_id TEXT NOT NULL,
+  signal_key TEXT,
+  bucket_type TEXT NOT NULL,
+  bucket_start_at TEXT NOT NULL,
+  dimensions_json TEXT,
+  sum_value REAL NOT NULL DEFAULT 0,
+  count_value INTEGER NOT NULL DEFAULT 0,
+  min_value REAL,
+  max_value REAL,
+  last_value REAL,
+  avg_value REAL,
+  first_event_at TEXT,
+  last_event_at TEXT,
+  updated_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_aggregates_signal_bucket ON aggregates(signal_id, bucket_type, bucket_start_at);
+CREATE INDEX IF NOT EXISTS idx_aggregates_signal_bucket_time ON aggregates(signal_id, bucket_type, bucket_start_at);
+
+CREATE TABLE IF NOT EXISTS raw_event_dedupe (
+  idempotency_key TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  signal_key TEXT,
+  received_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_raw_event_dedupe_received_at ON raw_event_dedupe(received_at);
+
+CREATE TABLE IF NOT EXISTS alerts (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  signal_id TEXT NOT NULL,
+  watch_id TEXT NOT NULL,
+  triggered_at TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  current_value REAL,
+  threshold_value REAL,
+  summary_text TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  cta_label TEXT,
+  cta_url TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_alerts_watch_id ON alerts(watch_id);
+CREATE INDEX IF NOT EXISTS idx_alerts_channel_id ON alerts(channel_id);
+
+CREATE TABLE IF NOT EXISTS alert_deliveries (
+  id TEXT PRIMARY KEY,
+  alert_id TEXT NOT NULL,
+  subscriber_id TEXT NOT NULL,
+  destination_url TEXT NOT NULL,
+  status TEXT NOT NULL,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  last_attempt_at TEXT,
+  next_retry_at TEXT,
+  response_code INTEGER,
+  response_body TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_alert_deliveries_status_next ON alert_deliveries(status, next_retry_at);
+
+CREATE TABLE IF NOT EXISTS aggregate_deliveries (
+  id TEXT PRIMARY KEY,
+  subscriber_id TEXT NOT NULL,
+  signal_id TEXT NOT NULL,
+  bucket_type TEXT NOT NULL,
+  bucket_start_at TEXT NOT NULL,
+  status TEXT NOT NULL,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  payload_json TEXT NOT NULL,
+  last_attempt_at TEXT,
+  next_retry_at TEXT,
+  response_code INTEGER,
+  response_body TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_aggregate_delivery_once
+ON aggregate_deliveries(subscriber_id, signal_id, bucket_type, bucket_start_at);

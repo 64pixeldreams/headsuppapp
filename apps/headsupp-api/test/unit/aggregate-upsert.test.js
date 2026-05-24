@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import { AGGREGATE_UPSERT_SQL, upsertAggregateDelta } from '../../src/services/aggregation/aggregate-upsert.js';
+
+const delta = {
+  id: 'sig_1:minute:2026-05-24T10:00:00.000Z',
+  workspace_id: 'ws_123',
+  channel_id: 'ch_123',
+  signal_id: 'sig_1',
+  bucket_type: 'minute',
+  bucket_start_at: '2026-05-24T10:00:00.000Z',
+  sum_value: 30,
+  count_value: 2,
+  min_value: 10,
+  max_value: 20,
+  last_value: 20,
+  avg_value: 15,
+  first_event_at: '2026-05-24T10:00:01.000Z',
+  last_event_at: '2026-05-24T10:00:03.000Z',
+  updated_at: '2026-05-24T10:00:04.000Z',
+};
+
+test('aggregate upsert SQL uses atomic conflict update', () => {
+  assert.match(AGGREGATE_UPSERT_SQL, /ON CONFLICT\(signal_id, bucket_type, bucket_start_at\)/);
+  assert.match(AGGREGATE_UPSERT_SQL, /sum_value = aggregates\.sum_value \+ excluded\.sum_value/);
+  assert.match(AGGREGATE_UPSERT_SQL, /count_value = aggregates\.count_value \+ excluded\.count_value/);
+});
+
+test('upserts aggregate delta with bound values', async () => {
+  const calls = [];
+  const db = {
+    prepare(sql) {
+      return {
+        bind(...params) {
+          calls.push({ sql, params });
+          return {
+            async run() {
+              return { meta: { changes: 1 } };
+            },
+          };
+        },
+      };
+    },
+  };
+
+  await upsertAggregateDelta(db, delta);
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].params[0], delta.id);
+  assert.equal(calls[0].params[6], 30);
+  assert.equal(calls[0].params[14], delta.updated_at);
+});

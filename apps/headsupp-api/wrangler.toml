@@ -1,0 +1,83 @@
+name = "headsupp_app"
+main = "src/index.js"
+compatibility_date = "2026-05-24"
+workers_dev = true
+
+account_id = "55987b6602e8ac9db46e14dcc7ad2c79"
+
+[vars]
+ENVIRONMENT = "development"
+APP_NAME = "headsupp_app"
+DB_BOOTSTRAP_ENABLED = "true"
+DB_BOOTSTRAP_BLOCKING = "false"
+
+[triggers]
+crons = ["* * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "headsup_db"
+database_id = "715838d2-00c0-436f-a878-3a079f9e49f2"
+
+[[kv_namespaces]]
+binding = "HEADSUPP_USERS"
+id = "1c8beee653014d54971cff759c239d39"
+
+[[kv_namespaces]]
+binding = "HEADSUPP_SESSIONS"
+id = "7bf7a07c0266460f85d2e58e191c2bd2"
+
+[[kv_namespaces]]
+binding = "HEADSUPP_CACHE"
+id = "32193cc252084002bedf07caa8c5996c"
+
+[[kv_namespaces]]
+binding = "HEADSUPP_EMAILS"
+id = "83f8f2ad31034f08aaf0a1a304bfa4cf"
+
+[[kv_namespaces]]
+binding = "HEADSUPP_KEYS"
+id = "58cdef969536475893b56738130aa4d9"
+
+[[kv_namespaces]]
+binding = "HEADSUPP_LISTS"
+id = "18156b2c0a964b3e8246d2a50990a4b6"
+
+[[queues.producers]]
+binding = "RAW_EVENTS_QUEUE"
+queue = "headsup-raw-events"
+
+[[queues.consumers]]
+queue = "headsup-raw-events"
+max_batch_size = 100
+max_batch_timeout = 5
+
+[[queues.producers]]
+binding = "ALERT_DELIVERY_QUEUE"
+queue = "headsup-alert-delivery"
+
+[[queues.consumers]]
+queue = "headsup-alert-delivery"
+max_batch_size = 25
+max_batch_timeout = 5
+
+[[queues.producers]]
+binding = "AGGREGATE_DELIVERY_QUEUE"
+queue = "headsup-aggregate-delivery"
+
+[[queues.consumers]]
+queue = "headsup-aggregate-delivery"
+max_batch_size = 25
+max_batch_timeout = 5
+
+[[durable_objects.bindings]]
+name = "WATCH_EVALUATOR"
+class_name = "WatchEvaluatorDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["WatchEvaluatorDO"]
+
+[observability.logs]
+enabled = true
+invocation_logs = true
