@@ -226,3 +226,34 @@ CREATE TABLE IF NOT EXISTS aggregate_deliveries (
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_aggregate_delivery_once
 ON aggregate_deliveries(subscriber_id, signal_id, bucket_type, bucket_start_at);
+
+CREATE TABLE IF NOT EXISTS control_plane_audit_logs (
+  id TEXT PRIMARY KEY,
+  action TEXT NOT NULL,
+  actor_user_id TEXT,
+  actor_key_id TEXT,
+  target_type TEXT,
+  target_id TEXT,
+  source_app TEXT,
+  external_tenant_id TEXT,
+  workspace_id TEXT,
+  request_id TEXT,
+  success INTEGER NOT NULL DEFAULT 1,
+  error_code TEXT,
+  metadata_json TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_control_plane_audit_created_at ON control_plane_audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_control_plane_audit_workspace ON control_plane_audit_logs(workspace_id, created_at);
+
+CREATE TABLE IF NOT EXISTS operational_status (
+  key TEXT PRIMARY KEY,
+  status TEXT NOT NULL,
+  last_success_at TEXT,
+  last_failure_at TEXT,
+  last_error_code TEXT,
+  last_error_message TEXT,
+  metadata_json TEXT,
+  updated_at TEXT NOT NULL
+);

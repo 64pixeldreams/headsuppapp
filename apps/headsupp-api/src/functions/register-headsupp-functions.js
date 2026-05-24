@@ -1,10 +1,12 @@
 import { sanitizeAuthContext } from '../services/auth/permissions.js';
 import { registerAdminFunctions } from './admin-functions.js';
 import { registerForeticFunctions } from './foretic-functions.js';
+import { registerOperatorFunctions } from './operator-functions.js';
 
 export async function registerHeadsuppFunctions(cloudFunction) {
   await registerAdminFunctions(cloudFunction);
   await registerForeticFunctions(cloudFunction);
+  await registerOperatorFunctions(cloudFunction);
 
   cloudFunction.define(
     'headsupp.health',

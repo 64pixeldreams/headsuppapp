@@ -6,7 +6,7 @@ Heads Up exposes read-only operational endpoints for debugging and build verific
 
 `GET /api/v1/observability/overview`
 
-Returns counts for active watches, aggregate rows, and delivery states.
+Returns counts for active watches, aggregate rows, delivery states, retry backlog, stale pending deliveries, and scheduled task health.
 
 Example response:
 
@@ -14,6 +14,7 @@ Example response:
 {
   "success": true,
   "data": {
+    "status": "degraded",
     "active_watches": 2,
     "aggregate_rows": 99,
     "deliveries": {
@@ -27,7 +28,36 @@ Example response:
         "retrying": 1,
         "failed": 2
       }
+    },
+    "operator_health": {
+      "retry_backlog": {
+        "alerts_due": 1,
+        "aggregates_due": 0
+      },
+      "old_pending": {
+        "alerts": 0,
+        "aggregates": 0
+      },
+      "scheduled_tasks": {
+        "status": "ok",
+        "last_success_at": "2026-05-24T18:00:00.000Z",
+        "last_failure_at": null,
+        "last_error_code": null,
+        "last_error_message": null,
+        "updated_at": "2026-05-24T18:00:00.000Z"
+      }
     }
   }
 }
 ```
+
+Status meanings:
+
+```text
+ok: no failed or retrying deliveries and cron is healthy
+watch: retry backlog exists but no failures are recorded
+degraded: failed deliveries exist
+error: scheduled task status reports error
+```
+
+Operational fields are safe for operators. They do not include raw payloads, API keys, connector secrets, or full webhook destinations.

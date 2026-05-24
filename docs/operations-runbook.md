@@ -1,0 +1,194 @@
+# Heads Up Operations Runbook
+
+This runbook is for operating the API-only Heads Up service. It focuses on deployed smoke failures, queue/delivery issues, D1 problems, cron failures, and Worker exceptions.
+
+## Safety Rules
+
+```text
+do not commit Cloudflare tokens
+do not commit Slack webhook URLs
+do not commit connector secrets or API keys
+do not edit production D1 manually unless it is an explicit break-glass action
+prefer documented scripts and migrations over one-off SQL
+```
+
+## First Checks
+
+```powershell
+cd apps/headsupp-api
+npm run check
+npm run load:smoke
+```
+
+Then inspect deployed health:
+
+```powershell
+curl https://headsupp_app.martin-598.workers.dev/health
+curl https://headsupp_app.martin-598.workers.dev/api/v1/observability/overview
+```
+
+The observability response is safe for operators. It must not include raw event payloads, connector secrets, API keys, or full webhook URLs.
+
+## Failed Deployed Smoke
+
+Check:
+
+```text
+which smoke failed
+whether CLOUDFLARE_API_TOKEN is present at runtime
+whether HEADSUPP_SMOKE_SLACK_WEBHOOK_URL is present for Slack smokes
+whether D1 migration has been applied remotely
+whether the Worker was deployed after code changes
+```
+
+Useful commands:
+
+```powershell
+npm run smoke:generic-slack
+npm run smoke:alert-decisions
+npm run smoke:scheduled
+npm run smoke:delivery-retry
+npm run smoke:tenant-isolation
+```
+
+If a smoke fails after provisioning, rerun once after checking Worker logs. Do not repeatedly run failing smokes without reading the error because deterministic smoke resources may keep the same IDs.
+
+## Queue Backlog Or Consumer Failure
+
+Symptoms:
+
+```text
+ingest returns 202 but aggregates do not change
+alerts are not created after aggregate-triggering events
+delivery rows stay pending
+```
+
+Check:
+
+```text
+/api/v1/observability/overview
+Cloudflare Worker queue metrics
+Worker logs for raw queue consumer errors
+D1 errors around raw_event_dedupe, aggregates, watches, or deliveries
+```
+
+Likely causes:
+
+```text
+queue binding missing
+D1 schema mismatch
+validation mismatch between ingest and consumer
+Durable Object binding issue
+```
+
+## Delivery Retry Buildup
+
+Symptoms:
+
+```text
+operator_health.retry_backlog alerts_due or aggregates_due grows
+deliveries.retrying grows
+deliveries.failed grows
+Slack or webhook alerts are delayed
+```
+
+Check:
+
+```text
+subscriber destination health
+response_code and response_body on recent delivery rows
+scheduled task status
+Cloudflare Cron execution
+```
+
+Expected behavior:
+
+```text
+2xx => sent
+429, 5xx, network error => retrying
+400, 401, 403, 404 => failed
+```
+
+## Permanent Delivery Failures
+
+If failed delivery count grows:
+
+```text
+check whether subscriber URL was removed, revoked, or malformed
+confirm Slack webhook still exists
+confirm generic webhook endpoint accepts POST application/json
+create a new subscriber if the destination is permanently invalid
+```
+
+Do not paste full webhook URLs into issues, docs, logs, or commits.
+
+## D1 Migration Or Query Failure
+
+Symptoms:
+
+```text
+D1_ERROR in Worker logs
+missing table or column errors
+operator/admin actions fail after new schema work
+```
+
+Apply migration:
+
+```powershell
+cd apps/headsupp-api
+npx wrangler d1 execute headsup_db --remote --file "migrations/0001_headsupp_core.sql"
+```
+
+The migration is written with `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`. It should add missing schema without dropping existing data.
+
+## Cron Not Running
+
+Symptoms:
+
+```text
+operator_health.scheduled_tasks is null
+operator_health.scheduled_tasks.status is error
+last_success_at is stale
+scheduled smoke times out
+retry backlog grows because retry processor is cron-driven
+```
+
+Check:
+
+```text
+wrangler.toml has crons = ["* * * * *"]
+Worker was deployed after cron config changes
+Cloudflare Cron Trigger logs
+D1 operational_status row for scheduled_tasks
+```
+
+## Worker Exception Spike
+
+Check:
+
+```text
+recent Worker logs
+the request path or queue consumer that threw
+whether the response used INTERNAL_ERROR
+whether the error includes a schema mismatch or missing binding
+```
+
+Stable public errors should use safe codes and messages. Stack traces and secret-bearing values should not be returned to API callers.
+
+## Release Checklist
+
+Before declaring a release proven:
+
+```text
+1. npm run check passes
+2. npm run load:smoke passes
+3. remote D1 migration has been applied if schema changed
+4. Worker has been deployed
+5. smoke:generic-slack passes
+6. smoke:alert-decisions passes
+7. smoke:scheduled passes
+8. smoke:delivery-retry passes
+9. smoke:tenant-isolation passes
+10. /api/v1/observability/overview reports acceptable operator_health
+11. secret scan finds no real tokens or webhooks in repo
+```

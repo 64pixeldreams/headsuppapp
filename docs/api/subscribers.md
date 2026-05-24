@@ -159,6 +159,22 @@ attempt 6: +6 hours
 then failed
 ```
 
+The deployed retry smoke proves both transient and permanent paths:
+
+```bash
+cd apps/headsupp-api
+npm run smoke:delivery-retry
+```
+
+Expected proof:
+
+```text
+500 or 429 response => retrying with next_retry_at
+same delivery becomes sent after the receiver is changed to a 200 endpoint
+404 response => failed
+retrying a delivery does not create duplicate alert rows
+```
+
 ## Related Stories
 
 ```text

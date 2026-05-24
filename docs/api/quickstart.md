@@ -2,6 +2,8 @@
 
 This is the practical guide for using the current Heads Up API.
 
+For a fuller endpoint and payload reference, see `reference.md`. For release proof commands, see `smoke-test-suite.md`.
+
 ## Base URL
 
 Local:
@@ -83,6 +85,8 @@ signal:create
 watch:create
 ```
 
+If no service key exists yet, create one through the operator bootstrap action with a runtime-only `X-HeadsUp-Bootstrap-Token` header. The returned `api_key` is shown once and must be stored outside the repo.
+
 ## Create Resources
 
 Create a workspace:
@@ -126,6 +130,8 @@ Create a connector:
 ```
 
 The connector response includes `connector_key` and the one-time `connector_secret`. Store the secret outside the repo.
+
+The connector can be used immediately after creation because admin provisioning writes both D1 metadata and the KV lookup used by event ingest.
 
 Create a signal:
 
@@ -277,4 +283,41 @@ Expected:
 20 normal events are accepted with no Slack alert
 1 trigger event is accepted
 Slack receives: Generic smoke metric high is warning at 15.
+```
+
+The alert decision smoke proves cooldown, escalation, and recovery:
+
+```powershell
+cd apps/headsupp-api
+$env:HEADSUPP_SMOKE_SLACK_WEBHOOK_URL='<runtime slack webhook url>'
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+npm run smoke:alert-decisions
+Remove-Item Env:HEADSUPP_SMOKE_SLACK_WEBHOOK_URL
+Remove-Item Env:CLOUDFLARE_API_TOKEN
+```
+
+Additional deployed proof smokes:
+
+```powershell
+cd apps/headsupp-api
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+npm run smoke:scheduled
+npm run smoke:delivery-retry
+npm run smoke:tenant-isolation
+Remove-Item Env:CLOUDFLARE_API_TOKEN
+```
+
+These prove scheduled watch evaluation, aggregate forwarding, retry/backoff, permanent webhook failure handling, and tenant isolation for shared signal keys.
+
+For the full smoke matrix and minimum release checklist, see `smoke-test-suite.md`.
+
+For operator-only generic provisioning without sending events:
+
+```powershell
+cd apps/headsupp-api
+$env:HEADSUPP_SMOKE_SLACK_WEBHOOK_URL='<runtime slack webhook url>'
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+npm run provision:generic-smoke
+Remove-Item Env:HEADSUPP_SMOKE_SLACK_WEBHOOK_URL
+Remove-Item Env:CLOUDFLARE_API_TOKEN
 ```

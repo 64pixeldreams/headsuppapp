@@ -1,0 +1,87 @@
+name: Heads Up API CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      run_deployed_smokes:
+        description: Run opt-in deployed smoke tests
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  local-quality:
+    name: Local Quality Gates
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/headsupp-api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/headsupp-api/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run check
+
+      - name: Run load smoke
+        run: npm run load:smoke
+
+  deployed-smokes:
+    name: Deployed Release Smokes
+    needs: local-quality
+    if: github.event_name == 'workflow_dispatch' && inputs.run_deployed_smokes == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/headsupp-api
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      HEADSUPP_SMOKE_SLACK_WEBHOOK_URL: ${{ secrets.HEADSUPP_SMOKE_SLACK_WEBHOOK_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/headsupp-api/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify required secrets
+        run: node scripts/verify-release-env.mjs --slack-required
+
+      - name: Generic Slack smoke
+        run: npm run smoke:generic-slack
+
+      - name: Alert decisions smoke
+        run: npm run smoke:alert-decisions
+
+      - name: Scheduled watches smoke
+        run: npm run smoke:scheduled
+
+      - name: Delivery retry smoke
+        run: npm run smoke:delivery-retry
+
+      - name: Tenant isolation smoke
+        run: npm run smoke:tenant-isolation

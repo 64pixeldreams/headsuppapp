@@ -2,6 +2,8 @@
 
 This runbook verifies the Heads Up MVP loop without committing secrets.
 
+For the full smoke matrix, expected D1 evidence, and release checklist, see `docs/api/smoke-test-suite.md`. For production incident diagnosis, see `docs/operations-runbook.md`.
+
 ## Rules
 
 - Do not write real Slack webhook URLs, API keys, connector secrets, or tokens to repository files.
@@ -42,6 +44,21 @@ npx wrangler d1 execute headsup_db --remote --file "migrations/0001_headsupp_cor
 ```
 
 The migration uses `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`.
+
+After schema-changing stories, apply the remote migration before running deployed operator/admin features or deployed smokes.
+
+## Observability Check
+
+```bash
+curl https://headsupp_app.martin-598.workers.dev/api/v1/observability/overview
+```
+
+Expected:
+
+```text
+response includes status, delivery counts, retry backlog, old pending counts, and scheduled_tasks health
+response does not include raw event payloads, connector secrets, API keys, or full webhook URLs
+```
 
 ## Foretic Slack Smoke
 
@@ -89,6 +106,102 @@ Expected:
 1 trigger event is accepted
 Slack receives: Generic smoke metric high is warning at 15.
 alert delivery status becomes sent
+```
+
+## Generic Provisioning Smoke
+
+This operator command provisions a generic workspace/channel/connector/signal/watch/subscriber and prints a safe setup summary.
+
+```powershell
+cd apps/headsupp-api
+$env:HEADSUPP_SMOKE_SLACK_WEBHOOK_URL='<runtime slack webhook url>'
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+npm run provision:generic-smoke
+Remove-Item Env:HEADSUPP_SMOKE_SLACK_WEBHOOK_URL
+Remove-Item Env:CLOUDFLARE_API_TOKEN
+```
+
+## Alert Decision Smoke
+
+This deployed smoke proves cooldown, escalation, and recovery.
+
+```powershell
+cd apps/headsupp-api
+$env:HEADSUPP_SMOKE_SLACK_WEBHOOK_URL='<runtime slack webhook url>'
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+npm run smoke:alert-decisions
+Remove-Item Env:HEADSUPP_SMOKE_SLACK_WEBHOOK_URL
+Remove-Item Env:CLOUDFLARE_API_TOKEN
+```
+
+Expected:
+
+```text
+first trigger creates one warning alert
+second trigger inside cooldown creates no additional alert
+higher-severity trigger creates one critical escalation alert
+recovery value creates one recovery alert
+repeated recovery value creates no additional alert
+```
+
+## Scheduled Watches Smoke
+
+This deployed smoke proves cron-compatible watch work for missing expected, digest, and aggregate forwarding.
+
+```powershell
+cd apps/headsupp-api
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+npm run smoke:scheduled
+Remove-Item Env:CLOUDFLARE_API_TOKEN
+```
+
+Expected:
+
+```text
+missing-expected creates one absence alert
+digest creates one digest alert and updates digest state
+aggregate-forward creates one delivery with delivery_id and dedupe_key
+a later cron pass does not duplicate the same aggregate-forward delivery
+```
+
+## Delivery Retry Smoke
+
+This deployed smoke proves retry and permanent failure handling with test HTTP status endpoints.
+
+```powershell
+cd apps/headsupp-api
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+npm run smoke:delivery-retry
+Remove-Item Env:CLOUDFLARE_API_TOKEN
+```
+
+Expected:
+
+```text
+transient 500 response stores delivery as retrying
+retrying delivery becomes sent after destination changes to 200
+permanent 404 response stores delivery as failed
+retry processing does not duplicate the alert
+```
+
+## Tenant Isolation Smoke
+
+This deployed smoke proves two tenants can share a signal key without crossing aggregates, alerts, or deliveries.
+
+```powershell
+cd apps/headsupp-api
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+npm run smoke:tenant-isolation
+Remove-Item Env:CLOUDFLARE_API_TOKEN
+```
+
+Expected:
+
+```text
+tenant A and tenant B both ingest demo.shared.metric
+tenant A high value creates one alert and one delivery
+tenant B normal value creates no alert or delivery
+each tenant aggregate keeps its own last_value
 ```
 
 ## Deploy

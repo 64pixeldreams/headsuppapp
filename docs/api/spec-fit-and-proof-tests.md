@@ -2,6 +2,8 @@
 
 This note maps the current API to the product spec and lists the tests that prove it.
 
+For endpoint/action schemas, see `reference.md`. For the release smoke matrix, see `smoke-test-suite.md`.
+
 ## Current Spec Fit
 
 Heads Up v1 is implemented as an API-only attention-processing engine:
@@ -69,47 +71,91 @@ This proves the central product promise:
 many raw events -> aggregate state -> one useful alert only when meaningful
 ```
 
-## More Tests To Prove The API
+Deployed alert decision smoke:
 
-1. Cooldown proof:
-   - Send a triggering event.
-   - Send another triggering event inside the cooldown window.
-   - Expected: one Slack alert, second alert suppressed.
+```powershell
+cd apps/headsupp-api
+$env:HEADSUPP_SMOKE_SLACK_WEBHOOK_URL='<runtime slack webhook url>'
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+npm run smoke:alert-decisions
+```
 
-2. Recovery proof:
-   - Configure recovery for a threshold watch.
-   - Send a triggering event, then a normal recovery event.
-   - Expected: alert, then one recovery notification if recovery is enabled.
+Expected proof:
 
-3. Idempotency proof:
+```text
+first trigger creates one warning alert
+repeat trigger inside cooldown is suppressed
+higher-severity trigger creates one escalation alert
+recovery value creates one recovery alert
+repeated recovery value is suppressed
+```
+
+Deployed scheduled watches smoke:
+
+```powershell
+cd apps/headsupp-api
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+npm run smoke:scheduled
+```
+
+Expected proof:
+
+```text
+missing-expected creates one absence alert
+digest creates one digest alert and updates watch state
+aggregate-forward creates one closed-bucket delivery
+aggregate-forward payload includes delivery_id and dedupe_key
+later cron pass does not duplicate the same closed-bucket delivery
+```
+
+Deployed delivery retry smoke:
+
+```powershell
+cd apps/headsupp-api
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+npm run smoke:delivery-retry
+```
+
+Expected proof:
+
+```text
+transient webhook failure becomes retrying with backoff metadata
+same delivery later becomes sent when destination returns 200
+permanent 404 failure becomes failed
+retry path creates no duplicate alert rows
+```
+
+Deployed tenant isolation smoke:
+
+```powershell
+cd apps/headsupp-api
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+npm run smoke:tenant-isolation
+```
+
+Expected proof:
+
+```text
+two workspaces use the same signal_key safely
+tenant A trigger does not update tenant B aggregates
+tenant B normal event does not notify tenant A subscriber
+only the intended tenant gets an alert delivery
+```
+
+## Remaining Tests To Prove The API
+
+1. Idempotency proof:
    - Send the same `idempotency_key` twice.
    - Expected: aggregate changes once, no duplicate alert.
 
-4. Batch proof:
+2. Batch proof:
    - Send a batch with hundreds of events.
    - Expected: one accepted ingest response, folded aggregate rows, no per-event Slack spam.
 
-5. Aggregate-forward proof:
-   - Configure an `AGGREGATE_FORWARD` watch and webhook subscriber.
-   - Close a bucket via scheduled evaluation.
-   - Expected: one `aggregate_bucket_closed` delivery with `delivery_id` and `dedupe_key`.
-
-6. Retry proof:
-   - Point a subscriber at a temporary endpoint returning `500` or `429`.
-   - Expected: delivery moves to `retrying` with backoff.
-   - Then return `200`.
-   - Expected: delivery becomes `sent`.
-
-7. Missing-expected proof:
-   - Configure a `MISSING_EXPECTED` watch.
-   - Do not send expected events for the configured window.
-   - Expected: scheduled task creates one absence alert.
-
-8. Tenant isolation proof:
-   - Create two workspaces/channels with different ownership fields.
-   - Send events to each connector.
-   - Expected: aggregates and alerts remain scoped to their own workspace/channel.
+3. API bootstrap proof:
+   - Provision the same scenarios through `POST /api/function` instead of operator D1 seeding.
+   - Expected: every smoke can run without direct D1 writes except cleanup.
 
 ## Remaining Risk
 
-The current generic smoke seeds deployed D1/KV test state directly because the production admin API still depends on CFKit API-key/session setup. The runtime event engine is proven, but a future hardening pass should add a first-class admin API-key bootstrap flow or documented operator-only provisioning command.
+The current generic provisioning command is an operator smoke utility backed by Cloudflare API credentials. A future hardening pass should add a first-class admin API-key bootstrap flow for production operators.

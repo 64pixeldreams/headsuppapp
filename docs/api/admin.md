@@ -42,6 +42,20 @@ watch:create
 
 The Foretic service permission set already includes these permissions plus `foretic:provision`.
 
+## Operator Functions
+
+Bootstrap and key lifecycle functions:
+
+```text
+operator.bootstrapServiceApiKey
+operator.listServiceApiKeys
+operator.revokeServiceApiKey
+operator.rotateServiceApiKey
+operator.listAuditLogs
+```
+
+`operator.bootstrapServiceApiKey` uses the runtime-only `X-HeadsUp-Bootstrap-Token` header and does not require an existing Bearer token. The list/revoke/rotate actions require `api_key:manage`. Audit reads require `audit:read`.
+
 ## Create Workspace
 
 ```json
@@ -82,7 +96,7 @@ The Foretic service permission set already includes these permissions plus `fore
 }
 ```
 
-The connector secret is returned only on creation and must be stored by the producer.
+The connector secret is returned only on creation and must be stored by the producer. Connector metadata is also written to the control-plane KV lookup so the returned event URL can be used immediately for HMAC ingest.
 
 ## Create Subscriber
 
@@ -119,6 +133,31 @@ Subscriber responses include redacted URL metadata. Do not expose real Slack web
   }
 }
 ```
+
+## Tenant Guards
+
+Admin actions enforce workspace/channel/signal relationships before writing referenced resources:
+
+```text
+channel.workspace_id must match payload.workspace_id
+signal.workspace_id and signal.channel_id must match payload
+subscriber.channel_id must belong to payload.workspace_id
+connector.channel_id must belong to payload.workspace_id
+watch.signal_id must belong to payload.workspace_id and channel_id
+```
+
+Common safe errors:
+
+```text
+TENANT_SCOPE_MISMATCH
+WORKSPACE_CHANNEL_MISMATCH
+SIGNAL_SCOPE_MISMATCH
+PERMISSION_DENIED
+```
+
+## Audit Logs
+
+Sensitive control-plane actions write safe audit rows to D1. Audit metadata redacts raw API keys, connector secrets, tokens, and webhook destinations.
 
 ## Create Watch
 

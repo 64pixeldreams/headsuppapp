@@ -34,6 +34,23 @@ Closed buckets create `aggregate_deliveries` rows with stable ids and `INSERT OR
 }
 ```
 
+The deployed scheduled smoke proves this path with:
+
+```bash
+cd apps/headsupp-api
+npm run smoke:scheduled
+```
+
+Expected proof:
+
+```text
+MISSING_EXPECTED creates one absence alert
+DIGEST creates one digest alert and updates last_digest_at
+AGGREGATE_FORWARD creates one closed-bucket delivery
+the aggregate-forward payload includes delivery_id and dedupe_key
+running across a later cron pass does not duplicate the same closed bucket
+```
+
 ## Foretic Callback Payload
 
 Aggregate-forward webhook bodies include stable ids so Foretic can safely dedupe retries.

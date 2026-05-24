@@ -81,6 +81,7 @@ export class CloudFunction {
         auth,
         env: this.env,
         ctx,
+        request,
         logger: logger.init(`function.${action}`),
         requestId
       };

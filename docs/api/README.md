@@ -22,6 +22,7 @@ related stories
 
 ```text
 quickstart.md
+reference.md
 authentication.md
 admin.md
 schema-and-migrations.md
@@ -32,6 +33,7 @@ alerts-and-deliveries.md
 aggregate-forwarding.md
 observability.md
 spec-fit-and-proof-tests.md
+smoke-test-suite.md
 ```
 
 ## Current App
@@ -59,3 +61,5 @@ POST /v1/events/{connector_key}
 ```
 
 The ingest route validates connector HMAC, queues raw events, and returns `202 Accepted`. Processing happens asynchronously through Cloudflare Queues.
+
+Use `reference.md` for endpoint/action schemas and `smoke-test-suite.md` for release proof commands.

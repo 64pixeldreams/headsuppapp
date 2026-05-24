@@ -13,7 +13,13 @@
     "check": "npm test",
     "load:smoke": "node scripts/load-smoke.mjs",
     "smoke:foretic": "node scripts/foretic-smoke.mjs",
-    "smoke:generic-slack": "node scripts/generic-slack-smoke.mjs"
+    "smoke:generic-slack": "node scripts/generic-slack-smoke.mjs",
+    "smoke:alert-decisions": "node scripts/alert-decisions-smoke.mjs",
+    "smoke:scheduled": "node scripts/scheduled-smoke.mjs",
+    "smoke:delivery-retry": "node scripts/delivery-retry-smoke.mjs",
+    "smoke:tenant-isolation": "node scripts/tenant-isolation-smoke.mjs",
+    "release:verify-env": "node scripts/verify-release-env.mjs --slack-required",
+    "provision:generic-smoke": "node scripts/provision-generic-smoke.mjs"
   },
   "keywords": [
     "cloudflare",

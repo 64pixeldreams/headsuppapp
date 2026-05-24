@@ -23,6 +23,41 @@ If a story creates or changes an endpoint, auth rule, event payload, delivery pa
 
 ## Current Story Count
 
-There are 49 story stubs.
+There are 65 story files.
 
-These are intentionally small headings right now. They should be expanded only when ready to build so scope stays tight.
+Stories marked `_done` are complete. Pending stories should be built one at a time or in an agreed batch, with tests and docs updated before marking `_done`.
+
+## Hardening Batch
+
+```text
+50 Operator bootstrap and generic provisioning_done
+51 Deployed smoke harness foundation_done
+52 Deployed cooldown/recovery/escalation smoke_done
+53 Deployed scheduled watches smoke_done
+54 Deployed delivery retry smoke_done
+55 Deployed tenant isolation smoke_done
+56 OpenAPI reference and engineer docs_done
+57 Smoke test suite index_done
+```
+
+## Urgent Productization Batch 1
+
+Bootstrap and production auth hardening:
+
+```text
+58 Operator service API key bootstrap_done
+59 Admin API resource provisioning flow_done
+60 API key lifecycle and rotation_done
+61 Admin tenant permission hardening_done
+62 Control plane audit logging_done
+```
+
+## Urgent Productization Batch 2
+
+Release automation and operations:
+
+```text
+63 CI release automation_done
+64 Operational health and alerting_done
+65 Production error handling and runbooks_done
+```

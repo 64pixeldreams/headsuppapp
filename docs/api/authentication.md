@@ -78,6 +78,48 @@ Response shape:
 
 The response must never include API keys, connector secrets, Slack webhook URLs, or token material.
 
+## Operator Bootstrap
+
+Initial service API keys can be created through the operator bootstrap CloudFunction:
+
+```json
+{
+  "action": "operator.bootstrapServiceApiKey",
+  "payload": {
+    "name": "Heads Up provisioning service",
+    "user_id": "service:headsupp-operator",
+    "permissions": [
+      "workspace:create",
+      "channel:create",
+      "connector:create",
+      "subscriber:create",
+      "signal:create",
+      "watch:create"
+    ]
+  }
+}
+```
+
+Send the bootstrap token as a runtime-only header:
+
+```text
+X-HeadsUp-Bootstrap-Token: <runtime bootstrap token>
+```
+
+The response includes the raw `api_key` only once. Store it outside the repo. Heads Up stores hashed key material in the CFKit `APIKEY` KV namespace.
+
+## API Key Lifecycle
+
+Operators with `api_key:manage` can use:
+
+```text
+operator.listServiceApiKeys
+operator.revokeServiceApiKey
+operator.rotateServiceApiKey
+```
+
+Lifecycle responses return safe metadata only, except that key creation and rotation return the new raw key once. Revoked or rotated keys cannot authenticate protected control-plane actions.
+
 ## Event Ingest Auth
 
 Event ingest does not use the Foretic service API key.
@@ -128,7 +170,26 @@ channel.workspace_id == workspace.workspace_id
 subscriber.channel_id belongs to subscriber.workspace_id
 ```
 
+Current admin create actions enforce these relationships before writes where a referenced resource already exists. Missing ownership context fails closed when authenticated API-key metadata includes tenant fields.
+
 Do not rely on channel names, forecast names, Slack labels, or request body ownership fields for authorization.
+
+The deployed tenant isolation smoke proves the current API behaviour with two workspaces that intentionally share the same `signal_key`:
+
+```bash
+cd apps/headsupp-api
+npm run smoke:tenant-isolation
+```
+
+Expected proof:
+
+```text
+tenant A and tenant B can both use demo.shared.metric
+tenant A aggregate stores tenant A value only
+tenant B aggregate stores tenant B value only
+tenant A trigger creates one alert and one delivery
+tenant B normal event creates no alert or delivery
+```
 
 For Foretic:
 
@@ -145,4 +206,7 @@ external_user_id = Foretic user id
 43-foretic-external-tenant-context.md
 44-workspace-ownership-and-tenant-isolation.md
 49-connector-secret-and-hmac-ingest-auth.md
+58-operator-service-api-key-bootstrap.md
+60-api-key-lifecycle-and-rotation.md
+61-admin-tenant-permission-hardening.md
 ```

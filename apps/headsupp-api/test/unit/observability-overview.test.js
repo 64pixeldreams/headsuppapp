@@ -4,13 +4,20 @@ import test from 'node:test';
 import { getObservabilityOverview } from '../../src/services/observability/overview.js';
 
 test('observability overview returns operational counts without payloads', async () => {
-  const values = [2, 1, 3, 0, 4, 1, 2, 99];
+  const values = [2, 1, 3, 0, 4, 1, 2, 99, 2, 1, 1, 0];
   const db = {
-    prepare() {
+    prepare(sql) {
       return {
         bind() {
           return {
             async first() {
+              if (/operational_status/.test(sql)) {
+                return {
+                  status: 'ok',
+                  last_success_at: '2026-05-24T18:00:00.000Z',
+                  updated_at: '2026-05-24T18:00:00.000Z',
+                };
+              }
               return { count: values.shift() };
             },
           };
@@ -25,5 +32,8 @@ test('observability overview returns operational counts without payloads', async
   assert.equal(overview.deliveries.alerts.retrying, 3);
   assert.equal(overview.deliveries.aggregates.pending, 4);
   assert.equal(overview.aggregate_rows, 99);
+  assert.equal(overview.status, 'degraded');
+  assert.equal(overview.operator_health.retry_backlog.alerts_due, 2);
+  assert.equal(overview.operator_health.scheduled_tasks.status, 'ok');
   assert.equal(JSON.stringify(overview).includes('payload_json'), false);
 });

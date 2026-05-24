@@ -3,6 +3,7 @@ import { processAlertDeliveryMessage } from '../delivery/alert-delivery-consumer
 import { processAggregateDeliveryMessage } from '../delivery/aggregate-delivery-consumer.js';
 import { evaluateDigestWatches } from '../scheduled-watches/digest.js';
 import { evaluateMissingExpectedWatches } from '../scheduled-watches/missing-expected.js';
+import { recordOperationalStatus } from '../operational/status.js';
 import { cleanupRawEventDedupe } from './dedupe-cleanup.js';
 
 async function loadRetryableDeliveries(db, table) {
@@ -31,30 +32,50 @@ export async function processRetryableDeliveries(env, options = {}) {
 }
 
 export async function runScheduledTasks(env, _event = {}, options = {}) {
-  const missingExpected = await evaluateMissingExpectedWatches({
-    db: env.DB,
-    now: options.now,
-  });
-  const aggregateForward = await evaluateClosedAggregateForwardWatches({
-    db: env.DB,
-    queue: env.AGGREGATE_DELIVERY_QUEUE,
-    now: options.now,
-  });
-  const retries = await processRetryableDeliveries(env, options);
-  const digest = await evaluateDigestWatches({
-    db: env.DB,
-    now: options.now,
-  });
-  const dedupeCleanup = await cleanupRawEventDedupe(env.DB, {
-    now: options.now,
-    retentionHours: Number(env.RAW_EVENT_DEDUPE_RETENTION_HOURS || 72),
-  });
+  const now = options.now || new Date().toISOString();
+  try {
+    const missingExpected = await evaluateMissingExpectedWatches({
+      db: env.DB,
+      now,
+    });
+    const aggregateForward = await evaluateClosedAggregateForwardWatches({
+      db: env.DB,
+      queue: env.AGGREGATE_DELIVERY_QUEUE,
+      now,
+    });
+    const retries = await processRetryableDeliveries(env, { ...options, now });
+    const digest = await evaluateDigestWatches({
+      db: env.DB,
+      now,
+    });
+    const dedupeCleanup = await cleanupRawEventDedupe(env.DB, {
+      now,
+      retentionHours: Number(env.RAW_EVENT_DEDUPE_RETENTION_HOURS || 72),
+    });
 
-  return {
-    missing_expected: missingExpected,
-    aggregate_forward: aggregateForward,
-    digest,
-    dedupe_cleanup: dedupeCleanup,
-    retries,
-  };
+    const result = {
+      missing_expected: missingExpected,
+      aggregate_forward: aggregateForward,
+      digest,
+      dedupe_cleanup: dedupeCleanup,
+      retries,
+    };
+    await recordOperationalStatus({
+      db: env.DB,
+      key: 'scheduled_tasks',
+      status: 'ok',
+      metadata: result,
+      now,
+    });
+    return result;
+  } catch (error) {
+    await recordOperationalStatus({
+      db: env.DB,
+      key: 'scheduled_tasks',
+      status: 'error',
+      error,
+      now,
+    });
+    throw error;
+  }
 }

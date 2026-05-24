@@ -24,7 +24,7 @@ export async function validateApiKeyHash(keyHash, datastore, logger) {
     }
 
     // Check if active
-    if (!keyData.active) {
+    if (!keyData.active || keyData.status === 'revoked' || keyData.status === 'rotated') {
       logger?.debug('API key inactive', { keyHash });
       timer?.end({ active: false });
       return null;
@@ -46,7 +46,10 @@ export async function validateApiKeyHash(keyHash, datastore, logger) {
       user_id: keyData.user_id,
       permissions: keyData.permissions || ['read', 'write'],
       rate_limit: keyData.rate_limit || { requests: 1000, window: 3600 },
-      key_id: keyHash
+      key_id: keyData.key_id || keyHash,
+      source_app: keyData.source_app || null,
+      external_tenant_id: keyData.external_tenant_id || null,
+      external_user_id: keyData.external_user_id || null
     };
   } catch (err) {
     logger?.error('Failed to validate API key', err);
