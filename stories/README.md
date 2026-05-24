@@ -23,7 +23,7 @@ If a story creates or changes an endpoint, auth rule, event payload, delivery pa
 
 ## Current Story Count
 
-There are 76 story files.
+There are 88 story files.
 
 Stories marked `_done` are complete. Pending stories should be built one at a time or in an agreed batch, with tests and docs updated before marking `_done`.
 
@@ -76,4 +76,23 @@ Release automation and operations:
 74 Protected observability
 75 Delta watch types
 76 Release soak test
+```
+
+## Website Alignment Batch
+
+Prioritize non-email architecture first, then email/AI stubs:
+
+```text
+77 Channel contract model
+78 Channel contract runtime defaults
+79 Alert and watch-state read API
+80 Watch action controls (snooze/ignore/mute)
+81 Quiet status summary delivery
+82 Advanced trend watch types
+83 Recurring expectations v2
+84 Email inbound connector skeleton
+85 Email normalization pipeline stub
+86 AI classification interface (email)
+87 Email subscriber delivery
+88 Setup assistant contract-draft stub
 ```
