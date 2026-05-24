@@ -5,10 +5,12 @@ on:
   push:
     branches:
       - main
+  schedule:
+    - cron: "0 */6 * * *"
   workflow_dispatch:
     inputs:
       run_deployed_smokes:
-        description: Run opt-in deployed smoke tests
+        description: Run deployed full smoke matrix
         required: false
         default: "false"
         type: choice
@@ -44,16 +46,18 @@ jobs:
         run: npm run load:smoke
 
   deployed-smokes:
-    name: Deployed Release Smokes
+    name: Deployed Full Smoke Matrix
     needs: local-quality
-    if: github.event_name == 'workflow_dispatch' && inputs.run_deployed_smokes == 'true'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_deployed_smokes == 'true')
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: apps/headsupp-api
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       HEADSUPP_SMOKE_SLACK_WEBHOOK_URL: ${{ secrets.HEADSUPP_SMOKE_SLACK_WEBHOOK_URL }}
+      HEADSUPP_SMOKE_DISPATCH_SLACK: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -77,6 +81,9 @@ jobs:
       - name: Alert decisions smoke
         run: npm run smoke:alert-decisions
 
+      - name: Foretic smoke
+        run: npm run smoke:foretic
+
       - name: Scheduled watches smoke
         run: npm run smoke:scheduled
 
@@ -85,3 +92,6 @@ jobs:
 
       - name: Tenant isolation smoke
         run: npm run smoke:tenant-isolation
+
+      - name: Release soak
+        run: npm run soak:release
