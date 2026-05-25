@@ -2,6 +2,8 @@
 
 This is the current public API reference for `headsupp_app`. It is OpenAPI-style, but kept as Markdown so Cursor and engineers can read it quickly.
 
+If you are learning the API, start with `quickstart.md`, `getting-started-api-keys.md`, `webhook-receivers.md`, and `watch-types.md`. This file is the detailed reference after you understand the flow.
+
 ## Service
 
 Base URLs:
@@ -463,6 +465,64 @@ Weekly spend example:
 }
 ```
 
+Rolling average example:
+
+```json
+{
+  "watch_type": "WINDOW_AVG_GT",
+  "config": {
+    "threshold": 250,
+    "severity": "warning",
+    "bucket_type": "minute",
+    "window": {
+      "size": 3
+    }
+  }
+}
+```
+
+Event count example:
+
+```json
+{
+  "watch_type": "WINDOW_COUNT_GT",
+  "config": {
+    "threshold": 100,
+    "severity": "critical",
+    "bucket_type": "hour",
+    "window": {
+      "size": 1
+    }
+  }
+}
+```
+
+Absolute delta example:
+
+```json
+{
+  "watch_type": "DELTA_GT",
+  "config": {
+    "threshold": 20,
+    "severity": "warning",
+    "bucket_type": "minute"
+  }
+}
+```
+
+Percent-change example:
+
+```json
+{
+  "watch_type": "PERCENT_CHANGE_GT",
+  "config": {
+    "threshold": 50,
+    "severity": "warning",
+    "bucket_type": "hour"
+  }
+}
+```
+
 Relative-change example for "API usage suddenly doubles":
 
 ```json
@@ -472,6 +532,19 @@ Relative-change example for "API usage suddenly doubles":
     "threshold": 2,
     "severity": "warning",
     "bucket_type": "hour"
+  }
+}
+```
+
+Spike example:
+
+```json
+{
+  "watch_type": "SPIKE_GT",
+  "config": {
+    "threshold": 100,
+    "severity": "critical",
+    "bucket_type": "minute"
   }
 }
 ```
@@ -545,7 +618,7 @@ Slack alert subscriber:
 }
 ```
 
-Generic webhook subscriber:
+Generic alert webhook subscriber:
 
 ```json
 {
@@ -554,8 +627,27 @@ Generic webhook subscriber:
     "workspace_id": "ws_demo",
     "channel_id": "ch_demo",
     "subscriber_type": "webhook",
-    "destination_url": "https://example.com/heads-up/callback",
-    "display_name": "Demo callback",
+    "destination_url": "https://example.com/heads-up/alerts",
+    "display_name": "Demo alert callback",
+    "mode": "alert",
+    "config": {
+      "signing_secret": "receiver_shared_secret"
+    }
+  }
+}
+```
+
+Generic aggregate-forward webhook subscriber:
+
+```json
+{
+  "action": "admin.createSubscriber",
+  "payload": {
+    "workspace_id": "ws_demo",
+    "channel_id": "ch_demo",
+    "subscriber_type": "webhook",
+    "destination_url": "https://example.com/heads-up/aggregates",
+    "display_name": "Demo aggregate callback",
     "mode": "aggregate_forward"
   }
 }
@@ -796,6 +888,33 @@ Generic alert webhook payload:
   "cta": {
     "label": "View",
     "url": "https://example.com/demo"
+  }
+}
+```
+
+Digest alert payloads use the same `type: "heads_up.alert"` envelope. Digest-specific summary data is included in safe fields:
+
+```json
+{
+  "type": "heads_up.alert",
+  "alert_id": "alert_digest_demo",
+  "workspace_id": "ws_demo",
+  "channel_id": "ch_demo",
+  "watch_id": "watch_digest",
+  "severity": "info",
+  "summary": "Weekly digest for Demo Metrics",
+  "fields": {
+    "digest": true,
+    "schedule": "weekly",
+    "signals": [
+      {
+        "signal_id": "sig_revenue",
+        "sum": 1200,
+        "count": 7,
+        "avg": 171.43,
+        "last": 200
+      }
+    ]
   }
 }
 ```

@@ -2,6 +2,18 @@
 
 Subscribers receive alert or aggregate outputs.
 
+For a full receiver implementation guide, including signature verification and retry behavior, see `webhook-receivers.md`.
+
+## Routing Rule
+
+Subscribers are channel-scoped. When a watch creates output for a channel, Heads Up sends that output to subscribers on the same channel whose `mode` matches the output:
+
+```text
+alert output             -> mode = alert
+aggregate-forward output -> mode = aggregate_forward
+quiet summary output     -> mode = quiet_summary
+```
+
 ## First Subscriber Types
 
 ```text
@@ -170,6 +182,21 @@ X-HeadsUp-Delivery-Id: <delivery id>
 ```
 
 Foretic should classify generic alert callbacks by `type = "heads_up.alert"` and dedupe retries by `alert_id`. CTA fields should point back to the source forecast or source system view.
+
+Receiver-side verification example:
+
+```js
+import crypto from 'node:crypto';
+
+export function verifyHeadsUpWebhook({ rawBody, timestamp, signature, secret }) {
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(`${timestamp}.${rawBody}`)
+    .digest('hex');
+  const provided = signature.replace(/^v1=/, '');
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(provided));
+}
+```
 
 ## Delivery Retry
 

@@ -2,6 +2,8 @@
 
 Use the private Heads Up client when you do not want to hand-write `POST /api/function` requests or connector HMAC signing.
 
+For the raw API learning path, see `quickstart.md`. For first-run keys, see `getting-started-api-keys.md`. For callback receiver behavior, see `webhook-receivers.md`. For feature choices, see `watch-types.md`.
+
 Package:
 
 ```text
@@ -242,6 +244,35 @@ const subscriber = await headsup.createSubscriber({
 });
 ```
 
+Generic alert callback subscriber:
+
+```js
+await headsup.createSubscriber({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  subscriber_type: 'webhook',
+  destination_url: 'https://example.com/headsupp/alerts',
+  display_name: 'Alert callback',
+  mode: 'alert',
+  config: {
+    signing_secret: process.env.HEADSUPP_RECEIVER_SIGNING_SECRET,
+  },
+});
+```
+
+Aggregate-forward callback subscriber:
+
+```js
+const aggregateSubscriber = await headsup.createSubscriber({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  subscriber_type: 'webhook',
+  destination_url: 'https://example.com/headsupp/aggregates',
+  display_name: 'Aggregate callback',
+  mode: 'aggregate_forward',
+});
+```
+
 Save:
 
 ```text
@@ -253,6 +284,64 @@ signalResult.signal.signal_id
 watch.watch_id
 subscriber.subscriber_id
 ```
+
+## Common Watch Examples
+
+Weekly total:
+
+```js
+await headsup.createWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  signal_id: signalResult.signal.signal_id,
+  name: 'Weekly spend high',
+  watch_type: 'WINDOW_SUM_GT',
+  config: {
+    threshold: 500,
+    severity: 'warning',
+    bucket_type: 'week',
+    window: { size: 1 },
+  },
+});
+```
+
+Rolling average:
+
+```js
+await headsup.createWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  signal_id: signalResult.signal.signal_id,
+  name: 'Average latency high',
+  watch_type: 'WINDOW_AVG_GT',
+  config: {
+    threshold: 250,
+    severity: 'warning',
+    bucket_type: 'minute',
+    window: { size: 3 },
+  },
+});
+```
+
+Aggregate forwarding:
+
+```js
+await headsup.createWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  signal_id: signalResult.signal.signal_id,
+  name: 'Forward hourly aggregate',
+  watch_type: 'AGGREGATE_FORWARD',
+  config: {
+    bucket_type: 'hour',
+    emit_after_grace_seconds: 60,
+    subscriber_id: aggregateSubscriber.subscriber_id,
+    include: { sum: true, count: true, avg: true, min: true, max: true, last: true },
+  },
+});
+```
+
+See `watch-types.md` for every supported feature family.
 
 ## Send A Signed Event
 
@@ -324,6 +413,39 @@ const alerts = await headsup.listChannelAlerts({
   workspace_id: workspace.workspace_id,
   channel_id: channel.channel_id,
   limit: 10,
+});
+```
+
+`listChannelAlerts` returns `{ alerts, metadata }`. `getWatchState` returns a watch state object or `null`.
+
+## Action Controls
+
+```js
+await headsup.snoozeWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  watch_id: watch.watch_id,
+  snooze_until: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+  reason: 'Maintenance window',
+});
+
+await headsup.resumeWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  watch_id: watch.watch_id,
+});
+```
+
+Also available: `muteWatch` and `ignoreAlert`.
+
+## Escape Hatch
+
+Use `requestFunction` for API actions that do not yet have named SDK helpers:
+
+```js
+await headsup.requestFunction('admin.listAlertTimeline', {
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
 });
 ```
 

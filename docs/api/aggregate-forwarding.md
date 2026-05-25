@@ -6,6 +6,24 @@ Aggregate forwarding is the high-volume compression path. It sends one aggregate
 
 `AGGREGATE_FORWARD`
 
+Create a subscriber first:
+
+```json
+{
+  "action": "admin.createSubscriber",
+  "payload": {
+    "workspace_id": "ws_123",
+    "channel_id": "ch_123",
+    "subscriber_type": "webhook",
+    "destination_url": "https://api.example.com/heads-up/aggregates",
+    "display_name": "Aggregate callback",
+    "mode": "aggregate_forward"
+  }
+}
+```
+
+Then create the watch:
+
 Example config:
 
 ```json
@@ -26,6 +44,39 @@ Example config:
   }
 }
 ```
+
+Full `admin.createWatch` shape:
+
+```json
+{
+  "action": "admin.createWatch",
+  "payload": {
+    "workspace_id": "ws_123",
+    "channel_id": "ch_123",
+    "signal_id": "sig_123",
+    "name": "Forward hourly spend",
+    "watch_type": "AGGREGATE_FORWARD",
+    "config": {
+      "bucket_type": "hour",
+      "emit_after_grace_seconds": 60,
+      "subscriber_id": "sub_foretic",
+      "dimensions": {
+        "forecast_id": "fc_123"
+      },
+      "include": {
+        "sum": true,
+        "count": true,
+        "avg": true,
+        "min": true,
+        "max": true,
+        "last": true
+      }
+    }
+  }
+}
+```
+
+`values.max` in the callback is the highest value observed in the closed bucket. It is not a `WINDOW_MAX_GT` alert watch type.
 
 ## Delivery
 

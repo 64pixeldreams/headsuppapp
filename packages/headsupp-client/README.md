@@ -4,6 +4,13 @@ Private Node and Cloudflare Workers client for the Heads Up API.
 
 This package is proprietary software owned by 64 Pixel Holdings LLC and operated by Inc64 LLC.
 
+The client wraps:
+
+```text
+POST /api/function              control-plane actions
+POST /v1/events/{connectorKey}  HMAC-signed event ingest
+```
+
 ## Install
 
 Recommended production install from GitHub Packages:
@@ -12,9 +19,7 @@ Recommended production install from GitHub Packages:
 npm install @64pixeldreams/headsupp-client@0.1.0
 ```
 
-Private GitHub Packages publishing from `64pixeldreams/headsuppclientsdk` is the preferred way for services to consume this client.
-
-For GitHub Packages, add an `.npmrc` entry in the consuming project. Local developers should use a GitHub personal access token with `read:packages`; GitHub Actions can use a repository secret such as `GH_PACKAGES_TOKEN`.
+For GitHub Packages, add this to the consuming project's `.npmrc`:
 
 ```text
 @64pixeldreams:registry=https://npm.pkg.github.com
@@ -22,17 +27,12 @@ For GitHub Packages, add an `.npmrc` entry in the consuming project. Local devel
 always-auth=true
 ```
 
-GitHub Actions install example:
+Local developers need a GitHub token with `read:packages`. CI should use a package-read secret such as `GH_PACKAGES_TOKEN`.
 
-```yaml
-- uses: actions/setup-node@v4
-  with:
-    node-version: "22"
-    registry-url: "https://npm.pkg.github.com"
-    scope: "@64pixeldreams"
-- run: npm ci
-  env:
-    NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+Tag-pinned Git fallback:
+
+```bash
+npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git#v0.1.0
 ```
 
 Local workspace install while developing:
@@ -41,46 +41,54 @@ Local workspace install while developing:
 npm install ../headsupp/packages/headsupp-client
 ```
 
-Zero-registry option:
-
-```text
-copy packages/headsupp-client/src into the consuming project
-```
-
-If a consumer needs a Git dependency, pin the separate private SDK repository to a release tag:
-
-```bash
-npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git#v0.1.0
-```
-
-Do not make production consumers clone the full Heads Up API repo unless there is no alternative.
-
-## Release
-
-The canonical SDK repository is `64pixeldreams/headsuppclientsdk`. This in-repo package folder is mirrored there until a future process changes the source of truth.
-
-Release checklist:
-
-```bash
-npm test
-npm version patch
-git push origin main --tags
-```
-
-Confirm the GitHub Actions publish workflow succeeds, then verify with an authenticated npm query:
-
-```bash
-npm view @64pixeldreams/headsupp-client version --registry=https://npm.pkg.github.com
-```
-
 ## Environment
 
 ```bash
 HEADSUPP_BASE_URL=https://headsupp_app.martin-598.workers.dev
 HEADSUPP_API_KEY=<service api key>
+HEADSUPP_BOOTSTRAP_TOKEN=<operator bootstrap token only for first key creation>
+HEADSUPP_CONNECTOR_KEY=<connector key for event ingest>
+HEADSUPP_CONNECTOR_SECRET=<connector secret for event ingest>
 ```
 
-## Use
+## Create The First API Key
+
+Only do this when no service key exists yet or when intentionally creating a new integration key.
+
+```js
+import { createHeadsUpClient } from '@64pixeldreams/headsupp-client';
+
+const operator = createHeadsUpClient({
+  baseUrl: process.env.HEADSUPP_BASE_URL,
+  bootstrapToken: process.env.HEADSUPP_BOOTSTRAP_TOKEN,
+});
+
+const result = await operator.bootstrapServiceApiKey({
+  name: 'Demo integration service',
+  user_id: 'service:demo',
+  source_app: 'headsupp-demo',
+  permissions: [
+    'workspace:create',
+    'channel:create',
+    'connector:create',
+    'subscriber:create',
+    'signal:create',
+    'watch:create',
+    'channel_contract:create',
+    'channel_contract:update',
+    'channel_contract:read',
+    'alert:read',
+    'watch:read',
+    'watch:control',
+  ],
+});
+
+console.log(result.api_key);
+```
+
+Save `api_key` in your secret manager. It is returned once.
+
+## Create A Client
 
 ```js
 import { createHeadsUpClient } from '@64pixeldreams/headsupp-client';
@@ -89,44 +97,267 @@ const headsup = createHeadsUpClient({
   baseUrl: process.env.HEADSUPP_BASE_URL,
   apiKey: process.env.HEADSUPP_API_KEY,
 });
+```
 
+## Provision A Channel
+
+```js
 const workspace = await headsup.createWorkspace({
   name: 'Demo Workspace',
   source_app: 'headsupp-demo',
-  external_tenant_id: 'demo_org_123',
-  external_user_id: 'demo_user_456',
+  external_tenant_id: 'demo-tenant',
+  external_user_id: 'demo-user',
 });
 
 const channel = await headsup.createChannel({
   workspace_id: workspace.workspace_id,
   name: 'Demo Metrics',
-  purpose: 'metric_attention',
+  purpose: 'Attention-worthy metric changes',
+});
+
+const connector = await headsup.createConnector({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  connector_type: 'webhook',
+});
+
+const signalResult = await headsup.createSignal({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  signal_key: 'demo.metric',
+  signal_type: 'metric',
+  value_mode: 'last',
+  contract: {
+    default_bucket_types: ['minute', 'hour', 'day', 'week'],
+    dimensions: ['source'],
+  },
 });
 ```
+
+Save:
+
+```text
+workspace.workspace_id
+channel.channel_id
+connector.connector_key
+connector.connector_secret
+signalResult.signal.signal_id
+```
+
+## Subscribe Slack Or A Webhook
+
+Slack alert subscriber:
+
+```js
+await headsup.createSubscriber({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  subscriber_type: 'slack_webhook',
+  destination_url: process.env.SLACK_WEBHOOK_URL,
+  display_name: '#ops-alerts',
+  mode: 'alert',
+});
+```
+
+Generic alert callback:
+
+```js
+await headsup.createSubscriber({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  subscriber_type: 'webhook',
+  destination_url: 'https://example.com/headsupp/alerts',
+  display_name: 'Alert callback',
+  mode: 'alert',
+  config: {
+    signing_secret: process.env.HEADSUPP_RECEIVER_SIGNING_SECRET,
+  },
+});
+```
+
+Aggregate-forward callback:
+
+```js
+const aggregateSubscriber = await headsup.createSubscriber({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  subscriber_type: 'webhook',
+  destination_url: 'https://example.com/headsupp/aggregates',
+  display_name: 'Aggregate callback',
+  mode: 'aggregate_forward',
+});
+```
+
+## Create Watches
+
+Latest value threshold:
+
+```js
+const watch = await headsup.createWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  signal_id: signalResult.signal.signal_id,
+  name: 'Demo metric high',
+  watch_type: 'LAST_VALUE_GT',
+  config: {
+    threshold: 10,
+    severity: 'warning',
+    bucket_type: 'minute',
+  },
+  cooldown_seconds: 3600,
+});
+```
+
+Weekly total:
+
+```js
+await headsup.createWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  signal_id: signalResult.signal.signal_id,
+  name: 'Weekly spend high',
+  watch_type: 'WINDOW_SUM_GT',
+  config: {
+    threshold: 500,
+    severity: 'warning',
+    bucket_type: 'week',
+    window: { size: 1 },
+  },
+});
+```
+
+Aggregate forward:
+
+```js
+await headsup.createWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  signal_id: signalResult.signal.signal_id,
+  name: 'Forward hourly aggregate',
+  watch_type: 'AGGREGATE_FORWARD',
+  config: {
+    bucket_type: 'hour',
+    emit_after_grace_seconds: 60,
+    subscriber_id: aggregateSubscriber.subscriber_id,
+    include: { sum: true, count: true, avg: true, min: true, max: true, last: true },
+  },
+});
+```
+
+See `docs/api/watch-types.md` in the main repo for all supported watch types.
 
 ## Send Events
 
 ```js
-await headsup.sendEvent({
+const accepted = await headsup.sendEvent({
   connectorKey: connector.connector_key,
   connectorSecret: connector.connector_secret,
   event: {
-    idempotency_key: 'demo_metric_2026_05_25',
+    idempotency_key: 'evt_demo_001',
     signal_key: 'demo.metric',
     occurred_at: new Date().toISOString(),
-    value: { num: 82 },
-    fields: { source: 'demo', status: 'warning' },
+    value: { num: 15 },
+    fields: { source: 'demo' },
     cta: {
       label: 'View metric',
       url: 'https://example.com/metrics/demo',
     },
   },
 });
+
+console.log(accepted.queued);
+```
+
+Batch:
+
+```js
+await headsup.sendEvents({
+  connectorKey: connector.connector_key,
+  connectorSecret: connector.connector_secret,
+  events: [
+    {
+      idempotency_key: 'evt_demo_002',
+      signal_key: 'demo.metric',
+      occurred_at: new Date().toISOString(),
+      value: { num: 20 },
+    },
+    {
+      idempotency_key: 'evt_demo_003',
+      signal_key: 'demo.metric',
+      occurred_at: new Date().toISOString(),
+      value: { num: 30 },
+    },
+  ],
+});
+```
+
+## Read Alerts And Watch State
+
+```js
+const alerts = await headsup.listChannelAlerts({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  limit: 10,
+});
+
+const state = await headsup.getWatchState({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  watch_id: watch.watch_id,
+});
+```
+
+`listChannelAlerts` returns `{ alerts, metadata }`. `getWatchState` returns a watch state object or `null`.
+
+## Action Controls
+
+```js
+await headsup.snoozeWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  watch_id: watch.watch_id,
+  snooze_until: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+  reason: 'Maintenance window',
+});
+
+await headsup.resumeWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  watch_id: watch.watch_id,
+});
+```
+
+Also available: `muteWatch`, `ignoreAlert`.
+
+## Error Handling
+
+```js
+import { HeadsUpApiError } from '@64pixeldreams/headsupp-client';
+
+try {
+  await headsup.createWorkspace({ name: 'Demo Workspace' });
+} catch (error) {
+  if (error instanceof HeadsUpApiError) {
+    console.error(error.code, error.status, error.message);
+  }
+  throw error;
+}
+```
+
+## Escape Hatch
+
+Use `requestFunction` for API actions that do not yet have named SDK helpers:
+
+```js
+await headsup.requestFunction('admin.listAlertTimeline', {
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+});
 ```
 
 ## Cloudflare Workers
 
-Pass the Worker environment values and native `fetch`:
+Pass Worker environment values and native `fetch`:
 
 ```js
 import { createHeadsUpClient } from '@64pixeldreams/headsupp-client';
@@ -159,4 +390,22 @@ export default {
 
 ```bash
 npm test
+```
+
+## Release
+
+The canonical SDK repository is `64pixeldreams/headsuppclientsdk`. This in-repo package folder is mirrored there until a future process changes the source of truth.
+
+Release checklist:
+
+```bash
+npm test
+npm version patch
+git push origin main --tags
+```
+
+Confirm the GitHub Actions publish workflow succeeds, then verify with an authenticated npm query:
+
+```bash
+npm view @64pixeldreams/headsupp-client version --registry=https://npm.pkg.github.com
 ```

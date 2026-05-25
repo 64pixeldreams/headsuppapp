@@ -19,6 +19,7 @@ Heads Up is not a dashboard, BI tool, or per-event alerting system. The core pro
 - Aggregates events into D1-backed time buckets.
 - Evaluates watches against aggregates, not raw events.
 - Applies cooldown, escalation, recovery, missing-expected, digest, and aggregate-forward rules.
+- Supports latest-value, total-in-period, average-in-window, count, delta, percent-change, spike, reminder, and recurring-expectation watches.
 - Sends Slack webhook alerts or generic webhook callbacks.
 - Retries transient delivery failures with backoff.
 - Keeps tenants/workspaces isolated by `source_app`, `external_tenant_id`, `external_user_id`, and `workspace_id`.
@@ -59,6 +60,9 @@ https://headsupp_app.martin-598.workers.dev
 - Cursor project rules: `cursor.js`
 - API docs index: `docs/api/README.md`
 - API quickstart: `docs/api/quickstart.md`
+- First-run API key guide: `docs/api/getting-started-api-keys.md`
+- Webhook receiver guide: `docs/api/webhook-receivers.md`
+- Watch type feature guide: `docs/api/watch-types.md`
 - Node/Cloudflare client wrapper: `docs/api/node-cloudflare-client.md`
 - Foretic wrapper guide: `docs/api/foretic-wrapper-guide.md`
 - Cursor API instruction sheet: `docs/api/cursor-api-instructions.md`
@@ -157,7 +161,7 @@ await headsup.sendEvent({
 });
 ```
 
-Start with `docs/api/node-cloudflare-client.md` for install/use instructions, `docs/api/foretic-wrapper-guide.md` for Foretic, and `docs/api/quickstart.md` for the raw API tutorial with request and response examples.
+Start with `docs/api/quickstart.md` for the full API journey, `docs/api/getting-started-api-keys.md` for first-run key setup, `docs/api/webhook-receivers.md` for Slack/generic callbacks, `docs/api/watch-types.md` for supported features, and `docs/api/node-cloudflare-client.md` for the SDK.
 
 ## Development
 

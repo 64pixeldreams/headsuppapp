@@ -11,6 +11,9 @@ README.md
 docs/api/README.md
 docs/api/cursor-api-instructions.md
 docs/api/quickstart.md
+docs/api/getting-started-api-keys.md
+docs/api/webhook-receivers.md
+docs/api/watch-types.md
 docs/api/node-cloudflare-client.md
 docs/api/foretic-wrapper-guide.md
 docs/api/reference.md

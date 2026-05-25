@@ -117,6 +117,24 @@ The connector secret is returned only on creation and must be stored by the prod
 
 ## Create Subscriber
 
+Slack alert subscriber:
+
+```json
+{
+  "action": "admin.createSubscriber",
+  "payload": {
+    "workspace_id": "ws_123",
+    "channel_id": "ch_123",
+    "subscriber_type": "slack_webhook",
+    "destination_url": "https://hooks.slack.com/services/T_TEST/B_TEST/SECRET",
+    "display_name": "#ops-alerts",
+    "mode": "alert"
+  }
+}
+```
+
+Generic alert callback:
+
 ```json
 {
   "action": "admin.createSubscriber",
@@ -124,13 +142,33 @@ The connector secret is returned only on creation and must be stored by the prod
     "workspace_id": "ws_123",
     "channel_id": "ch_123",
     "subscriber_type": "webhook",
-    "destination_url": "https://api.example.com/heads-up/callback",
+    "destination_url": "https://api.example.com/heads-up/alerts",
+    "display_name": "Alert callback",
+    "mode": "alert",
+    "config": {
+      "signing_secret": "receiver_shared_secret"
+    }
+  }
+}
+```
+
+Aggregate-forward callback:
+
+```json
+{
+  "action": "admin.createSubscriber",
+  "payload": {
+    "workspace_id": "ws_123",
+    "channel_id": "ch_123",
+    "subscriber_type": "webhook",
+    "destination_url": "https://api.example.com/heads-up/aggregates",
+    "display_name": "Aggregate callback",
     "mode": "aggregate_forward"
   }
 }
 ```
 
-Subscriber responses include redacted URL metadata. Do not expose real Slack webhook URLs in logs or docs.
+Subscriber responses include redacted URL metadata. Do not expose real Slack webhook URLs in logs or docs. See `webhook-receivers.md` for callback payloads, retries, and signature verification.
 
 ## Create Signal
 
@@ -197,6 +235,8 @@ Sensitive control-plane actions write safe audit rows to D1. Audit metadata reda
   }
 }
 ```
+
+Use `watch-types.md` for plain-English examples of thresholds, totals, averages, counts, deltas, percent changes, missing expected events, reminders, digests, and aggregate forwarding.
 
 ## Channel Contracts
 

@@ -77,6 +77,94 @@ paths:
                     source_app: headsupp-demo
                     external_tenant_id: demo-tenant
                     external_user_id: demo-user
+              bootstrapServiceApiKey:
+                value:
+                  action: operator.bootstrapServiceApiKey
+                  payload:
+                    name: Demo integration service
+                    user_id: service:demo
+                    source_app: headsupp-demo
+                    permissions:
+                      - workspace:create
+                      - channel:create
+                      - connector:create
+                      - subscriber:create
+                      - signal:create
+                      - watch:create
+                      - alert:read
+                      - watch:read
+                      - watch:control
+              createSlackSubscriber:
+                value:
+                  action: admin.createSubscriber
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+                    subscriber_type: slack_webhook
+                    destination_url: https://hooks.slack.com/services/T_TEST/B_TEST/SECRET
+                    display_name: "#ops-alerts"
+                    mode: alert
+              createWebhookSubscriber:
+                value:
+                  action: admin.createSubscriber
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+                    subscriber_type: webhook
+                    destination_url: https://example.com/headsupp/alerts
+                    display_name: Alert callback
+                    mode: alert
+                    config:
+                      signing_secret: receiver_shared_secret
+              createThresholdWatch:
+                value:
+                  action: admin.createWatch
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+                    signal_id: sig_demo
+                    name: Demo metric high
+                    watch_type: LAST_VALUE_GT
+                    config:
+                      threshold: 10
+                      severity: warning
+                      bucket_type: minute
+                    cooldown_seconds: 3600
+              createWeeklyTotalWatch:
+                value:
+                  action: admin.createWatch
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+                    signal_id: sig_demo
+                    name: Weekly spend high
+                    watch_type: WINDOW_SUM_GT
+                    config:
+                      threshold: 500
+                      severity: warning
+                      bucket_type: week
+                      window:
+                        size: 1
+              createAggregateForwardWatch:
+                value:
+                  action: admin.createWatch
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+                    signal_id: sig_demo
+                    name: Forward hourly aggregate
+                    watch_type: AGGREGATE_FORWARD
+                    config:
+                      bucket_type: hour
+                      emit_after_grace_seconds: 60
+                      subscriber_id: sub_forward
+                      include:
+                        sum: true
+                        count: true
+                        avg: true
+                        min: true
+                        max: true
+                        last: true
       responses:
         "200":
           description: Action-specific success response

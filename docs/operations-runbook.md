@@ -29,6 +29,21 @@ curl -H "Authorization: Bearer <operator token>" https://headsupp_app.martin-598
 
 The observability response is safe for operators. It must not include raw event payloads, connector secrets, API keys, or full webhook URLs.
 
+## First API Key Or Key Rotation
+
+The first service API key is created with `operator.bootstrapServiceApiKey` and the runtime Worker secret `HEADSUPP_BOOTSTRAP_TOKEN`. See `docs/api/getting-started-api-keys.md` for the exact request.
+
+If bootstrap fails:
+
+```text
+confirm HEADSUPP_BOOTSTRAP_TOKEN is set as a Worker secret
+confirm the request sends X-HeadsUp-Bootstrap-Token or a valid operator Bearer token
+confirm the new key has the permissions needed by the integration
+do not paste raw api_key values into logs, docs, issues, or commits
+```
+
+Key lifecycle actions are `operator.listServiceApiKeys`, `operator.rotateServiceApiKey`, and `operator.revokeServiceApiKey`. Rotation returns the new raw key once.
+
 ## Failed Deployed Smoke
 
 Check:

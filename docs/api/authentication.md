@@ -88,6 +88,8 @@ The response must never include API keys, connector secrets, Slack webhook URLs,
 
 Initial service API keys can be created through the operator bootstrap CloudFunction:
 
+The bootstrap token comes from the runtime Worker secret `HEADSUPP_BOOTSTRAP_TOKEN`. Operators set it in Cloudflare and pass it at runtime only; it is not stored in the repository. For the full first-run flow, see `getting-started-api-keys.md`.
+
 ```json
 {
   "action": "operator.bootstrapServiceApiKey",
@@ -101,6 +103,9 @@ Initial service API keys can be created through the operator bootstrap CloudFunc
       "subscriber:create",
       "signal:create",
       "watch:create",
+      "channel_contract:create",
+      "channel_contract:update",
+      "channel_contract:read",
       "alert:read",
       "watch:read",
       "watch:control"

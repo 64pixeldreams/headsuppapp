@@ -1,6 +1,6 @@
 # Cursor API Instructions
 
-This is the short copy-paste guide for using Heads Up from Cursor or a script. For full schemas, use `reference.md`.
+This is the short copy-paste guide for using Heads Up from Cursor or a script. For the full learning path, use `quickstart.md`. For first-run keys, use `getting-started-api-keys.md`. For Slack/generic callbacks, use `webhook-receivers.md`. For feature choices, use `watch-types.md`. For full schemas, use `reference.md`.
 
 For Node or Cloudflare Workers, prefer the wrapper in `node-cloudflare-client.md`. For Foretic, use `foretic-wrapper-guide.md`.
 

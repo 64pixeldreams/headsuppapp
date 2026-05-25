@@ -96,6 +96,7 @@ export async function provisionForecastHeadsUp({
   forecastName,
   slackWebhookUrl,
   foreticCallbackUrl,
+  foreticAlertCallbackUrl,
 }) {
   const workspace = await headsup.createWorkspace({
     name: `Foretic / ${foreticTenantId}`,
@@ -212,6 +213,19 @@ export async function provisionForecastHeadsUp({
     );
   }
 
+  if (foreticAlertCallbackUrl) {
+    subscribers.push(
+      await headsup.createSubscriber({
+        workspace_id: workspace.workspace_id,
+        channel_id: channel.channel_id,
+        subscriber_type: 'webhook',
+        destination_url: foreticAlertCallbackUrl,
+        display_name: 'Foretic alert callback',
+        mode: 'alert',
+      }),
+    );
+  }
+
   return {
     workspace,
     channel,
@@ -224,6 +238,8 @@ export async function provisionForecastHeadsUp({
 ```
 
 Save `connector.connector_key` and `connector.connector_secret` in Foretic server-side storage. The secret signs future forecast events.
+
+The `aggregate_forward` subscriber receives closed aggregate buckets. The `alert` subscriber receives `type: "heads_up.alert"` callbacks when a watch fires. See `webhook-receivers.md` for receiver payloads, retries, and signature verification.
 
 ## Send Forecast Events
 
