@@ -147,6 +147,15 @@ For Foretic-specific service calls, include:
 foretic:provision
 ```
 
+Recommended named profiles are documented in [authentication.md](authentication.md):
+
+```text
+headsupp:operator
+headsupp:admin
+foretic:provisioner
+foretic:runtime
+```
+
 For operator key lifecycle tools, the operator key needs:
 
 ```text

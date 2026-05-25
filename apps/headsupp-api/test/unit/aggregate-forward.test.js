@@ -74,6 +74,28 @@ test('creates aggregate delivery row with stable payload', async () => {
   assert.match(calls[0].sql, /INSERT OR IGNORE INTO aggregate_deliveries/);
 });
 
+test('marks aggregate delivery as not inserted when D1 reports no changes', async () => {
+  const db = {
+    prepare() {
+      return {
+        bind() {
+          return { async run() { return { meta: { changes: 0 } }; } };
+        },
+      };
+    },
+  };
+  const delivery = await createAggregateDelivery({
+    db,
+    aggregate,
+    signal: { signal_key: 'oxygen.percent' },
+    channel: { channel_id: 'ch_123', metadata_json: '{"forecast_id":"fc_123"}' },
+    subscriber: { subscriber_id: 'sub_123' },
+    now: '2026-05-24T11:01:00.000Z',
+  });
+
+  assert.equal(delivery.inserted, false);
+});
+
 test('enqueues aggregate delivery messages', async () => {
   const batches = [];
   const queued = await enqueueAggregateDeliveries(

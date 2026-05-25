@@ -27,6 +27,7 @@ The remaining non-AI/non-email gaps are now operational polish gaps:
 - Some deployed smokes still seed deterministic resources through D1/KV harnesses instead of the public `/api/function` control plane.
 - `smoke:foretic` is still fixture/local-runtime oriented rather than a live Foretic Worker integration.
 - The checked-in OpenAPI YAML documents the deployed endpoint surface; a generated spec can be added later if endpoint definitions move into structured route metadata.
+- Fresh-install migration docs now use a consolidated schema entrypoint; legacy upgrade patches remain for older databases.
 
 ## Product Principles
 

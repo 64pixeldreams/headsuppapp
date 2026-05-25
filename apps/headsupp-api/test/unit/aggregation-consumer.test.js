@@ -113,8 +113,9 @@ test('processes raw events through idempotency, aggregate upsert, and watch invo
   assert.equal(result.duplicates, 0);
   assert.equal(result.aggregate_deltas, 1);
   assert.equal(result.watch_invocations, 1);
-  assert.equal(db.batches.length, 1);
+  assert.equal(db.batches.length, 2);
   assert.equal(db.batches[0].length, 2);
+  assert.equal(db.batches[1].length, 1);
   assert.equal(fetches[0].reason, 'aggregate_updated');
 });
 
@@ -164,5 +165,7 @@ test('retries watch invocation without double-counting when aggregate already ap
   assert.equal(result.processed, 1);
   assert.equal(result.watch_invocations, 1);
   assert.equal(db.calls.some((call) => /INSERT INTO aggregates/.test(call.sql)), false);
+  assert.equal(db.batches.length, 1);
+  assert.equal(db.batches[0].length, 1);
   assert.equal(fetches[0].watchId, 'watch_warning');
 });

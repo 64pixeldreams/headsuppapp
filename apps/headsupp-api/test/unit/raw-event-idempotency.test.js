@@ -81,6 +81,7 @@ test('marks duplicate when D1 insert is ignored', async () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.duplicate, true);
+  assert.equal(result.inserted, false);
 });
 
 test('detects aggregate-applied event that still needs completion', async () => {
@@ -91,6 +92,16 @@ test('detects aggregate-applied event that still needs completion', async () => 
 
   assert.equal(result.duplicate, false);
   assert.equal(result.aggregate_applied, true);
+});
+
+test('treats non-insert in-flight event as duplicate to avoid double apply', async () => {
+  const result = await beginRawEventProcessing(
+    fakeDb(0, [], { processed_at: null, aggregate_applied_at: null, status: 'processing' }),
+    message,
+  );
+
+  assert.equal(result.duplicate, true);
+  assert.equal(result.aggregate_applied, false);
 });
 
 test('marks processing key as aggregated', async () => {

@@ -18,6 +18,28 @@ const fixture = {
   foretic_callback_url: 'https://api.foretic.io/heads-up/callback',
 };
 
+function createDbMock() {
+  const calls = [];
+  return {
+    calls,
+    prepare(sql) {
+      return {
+        bind(...params) {
+          calls.push({ sql, params });
+          return {
+            async first() {
+              return null;
+            },
+            async run() {
+              return { meta: { changes: 1 } };
+            },
+          };
+        },
+      };
+    },
+  };
+}
+
 test('creates Foretic forecast watch setup resources', async () => {
   const result = await createForeticForecastWatch({
     auth: serviceAuth,
@@ -115,4 +137,28 @@ test('forecast watch provisioning rejects invalid Slack webhook URL', async () =
 
   assert.equal(result.ok, false);
   assert.equal(result.code, 'INVALID_SLACK_WEBHOOK_URL');
+});
+
+test('forecast watch provisioning D1 path writes schema-valid channel columns', async () => {
+  const db = createDbMock();
+  const result = await createForeticForecastWatch({
+    auth: serviceAuth,
+    input: fixture,
+    store: createMemoryControlPlaneStore(),
+    db,
+    now: '2026-05-24T10:00:00.000Z',
+    secretFactory: () => 'hu_sec_test_secret',
+    baseUrl: 'https://headsupp.test',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.channel.purpose, 'forecast');
+  assert.equal(JSON.parse(result.channel.metadata_json).forecast_id, fixture.forecast_id);
+
+  const insertSql = db.calls
+    .filter((call) => call.sql.includes('INSERT OR IGNORE INTO'))
+    .map((call) => call.sql)
+    .join('\n');
+  assert.equal(insertSql.includes('channel_type'), false);
+  assert.equal(insertSql.includes('external_account_id'), false);
 });

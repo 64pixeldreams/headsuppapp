@@ -8,10 +8,10 @@ Foretic uses this API to create Heads Up resources for a Foretic customer/user.
 Authorization: Bearer <foretic_service_api_key>
 ```
 
-The API key must have:
+Foretic provisioning profile:
 
 ```text
-foretic:provision
+foretic:provisioner => foretic:provision
 ```
 
 ## Tenant Context
@@ -47,6 +47,8 @@ Current derived keys for the first test fixture:
 workspace_key = foretic:user:mkfoxvxgoyfbtd
 channel_key = foretic:user:mkfoxvxgoyfbtd:forecast:oracle_forecast:mlfl1bfqrxnbk1
 ```
+
+Channel rows are persisted with schema-valid fields (`purpose = forecast`, `external_resource_id = forecast_id`, and `metadata_json.forecast_id`).
 
 ## Provision Workspace
 

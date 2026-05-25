@@ -33,25 +33,28 @@ Local:
 
 ```bash
 cd apps/headsupp-api
-npx wrangler d1 execute headsup_db --local --file "migrations/0001_headsupp_core.sql"
-npx wrangler d1 execute headsup_db --local --file "migrations/0002_correctness_closure.sql"
-npx wrangler d1 execute headsup_db --local --file "migrations/0003_channel_contracts_and_read_apis.sql"
-npx wrangler d1 execute headsup_db --local --file "migrations/0004_watch_actions_and_quiet_summaries.sql"
-npx wrangler d1 execute headsup_db --local --file "migrations/0005_correctness_closure_runtime.sql"
+npx wrangler d1 execute headsup_db --local --file "migrations/fresh/schema.sql"
 ```
 
 Remote, only when the Cloudflare token has D1 import permissions:
 
 ```bash
 cd apps/headsupp-api
-npx wrangler d1 execute headsup_db --remote --file "migrations/0001_headsupp_core.sql"
-npx wrangler d1 execute headsup_db --remote --file "migrations/0002_correctness_closure.sql"
-npx wrangler d1 execute headsup_db --remote --file "migrations/0003_channel_contracts_and_read_apis.sql"
-npx wrangler d1 execute headsup_db --remote --file "migrations/0004_watch_actions_and_quiet_summaries.sql"
-npx wrangler d1 execute headsup_db --remote --file "migrations/0005_correctness_closure_runtime.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/fresh/schema.sql"
 ```
 
-Table/index migrations use `CREATE ... IF NOT EXISTS` where possible. Incremental `ALTER TABLE` migrations should be applied once per D1 database before deployed smokes.
+For older databases that predate this consolidated schema path, apply legacy patches once:
+
+```bash
+cd apps/headsupp-api
+npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0002_correctness_closure.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0003_channel_contracts_and_read_apis.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0004_watch_actions_and_quiet_summaries.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0005_correctness_closure_runtime.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0006_channel_metadata.sql"
+```
+
+Fresh installs should use only `migrations/fresh/schema.sql` to avoid duplicate-column errors from legacy `ALTER TABLE` patches.
 
 After schema-changing stories, apply the remote migration before running deployed operator/admin features or deployed smokes.
 

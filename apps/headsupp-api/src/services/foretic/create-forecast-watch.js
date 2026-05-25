@@ -9,6 +9,96 @@ import { foreticForecastSignalContract, foreticForecastWatchDefinitions } from '
 import { provisionForeticWorkspace } from './provision-workspace.js';
 import { foreticWatchSetupSummary } from './watch-summary.js';
 
+const TABLE_COLUMNS = Object.freeze({
+  channels: [
+    'id',
+    'channel_id',
+    'channel_key',
+    'workspace_id',
+    'name',
+    'purpose',
+    'status',
+    'source_app',
+    'external_tenant_id',
+    'external_user_id',
+    'external_resource_id',
+    'metadata_json',
+    'created_at',
+    'updated_at',
+  ],
+  connectors: [
+    'id',
+    'connector_id',
+    'connector_key',
+    'connector_type',
+    'connector_secret',
+    'workspace_id',
+    'channel_id',
+    'status',
+    'enabled',
+    'source_app',
+    'external_tenant_id',
+    'external_user_id',
+    'external_resource_id',
+    'created_at',
+    'updated_at',
+  ],
+  signals: [
+    'id',
+    'signal_id',
+    'workspace_id',
+    'channel_id',
+    'signal_key',
+    'signal_type',
+    'value_mode',
+    'status',
+    'created_at',
+    'updated_at',
+  ],
+  signal_contracts: ['id', 'signal_contract_id', 'signal_id', 'contract_json', 'created_at', 'updated_at'],
+  watches: [
+    'id',
+    'watch_id',
+    'workspace_id',
+    'channel_id',
+    'signal_id',
+    'name',
+    'watch_type',
+    'config_json',
+    'cooldown_seconds',
+    'escalation_json',
+    'recovery_json',
+    'enabled',
+    'created_at',
+    'updated_at',
+  ],
+  subscribers: [
+    'id',
+    'subscriber_id',
+    'workspace_id',
+    'channel_id',
+    'subscriber_type',
+    'name',
+    'destination_url',
+    'destination_url_redacted',
+    'mode',
+    'enabled',
+    'config_json',
+    'source_app',
+    'external_tenant_id',
+    'external_user_id',
+    'external_resource_id',
+    'created_at',
+    'updated_at',
+  ],
+});
+
+function filterRowForTable(table, row) {
+  const allowed = TABLE_COLUMNS[table];
+  if (!allowed) return row;
+  return Object.fromEntries(Object.entries(row).filter(([key]) => allowed.includes(key)));
+}
+
 async function putIfMissing(store, type, key, valueFactory) {
   const existing = await store.get(type, key);
   if (existing) {
@@ -21,12 +111,14 @@ async function putIfMissing(store, type, key, valueFactory) {
 }
 
 async function insertIgnore(db, table, row) {
-  const columns = Object.keys(row);
+  const filtered = filterRowForTable(table, row);
+  const columns = Object.keys(filtered);
   const placeholders = columns.map(() => '?').join(', ');
   await db
     .prepare(`INSERT OR IGNORE INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`)
-    .bind(...columns.map((column) => row[column]))
+    .bind(...columns.map((column) => filtered[column]))
     .run();
+  return filtered;
 }
 
 async function first(db, sql, params) {
@@ -44,14 +136,17 @@ async function createForecastChannel({ store, db, workspace, context, now }) {
       channel_key: channelKey,
       workspace_id: workspace.workspace_id,
       name: context.forecast_name || context.forecast_id,
-      channel_type: 'forecast',
+      purpose: 'forecast',
       status: 'active',
+      metadata_json: JSON.stringify({
+        forecast_id: context.forecast_id,
+      }),
       created_at: now,
       updated_at: now,
-      ...ownershipFieldsFromContext(context),
+      ...ownershipFieldsFromContext(context, { external_resource_id: context.forecast_id }),
     };
-    await insertIgnore(db, 'channels', channel);
-    return { created: true, value: channel };
+    const inserted = await insertIgnore(db, 'channels', channel);
+    return { created: true, value: inserted };
   }
 
   return putIfMissing(store, 'channel', context.channel_key, () => ({
@@ -59,11 +154,14 @@ async function createForecastChannel({ store, db, workspace, context, now }) {
     channel_key: context.channel_key,
     workspace_id: workspace.workspace_id,
     name: context.forecast_name || context.forecast_id,
-    channel_type: 'forecast',
+    purpose: 'forecast',
     status: 'active',
+    metadata_json: JSON.stringify({
+      forecast_id: context.forecast_id,
+    }),
     created_at: now,
     updated_at: now,
-    ...ownershipFieldsFromContext(context),
+    ...ownershipFieldsFromContext(context, { external_resource_id: context.forecast_id }),
   }));
 }
 
@@ -90,9 +188,9 @@ async function createForecastConnector({ store, db, workspace, channel, context,
       updated_at: now,
       ...ownershipFieldsFromContext(context),
     };
-    await insertIgnore(db, 'connectors', connector);
-    if (store) await store.put('connector_by_key', connector.connector_key, connector);
-    return { created: true, value: connector };
+    const inserted = await insertIgnore(db, 'connectors', connector);
+    if (store) await store.put('connector_by_key', inserted.connector_key, inserted);
+    return { created: true, value: inserted };
   }
 
   const result = await putIfMissing(store, 'connector', connectorKey, () => ({
@@ -141,7 +239,7 @@ async function createSignal({ db, workspace, channel, context, now }) {
   const id = stableId('sig', `${channel.channel_id}:${signalKey}`);
   const existing = await first(db, 'SELECT * FROM signals WHERE id = ? OR signal_id = ? LIMIT 1', [id, id]);
   if (existing) return { created: false, value: existing };
-  const signal = {
+  const signal = filterRowForTable('signals', {
     id,
     signal_id: id,
     workspace_id: workspace.workspace_id,
@@ -153,7 +251,7 @@ async function createSignal({ db, workspace, channel, context, now }) {
     created_at: now,
     updated_at: now,
     ...ownershipFieldsFromContext(context),
-  };
+  });
   await insertIgnore(db, 'signals', signal);
   return { created: true, value: signal };
 }
@@ -219,8 +317,8 @@ async function createRequestedSubscribers({ input, context, workspace, channel, 
       updated_at: now,
       ...ownershipFieldsFromContext(context),
     };
-    await insertIgnore(db, 'subscribers', subscriber);
-    return { ok: true, subscriber: { ...subscriber, destination_url: undefined }, created: true };
+    const inserted = await insertIgnore(db, 'subscribers', subscriber);
+    return { ok: true, subscriber: { ...inserted, destination_url: undefined }, created: true };
   };
 
   if (input.slack_webhook_url) {

@@ -26,7 +26,49 @@ reading configuration
 
 A service API key should have only the permissions needed by the integration.
 
-Example permission set:
+## Permission Profiles
+
+Use these named profiles as defaults:
+
+```text
+headsupp:operator
+  api_key:manage
+  audit:read
+
+headsupp:admin
+  workspace:create
+  channel:create
+  channel:read
+  channel:update
+  connector:create
+  subscriber:create
+  signal:create
+  watch:create
+  channel_contract:create
+  channel_contract:update
+  channel_contract:read
+  alert:read
+  watch:read
+  watch:control
+
+foretic:provisioner
+  foretic:provision
+
+foretic:runtime
+  workspace:create
+  channel:create
+  channel:read
+  channel:update
+  connector:create
+  subscriber:create
+  signal:create
+  watch:create
+  alert:read
+  watch:read
+  watch:control
+```
+
+Example integration permission set:
 
 ```text
 workspace:create
@@ -69,6 +111,8 @@ Response shape:
 ```
 
 The response must never include API keys, connector secrets, Slack webhook URLs, or token material.
+
+Foretic-specific control-plane functions (`foretic.provisionWorkspace`, `foretic.createForecastWatch`) require `foretic:provision`.
 
 ## Operator Bootstrap
 

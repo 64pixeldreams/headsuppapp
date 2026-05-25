@@ -1,14 +1,38 @@
-export const FORETIC_SERVICE_PERMISSIONS = Object.freeze([
-  'foretic:provision',
-  'workspace:create',
-  'channel:create',
-  'channel:read',
-  'channel:update',
-  'connector:create',
-  'subscriber:create',
-  'signal:create',
-  'watch:create',
-]);
+export const PERMISSION_PROFILES = Object.freeze({
+  'headsupp:operator': Object.freeze(['api_key:manage', 'audit:read']),
+  'headsupp:admin': Object.freeze([
+    'workspace:create',
+    'channel:create',
+    'channel:read',
+    'channel:update',
+    'connector:create',
+    'subscriber:create',
+    'signal:create',
+    'watch:create',
+    'channel_contract:create',
+    'channel_contract:update',
+    'channel_contract:read',
+    'alert:read',
+    'watch:read',
+    'watch:control',
+  ]),
+  'foretic:provisioner': Object.freeze(['foretic:provision']),
+  'foretic:runtime': Object.freeze([
+    'workspace:create',
+    'channel:create',
+    'channel:read',
+    'channel:update',
+    'connector:create',
+    'subscriber:create',
+    'signal:create',
+    'watch:create',
+    'alert:read',
+    'watch:read',
+    'watch:control',
+  ]),
+});
+
+export const FORETIC_SERVICE_PERMISSIONS = Object.freeze([...PERMISSION_PROFILES['foretic:provisioner']]);
 
 export function getPermissions(auth) {
   if (!auth || !Array.isArray(auth.permissions)) return [];

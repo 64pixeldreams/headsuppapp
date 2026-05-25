@@ -1,13 +1,19 @@
 # Schema And Migrations
 
-The core D1 schema lives in:
+Fresh-install schema entrypoint:
 
 ```text
-apps/headsupp-api/migrations/0001_headsupp_core.sql
-apps/headsupp-api/migrations/0002_correctness_closure.sql
-apps/headsupp-api/migrations/0003_channel_contracts_and_read_apis.sql
-apps/headsupp-api/migrations/0004_watch_actions_and_quiet_summaries.sql
-apps/headsupp-api/migrations/0005_correctness_closure_runtime.sql
+apps/headsupp-api/migrations/fresh/schema.sql
+```
+
+Legacy upgrade patches for older deployed databases:
+
+```text
+apps/headsupp-api/migrations/legacy/0002_correctness_closure.sql
+apps/headsupp-api/migrations/legacy/0003_channel_contracts_and_read_apis.sql
+apps/headsupp-api/migrations/legacy/0004_watch_actions_and_quiet_summaries.sql
+apps/headsupp-api/migrations/legacy/0005_correctness_closure_runtime.sql
+apps/headsupp-api/migrations/legacy/0006_channel_metadata.sql
 ```
 
 It creates the operational core API tables required by the product spec:
@@ -55,7 +61,7 @@ These constraints are required for idempotency, atomic aggregate upsert, and dup
 
 `operational_status` records small status rows such as `scheduled_tasks`. It is used by observability to report whether cron-compatible work last succeeded or failed.
 
-`0002_correctness_closure.sql` adds:
+`legacy/0002_correctness_closure.sql` adds for older databases:
 
 ```text
 aggregates.dimensions_hash
@@ -65,8 +71,10 @@ raw_event_dedupe.processed_at
 raw_event_dedupe.updated_at
 ```
 
-`0003_channel_contracts_and_read_apis.sql` adds the `channel_contracts` table and indexes used by admin contract CRUD, signal default inheritance, and watch-template materialization. Alert and watch-state read APIs use existing `alerts`, `watches`, and `watch_states` rows and do not require a separate read-model table.
+`legacy/0003_channel_contracts_and_read_apis.sql` adds the `channel_contracts` table and indexes used by admin contract CRUD, signal default inheritance, and watch-template materialization. Alert and watch-state read APIs use existing `alerts`, `watches`, and `watch_states` rows and do not require a separate read-model table.
 
-`0004_watch_actions_and_quiet_summaries.sql` adds `watch_action_controls` and `quiet_summary_deliveries`. These power manual attention controls and scheduled proof-of-silence delivery without creating normal alert rows.
+`legacy/0004_watch_actions_and_quiet_summaries.sql` adds `watch_action_controls` and `quiet_summary_deliveries`. These power manual attention controls and scheduled proof-of-silence delivery without creating normal alert rows.
 
-`0005_correctness_closure_runtime.sql` adds aggregate-applied idempotency staging, latest aggregate context preservation, and dimension-safe aggregate-forward delivery identity.
+`legacy/0005_correctness_closure_runtime.sql` adds aggregate-applied idempotency staging, latest aggregate context preservation, and dimension-safe aggregate-forward delivery identity.
+
+`legacy/0006_channel_metadata.sql` adds `channels.metadata_json` for channel-level metadata echoed in callback payloads.

@@ -14,6 +14,14 @@ export async function processAggregateDeliveryMessage(message, env, options = {}
   const deliveryId = message.aggregateDeliveryId;
   const bundle = await loadAggregateDeliveryBundle(env.DB, deliveryId);
   if (!bundle) return { processed: false, reason: 'DELIVERY_NOT_FOUND' };
+  if (bundle.delivery.status === 'sent' || bundle.delivery.status === 'failed') {
+    return {
+      processed: true,
+      skipped: true,
+      reason: 'TERMINAL_STATUS',
+      status: bundle.delivery.status,
+    };
+  }
   const result = await dispatchAggregateDelivery({
     db: env.DB,
     delivery: bundle.delivery,

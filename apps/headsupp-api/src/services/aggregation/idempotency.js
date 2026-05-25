@@ -16,7 +16,7 @@ export async function rawEventIdempotencyKey(message) {
 
 export async function beginRawEventProcessing(db, message, receivedAt = message.receivedAt) {
   const idempotencyKey = await rawEventIdempotencyKey(message);
-  await db
+  const insertResult = await db
     .prepare(
       `INSERT OR IGNORE INTO raw_event_dedupe (
         idempotency_key,
@@ -31,12 +31,13 @@ export async function beginRawEventProcessing(db, message, receivedAt = message.
     )
     .bind(idempotencyKey, message.workspaceId, message.channelId, message.event.signal_key, receivedAt, receivedAt, receivedAt)
     .run();
+  const inserted = Number(insertResult?.meta?.changes || 0) > 0;
 
   const state = await db
     .prepare('SELECT processed_at, aggregate_applied_at, status FROM raw_event_dedupe WHERE idempotency_key = ? LIMIT 1')
     .bind(idempotencyKey)
     .first();
-  if (state && !state.processed_at) {
+  if (inserted && state && !state.processed_at) {
     await db
       .prepare(
         `UPDATE raw_event_dedupe
@@ -49,9 +50,10 @@ export async function beginRawEventProcessing(db, message, receivedAt = message.
   return {
     ok: true,
     idempotency_key: idempotencyKey,
-    duplicate: Boolean(state?.processed_at),
+    duplicate: Boolean(state?.processed_at) || (!inserted && !state?.aggregate_applied_at),
     status: state?.status || 'processing',
     aggregate_applied: Boolean(state?.aggregate_applied_at),
+    inserted,
   };
 }
 
@@ -75,17 +77,20 @@ export async function markRawEventAggregated(db, idempotencyKey, now = new Date(
 }
 
 export async function markRawEventProcessed(db, idempotencyKey, now = new Date().toISOString()) {
-  await db
-    .prepare(
-      `UPDATE raw_event_dedupe
-       SET status = 'processed', aggregate_applied_at = COALESCE(aggregate_applied_at, ?), processed_at = ?, updated_at = ?
-       WHERE idempotency_key = ?`,
-    )
-    .bind(now, now, now, idempotencyKey)
-    .run();
+  await markRawEventProcessedStatement(db, idempotencyKey, now).run();
 
   return {
     ok: true,
     idempotency_key: idempotencyKey,
   };
+}
+
+export function markRawEventProcessedStatement(db, idempotencyKey, now = new Date().toISOString()) {
+  return db
+    .prepare(
+      `UPDATE raw_event_dedupe
+       SET status = 'processed', aggregate_applied_at = COALESCE(aggregate_applied_at, ?), processed_at = ?, updated_at = ?
+       WHERE idempotency_key = ?`,
+    )
+    .bind(now, now, now, idempotencyKey);
 }

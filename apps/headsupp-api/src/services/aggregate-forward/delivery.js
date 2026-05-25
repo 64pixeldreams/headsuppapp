@@ -55,7 +55,7 @@ export async function createAggregateDelivery({ db, aggregate, signal, channel, 
       delivery.updated_at,
     )
     .run();
-  delivery.inserted = result?.meta?.changes === undefined ? true : Number(result.meta.changes) > 0;
+  delivery.inserted = Number(result?.meta?.changes || 0) > 0;
 
   return delivery;
 }

@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   FORETIC_SERVICE_PERMISSIONS,
+  PERMISSION_PROFILES,
   hasPermission,
   requireForeticProvision,
   requirePermission,
@@ -16,10 +17,15 @@ const serviceAuth = {
   permissions: FORETIC_SERVICE_PERMISSIONS,
 };
 
-test('Foretic service permissions include required provisioning scopes', () => {
+test('Foretic service permissions map to foretic:provisioner profile', () => {
   assert.ok(FORETIC_SERVICE_PERMISSIONS.includes('foretic:provision'));
-  assert.ok(FORETIC_SERVICE_PERMISSIONS.includes('workspace:create'));
-  assert.ok(FORETIC_SERVICE_PERMISSIONS.includes('watch:create'));
+  assert.equal(FORETIC_SERVICE_PERMISSIONS.length, 1);
+  assert.deepEqual(FORETIC_SERVICE_PERMISSIONS, PERMISSION_PROFILES['foretic:provisioner']);
+});
+
+test('permission profiles expose expected integration defaults', () => {
+  assert.ok(PERMISSION_PROFILES['headsupp:admin'].includes('watch:control'));
+  assert.ok(PERMISSION_PROFILES['foretic:runtime'].includes('alert:read'));
 });
 
 test('hasPermission allows explicit permission', () => {

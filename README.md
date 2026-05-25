@@ -221,12 +221,18 @@ Apply the D1 schema:
 
 ```bash
 cd apps/headsupp-api
-npx wrangler d1 execute headsup_db --remote --file "migrations/0001_headsupp_core.sql"
-npx wrangler d1 execute headsup_db --remote --file "migrations/0002_correctness_closure.sql"
-npx wrangler d1 execute headsup_db --remote --file "migrations/0003_channel_contracts_and_read_apis.sql"
-npx wrangler d1 execute headsup_db --remote --file "migrations/0004_watch_actions_and_quiet_summaries.sql"
-npx wrangler d1 execute headsup_db --remote --file "migrations/0005_correctness_closure_runtime.sql"
-npx wrangler d1 execute headsup_db --remote --file "migrations/0006_channel_metadata.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/fresh/schema.sql"
+```
+
+Legacy upgrade path (older databases only):
+
+```bash
+cd apps/headsupp-api
+npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0002_correctness_closure.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0003_channel_contracts_and_read_apis.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0004_watch_actions_and_quiet_summaries.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0005_correctness_closure_runtime.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0006_channel_metadata.sql"
 ```
 
 ## Tests And Proofs
