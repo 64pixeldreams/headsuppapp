@@ -72,13 +72,33 @@ function titlePrefix(severity) {
 }
 
 function buildDefaultTitle(alert, labels = {}) {
-  return labels.title || alert.summary_text || 'Heads Up alert';
+  if (labels.title) return labels.title;
+  const summary = String(alert.summary_text || '');
+  const beforeStatus = summary.split(/\sis\s(?:warning|critical|recovery|recovered)\sat\s/i)[0]?.trim();
+  const trimmed = beforeStatus || summary;
+  const normalized = trimmed.replace(/\s+(high|low)$/i, '').trim();
+  return normalized || 'Heads Up alert';
 }
 
 function buildDefaultSummary({ alert, labels, currentValue, thresholdValue }) {
   const signal = labels.signal_label || 'Signal';
   const threshold = labels.threshold_label || 'Threshold';
   return `${signal} reached ${currentValue}. ${threshold}: ${thresholdValue}.`;
+}
+
+function buildDisplayTitle(title, currentValue) {
+  const base = String(title || 'Heads Up alert').trim();
+  const value = String(currentValue || '').trim();
+  if (!value || base.includes(value)) return base;
+  return `${base}: ${value}`;
+}
+
+function renderTemplate(template, values = {}) {
+  if (!template) return null;
+  return String(template).replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => {
+    const value = values[key];
+    return value === undefined || value === null ? match : String(value);
+  });
 }
 
 function looksGenericRecipientLabel(value) {
@@ -109,12 +129,39 @@ function renderBaseAlertTemplate(context) {
   const escapedTitle = escapeHtml(context.title);
   const escapedSummary = escapeHtml(context.summary);
   const escapedDetail = escapeHtml(context.detail || '');
-  const escapedSeverity = escapeHtml(context.severity);
   const escapedCurrent = escapeHtml(context.current_value_display);
   const escapedThreshold = escapeHtml(context.threshold_value_display);
   const escapedFooter = escapeHtml(context.footer_text || 'Fewer surprises. Just a heads up.');
   const escapedBrand = escapeHtml(context.brand_name || 'Heads Up');
   const escapedRecipient = context.recipient_name ? escapeHtml(context.recipient_name) : null;
+
+  const severityStyles = {
+    critical: {
+      bg: '#FEE2E2',
+      text: '#B91C1C',
+      border: '#FCA5A5',
+      label: 'Critical',
+    },
+    warning: {
+      bg: '#FEF3C7',
+      text: '#B45309',
+      border: '#FCD34D',
+      label: 'Warning',
+    },
+    recovered: {
+      bg: '#DCFCE7',
+      text: '#15803D',
+      border: '#86EFAC',
+      label: 'Recovered',
+    },
+    recovery: {
+      bg: '#DCFCE7',
+      text: '#15803D',
+      border: '#86EFAC',
+      label: 'Recovered',
+    },
+  };
+  const severityStyle = severityStyles[context.severity] || severityStyles.warning;
 
   const lines = [
     escapedBrand,
@@ -126,7 +173,6 @@ function renderBaseAlertTemplate(context) {
     context.detail ? '' : null,
     context.detail ? context.detail : null,
     '',
-    `Severity: ${context.severity}`,
     `${context.current_label}: ${context.current_value_display}`,
     `${context.threshold_label}: ${context.threshold_value_display}`,
     context.cta_url ? '' : null,
@@ -150,10 +196,14 @@ function renderBaseAlertTemplate(context) {
               <td style="padding:24px;">
                 ${escapedRecipient ? `<p style="margin:0 0 12px 0;font-size:14px;">Hi ${escapedRecipient},</p>` : ''}
                 <h1 style="margin:0 0 12px 0;font-size:22px;line-height:1.3;">${escapedTitle}</h1>
+                <p style="margin:0 0 12px 0;">
+                  <span style="display:inline-block;background:${severityStyle.bg};color:${severityStyle.text};border:1px solid ${severityStyle.border};padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;">
+                    ${severityStyle.label}
+                  </span>
+                </p>
                 <p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;">${escapedSummary}</p>
                 ${context.detail ? `<p style="margin:0 0 16px 0;font-size:14px;line-height:1.6;color:#374151;">${escapedDetail}</p>` : ''}
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 20px 0;border:1px solid #e5e7eb;border-radius:8px;">
-                  <tr><td style="padding:10px 12px;font-size:13px;"><strong>Severity:</strong> ${escapedSeverity}</td></tr>
                   <tr><td style="padding:10px 12px;font-size:13px;"><strong>${escapeHtml(context.current_label)}:</strong> ${escapedCurrent}</td></tr>
                   <tr><td style="padding:10px 12px;font-size:13px;"><strong>${escapeHtml(context.threshold_label)}:</strong> ${escapedThreshold}</td></tr>
                 </table>
@@ -211,8 +261,19 @@ export function renderAlertEmail({ alert, subscriber, channel, unsubscribe_url =
     || fallbackRecipientFromEmail
     || null;
 
-  const title = notification.title || buildDefaultTitle(alert, labels);
-  const summary = notification.summary || buildDefaultSummary({
+  const baseTitle = notification.title || buildDefaultTitle(alert, labels);
+  const templateValues = {
+    title: baseTitle,
+    value: currentValueDisplay,
+    current_value: currentValueDisplay,
+    threshold: thresholdValueDisplay,
+    threshold_value: thresholdValueDisplay,
+    severity: alert.severity || 'warning',
+  };
+  const title =
+    renderTemplate(notification.title_template || labels.title_template || subscriberConfig.title_template, templateValues) ||
+    buildDisplayTitle(baseTitle, currentValueDisplay);
+  const summary = notification.summary || renderTemplate(labels.summary_template || subscriberConfig.summary_template, templateValues) || buildDefaultSummary({
     alert,
     labels,
     currentValue: currentValueDisplay,

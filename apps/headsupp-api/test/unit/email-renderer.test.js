@@ -34,10 +34,15 @@ test('renders fallback template with formatting profile', () => {
   });
 
   assert.match(rendered.subject, /^Critical:/);
+  assert.match(rendered.subject, /Weekly coffee budget exceeded\.: £126\.40/);
   assert.match(rendered.text, /£126\.40/);
   assert.match(rendered.text, /Unsubscribe:/);
   assert.match(rendered.text, /Signal reached £126\.40/);
   assert.match(rendered.html, /href="https:\/\/headsupp\.io\/v1\/subscribers\/unsubscribe\?token=test"/);
+  assert.match(rendered.html, /Critical/);
+  assert.match(rendered.html, /background:#FEE2E2/);
+  assert.doesNotMatch(rendered.html, /<strong>Severity:<\/strong>/);
+  assert.doesNotMatch(rendered.text, /Severity:/);
 });
 
 test('renders notification overrides and escapes HTML content', () => {
@@ -58,7 +63,7 @@ test('renders notification overrides and escapes HTML content', () => {
     channel: {},
   });
 
-  assert.match(rendered.subject, /Coffee <Budget> exceeded/);
+  assert.match(rendered.subject, /Coffee <Budget> exceeded: 126\.40/);
   assert.match(rendered.html, /Coffee &lt;Budget&gt; exceeded/);
   assert.doesNotMatch(rendered.html, /<b>126\.40<\/b>/);
 });
@@ -87,4 +92,48 @@ test('uses email-derived recipient name when subscriber label is generic', () =>
   });
 
   assert.match(rendered.text, /Hi Martin,/);
+});
+
+test('normalizes title by removing status and trailing high/low suffix', () => {
+  const rendered = renderAlertEmail({
+    alert: {
+      ...baseAlert,
+      severity: 'warning',
+      summary_text: 'Highest coffee purchase high is warning at 9.5.',
+    },
+    subscriber: {
+      destination_url: 'martin@inc64.com',
+      config_json: '{}',
+    },
+    channel: {},
+  });
+
+  assert.equal(rendered.subject, 'Warning: Highest coffee purchase: 126.40');
+});
+
+test('renders configured title template placeholders with formatted values', () => {
+  const rendered = renderAlertEmail({
+    alert: {
+      ...baseAlert,
+      severity: 'warning',
+      summary_text: 'Highest coffee purchase high is warning at 9.5.',
+      current_value: 9.5,
+      threshold_value: 8,
+    },
+    subscriber: {
+      destination_url: 'martin@inc64.com',
+      config_json: JSON.stringify({
+        value_format: 'money_usd_2',
+        locale: 'en-US',
+        labels: {
+          title_template: 'Highest coffee purchase: {value}',
+          summary_template: 'Your highest coffee purchase reached {value}; threshold is {threshold}.',
+        },
+      }),
+    },
+    channel: {},
+  });
+
+  assert.equal(rendered.subject, 'Warning: Highest coffee purchase: $9.50');
+  assert.match(rendered.text, /Your highest coffee purchase reached \$9\.50; threshold is \$8\.00\./);
 });

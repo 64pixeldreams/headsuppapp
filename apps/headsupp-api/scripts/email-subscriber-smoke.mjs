@@ -46,6 +46,12 @@ await client.d1Query('UPDATE subscribers SET config_json = ?, destination_url_re
     value_format: 'money_usd_2',
     locale: 'en-US',
     timezone: 'UTC',
+    labels: {
+      title_template: 'Highest coffee purchase: {value}',
+      summary_template: 'Your highest coffee purchase reached {value}; threshold is {threshold}.',
+      current_label: 'Highest purchase',
+      threshold_label: 'Alert threshold',
+    },
   }),
   `${String(emailDestination).slice(0, 2)}***`,
   new Date().toISOString(),
