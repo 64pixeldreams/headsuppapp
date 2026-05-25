@@ -1,6 +1,8 @@
 const required = ['CLOUDFLARE_API_TOKEN'];
 const slackRequired = process.argv.includes('--slack-required');
+const operatorRequired = process.argv.includes('--operator-required');
 if (slackRequired) required.push('HEADSUPP_SMOKE_SLACK_WEBHOOK_URL');
+if (operatorRequired) required.push('HEADSUPP_BOOTSTRAP_TOKEN', 'HEADSUPP_OPERATOR_TOKEN');
 
 const missing = required.filter((name) => !String(process.env[name] || '').trim());
 

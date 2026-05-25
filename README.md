@@ -96,14 +96,14 @@ Most integrations should use the private Node/Cloudflare wrapper instead of call
 Package:
 
 ```text
-@64pixelholdings/headsupp-client
+@64pixeldreams/headsupp-client
 ```
 
 Install options:
 
 ```bash
 # Preferred once private package publishing is configured
-npm install @64pixelholdings/headsupp-client
+npm install @64pixeldreams/headsupp-client
 
 # Local development from this repo
 npm install ../headsupp/packages/headsupp-client
@@ -115,7 +115,7 @@ npm install git+ssh://git@github.com/64pixeldreams/headsupp-client-js.git
 Minimal setup:
 
 ```js
-import { createHeadsUpClient } from '@64pixelholdings/headsupp-client';
+import { createHeadsUpClient } from '@64pixeldreams/headsupp-client';
 
 const headsup = createHeadsUpClient({
   baseUrl: process.env.HEADSUPP_BASE_URL,
@@ -202,6 +202,12 @@ npm run smoke:alert-decisions
 npm run smoke:scheduled
 npm run smoke:delivery-retry
 npm run smoke:tenant-isolation
+npm run smoke:quiet-summary
+npm run smoke:action-controls
+npm run smoke:channel-contracts
+npm run smoke:aggregate-forward-dimensions
+npm run smoke:advanced-watches
+npm run smoke:operator-observability
 ```
 
 These prove:
@@ -211,7 +217,8 @@ These prove:
 - Triggering events produce alerts.
 - Cooldown, escalation, and recovery work.
 - Scheduled missing-expected, digest, and aggregate-forward watches work.
-- Week buckets, relative-change watches, reminders, richer recurring expectations, and weekly/monthly digests are covered by local tests.
+- Week buckets, relative-change watches, reminders, richer recurring expectations, and weekly/monthly digests have deployed and local coverage.
+- Quiet summaries, action controls, channel contracts/read APIs, dimensioned aggregate-forwarding, and operator observability have dedicated deployed smoke scripts.
 - Retry and permanent delivery failure behavior works.
 - Tenant isolation holds when two workspaces share the same `signal_key`.
 

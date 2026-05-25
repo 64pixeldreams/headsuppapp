@@ -44,10 +44,12 @@ export async function runScheduledTasks(env, _event = {}, options = {}) {
   try {
     const missingExpected = await evaluateMissingExpectedWatches({
       db: env.DB,
+      queue: env.ALERT_DELIVERY_QUEUE,
       now,
     });
     const reminders = await evaluateReminderWatches({
       db: env.DB,
+      queue: env.ALERT_DELIVERY_QUEUE,
       now,
     });
     const aggregateForward = await evaluateClosedAggregateForwardWatches({
@@ -58,6 +60,7 @@ export async function runScheduledTasks(env, _event = {}, options = {}) {
     const retries = await processRetryableDeliveries(env, { ...options, now });
     const digest = await evaluateDigestWatches({
       db: env.DB,
+      queue: env.ALERT_DELIVERY_QUEUE,
       now,
     });
     const quietSummary = await evaluateQuietSummaries({

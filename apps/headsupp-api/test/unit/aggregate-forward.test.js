@@ -83,6 +83,17 @@ test('enqueues aggregate delivery messages', async () => {
   assert.equal(batches[0][0].body.aggregateDeliveryId, 'aggdel_123');
 });
 
+test('does not enqueue aggregate delivery rows ignored as duplicates', async () => {
+  const batches = [];
+  const queued = await enqueueAggregateDeliveries(
+    { async sendBatch(batch) { batches.push(batch); } },
+    [{ id: 'aggdel_existing', inserted: false }],
+  );
+
+  assert.equal(queued, 0);
+  assert.equal(batches.length, 0);
+});
+
 test('aggregate-forward evaluator queries dimension-filtered aggregates', async () => {
   const calls = [];
   const batches = [];

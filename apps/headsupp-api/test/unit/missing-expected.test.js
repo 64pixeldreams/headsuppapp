@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { evaluateMissingExpectedWatch } from '../../src/services/scheduled-watches/missing-expected.js';
 
-function dbWithAggregateCount(countValue, batches = [], calls = []) {
+function dbWithAggregateCount(countValue, batches = [], calls = [], subscribers = []) {
   const aggregateRow =
     typeof countValue === 'object'
       ? countValue
@@ -26,7 +26,7 @@ function dbWithAggregateCount(countValue, batches = [], calls = []) {
               return null;
             },
             async all() {
-              if (sql.includes('subscribers')) return { results: [] };
+              if (sql.includes('subscribers')) return { results: subscribers };
               if (sql.includes('watch_action_controls')) return { results: [] };
               return { results: [] };
             },
@@ -113,6 +113,26 @@ test('missing expected watch triggers when value range is not met', async () => 
   assert.equal(result.triggered, true);
   assert.equal(result.alert.current_value, 75);
   assert.equal(batches.length, 2);
+});
+
+test('missing expected watch enqueues created alert deliveries when queue exists', async () => {
+  const batches = [];
+  const queueBatches = [];
+  const result = await evaluateMissingExpectedWatch({
+    db: dbWithAggregateCount(0, batches, [], [{ subscriber_id: 'sub_123', destination_url: 'https://example.com/webhook' }]),
+    queue: {
+      async sendBatch(batch) {
+        queueBatches.push(batch);
+      },
+    },
+    watch,
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.triggered, true);
+  assert.equal(result.deliveries.length, 1);
+  assert.equal(result.enqueued_deliveries, 1);
+  assert.equal(queueBatches[0][0].body.alertDeliveryId.startsWith('delivery_'), true);
 });
 
 test('missing expected watch stays silent when aggregate count exists', async () => {

@@ -15,8 +15,11 @@ export function genericSmokeIds(scenarioId) {
     connectorKey: `ck_smoke_${normalized}`,
     signal: `smoke_${normalized}_signal`,
     signalContract: `smoke_${normalized}_signal_contract`,
+    channelContract: `smoke_${normalized}_channel_contract`,
     watch: `smoke_${normalized}_watch`,
     subscriber: `smoke_${normalized}_slack_subscriber`,
+    quietSubscriber: `smoke_${normalized}_quiet_subscriber`,
+    webhookSubscriber: `smoke_${normalized}_webhook_subscriber`,
   });
 }
 
@@ -24,14 +27,17 @@ export async function cleanupGenericScenario(client, ids) {
   const statements = [
     ['DELETE FROM alert_deliveries WHERE alert_id IN (SELECT id FROM alerts WHERE channel_id = ?)', [ids.channel]],
     ['DELETE FROM alerts WHERE channel_id = ?', [ids.channel]],
+    ['DELETE FROM quiet_summary_deliveries WHERE channel_id = ?', [ids.channel]],
     ['DELETE FROM watch_states WHERE watch_id = ? OR watch_id LIKE ?', [ids.watch, `${ids.watch}_%`]],
     ['DELETE FROM raw_event_dedupe WHERE idempotency_key LIKE ?', [`generic-smoke:${ids.scenarioId}:%`]],
     ['DELETE FROM aggregate_deliveries WHERE signal_id = ?', [ids.signal]],
     ['DELETE FROM aggregates WHERE signal_id = ?', [ids.signal]],
-    ['DELETE FROM subscribers WHERE id = ?', [ids.subscriber]],
+    ['DELETE FROM subscribers WHERE channel_id = ?', [ids.channel]],
     ['DELETE FROM watches WHERE id = ? OR id LIKE ?', [ids.watch, `${ids.watch}_%`]],
     ['DELETE FROM signal_contracts WHERE signal_id = ?', [ids.signal]],
     ['DELETE FROM signals WHERE id = ?', [ids.signal]],
+    ['DELETE FROM channel_contracts WHERE channel_id = ?', [ids.channel]],
+    ['DELETE FROM watch_action_controls WHERE channel_id = ?', [ids.channel]],
     ['DELETE FROM connectors WHERE id = ? OR connector_key = ?', [ids.connector, ids.connectorKey]],
     ['DELETE FROM channels WHERE id = ?', [ids.channel]],
     ['DELETE FROM workspaces WHERE id = ?', [ids.workspace]],

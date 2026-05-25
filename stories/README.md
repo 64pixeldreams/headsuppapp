@@ -102,13 +102,13 @@ Prioritize non-email architecture first, then email/AI stubs:
 Non-AI/non-email proof and hardening gaps found during the platform alignment audit:
 
 ```text
-89 Deployed quiet summary smoke
-90 Deployed watch action controls smoke
-91 Deployed channel contract/read API smoke
-92 Dimensioned aggregate-forward smoke
-93 Scheduled delivery and aggregate-forward cursor hardening
-94 Deployed advanced watch smoke
-95 Deployed operator observability smoke
+89 Deployed quiet summary smoke_done
+90 Deployed watch action controls smoke_done
+91 Deployed channel contract/read API smoke_done
+92 Dimensioned aggregate-forward smoke_done
+93 Scheduled delivery and aggregate-forward cursor hardening_done
+94 Deployed advanced watch smoke_done
+95 Deployed operator observability smoke_done
 ```
 
 ## Core API Gap Closure Batch

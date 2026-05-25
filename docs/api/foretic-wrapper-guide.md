@@ -9,10 +9,17 @@ Use the wrapper so Foretic does not need to hand-write CFKit actions, response u
 Recommended production path:
 
 ```bash
-npm install @64pixelholdings/headsupp-client
+npm install @64pixeldreams/headsupp-client
 ```
 
-Use a private npm/GitHub Packages release for Foretic production. This lets Foretic pin a version in `package-lock.json` and update intentionally.
+Use the private GitHub Packages release from `64pixeldreams/headsupp-client-js` for Foretic production. This lets Foretic pin a version in `package-lock.json` and update intentionally.
+
+Add this to Foretic's `.npmrc`:
+
+```text
+@64pixeldreams:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
 
 Local development install while both repositories are on one machine:
 
@@ -67,7 +74,7 @@ Do not expose these values to browser clients.
 ## Create The Client
 
 ```js
-import { createHeadsUpClient } from '@64pixelholdings/headsupp-client';
+import { createHeadsUpClient } from '@64pixeldreams/headsupp-client';
 
 export function headsupClient(env = process.env) {
   return createHeadsUpClient({
@@ -301,7 +308,7 @@ updated_at
 ## Failure Handling
 
 ```js
-import { HeadsUpApiError } from '@64pixelholdings/headsupp-client';
+import { HeadsUpApiError } from '@64pixeldreams/headsupp-client';
 
 try {
   await sendForecastPaceEvent({ headsup, connectorKey, connectorSecret, forecastId, pace, status, forecastUrl });

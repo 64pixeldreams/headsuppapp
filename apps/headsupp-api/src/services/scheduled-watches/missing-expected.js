@@ -48,7 +48,7 @@ export async function loadMissingExpectedWatches(db) {
   return result?.results || [];
 }
 
-export async function evaluateMissingExpectedWatch({ db, watch, now = new Date().toISOString() }) {
+export async function evaluateMissingExpectedWatch({ db, queue = null, watch, now = new Date().toISOString() }) {
   const config = parseWatchJson(watch.config_json);
   const graceMs = Number(config.grace_seconds || 0) * 1000;
   const checkNow = new Date(Date.parse(now) - graceMs).toISOString();
@@ -101,6 +101,7 @@ export async function evaluateMissingExpectedWatch({ db, watch, now = new Date()
 
   const persisted = await persistAlertWithDeliveries({
     db,
+    queue,
     watch,
     evaluation,
     decision,
@@ -111,15 +112,22 @@ export async function evaluateMissingExpectedWatch({ db, watch, now = new Date()
     },
     now,
   });
-  return { triggered: true, alert: persisted.alert, deliveries: persisted.deliveries };
+  return {
+    triggered: true,
+    alert: persisted.alert,
+    deliveries: persisted.deliveries,
+    enqueued_deliveries: persisted.enqueued_deliveries,
+  };
 }
 
-export async function evaluateMissingExpectedWatches({ db, now = new Date().toISOString() }) {
+export async function evaluateMissingExpectedWatches({ db, queue = null, now = new Date().toISOString() }) {
   const watches = await loadMissingExpectedWatches(db);
   let triggered = 0;
+  let enqueuedDeliveries = 0;
   for (const watch of watches) {
-    const result = await evaluateMissingExpectedWatch({ db, watch, now });
+    const result = await evaluateMissingExpectedWatch({ db, queue, watch, now });
     if (result.triggered) triggered += 1;
+    enqueuedDeliveries += Number(result.enqueued_deliveries || 0);
   }
-  return { watches: watches.length, triggered };
+  return { watches: watches.length, triggered, enqueued_deliveries: enqueuedDeliveries };
 }

@@ -1,20 +1,30 @@
 {
-  "name": "@64pixelholdings/headsupp-client",
+  "name": "@64pixeldreams/headsupp-client",
   "version": "0.1.0",
   "description": "Private Node and Cloudflare Workers client for the Heads Up API",
-  "private": true,
   "type": "module",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js"
   },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "node --test \"test/**/*.test.js\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/64pixeldreams/headsupp-client-js.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "keywords": [
     "heads-up",
     "cloudflare",
-    "foretic",
     "attention-processing"
   ],
   "license": "UNLICENSED"

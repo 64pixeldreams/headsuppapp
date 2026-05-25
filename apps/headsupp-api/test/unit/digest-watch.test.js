@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { evaluateDigestWatch } from '../../src/services/scheduled-watches/digest.js';
 
-function digestDb({ lastDigestAt = null } = {}, batches = [], runs = []) {
+function digestDb({ lastDigestAt = null, subscribers = [] } = {}, batches = [], runs = []) {
   return {
     prepare(sql) {
       return {
@@ -15,7 +15,7 @@ function digestDb({ lastDigestAt = null } = {}, batches = [], runs = []) {
               return null;
             },
             async all() {
-              if (sql.includes('subscribers')) return { results: [] };
+              if (sql.includes('subscribers')) return { results: subscribers };
               return { results: [] };
             },
             async run() {
@@ -127,4 +127,24 @@ test('weekly digest creates structured multi-signal summary', async () => {
   assert.equal(payload.fields.signals.length, 2);
   assert.equal(payload.fields.signals[0].sum, 1200);
   assert.equal(state.summary.period.start_at, '2026-05-18T00:00:00.000Z');
+});
+
+test('digest watch enqueues created alert deliveries when queue exists', async () => {
+  const batches = [];
+  const queueBatches = [];
+  const result = await evaluateDigestWatch({
+    db: digestDb({ subscribers: [{ subscriber_id: 'sub_123', destination_url: 'https://example.com/webhook' }] }, batches),
+    queue: {
+      async sendBatch(batch) {
+        queueBatches.push(batch);
+      },
+    },
+    watch,
+    now: '2026-05-24T09:00:00.000Z',
+  });
+
+  assert.equal(result.triggered, true);
+  assert.equal(result.deliveries.length, 1);
+  assert.equal(result.enqueued_deliveries, 1);
+  assert.equal(queueBatches[0][0].body.alertDeliveryId.startsWith('delivery_'), true);
 });

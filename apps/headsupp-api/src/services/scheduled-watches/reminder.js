@@ -32,7 +32,7 @@ export async function loadReminderWatches(db) {
   return result?.results || [];
 }
 
-export async function evaluateReminderWatch({ db, watch, now = new Date().toISOString() }) {
+export async function evaluateReminderWatch({ db, queue = null, watch, now = new Date().toISOString() }) {
   const config = parseWatchJson(watch.config_json);
   const window = reminderWindow(config);
   if (!window) {
@@ -99,6 +99,7 @@ export async function evaluateReminderWatch({ db, watch, now = new Date().toISOS
 
   const persisted = await persistAlertWithDeliveries({
     db,
+    queue,
     watch,
     evaluation,
     decision,
@@ -109,15 +110,22 @@ export async function evaluateReminderWatch({ db, watch, now = new Date().toISOS
     },
     now,
   });
-  return { triggered: true, alert: persisted.alert, deliveries: persisted.deliveries };
+  return {
+    triggered: true,
+    alert: persisted.alert,
+    deliveries: persisted.deliveries,
+    enqueued_deliveries: persisted.enqueued_deliveries,
+  };
 }
 
-export async function evaluateReminderWatches({ db, now = new Date().toISOString() }) {
+export async function evaluateReminderWatches({ db, queue = null, now = new Date().toISOString() }) {
   const watches = await loadReminderWatches(db);
   let triggered = 0;
+  let enqueuedDeliveries = 0;
   for (const watch of watches) {
-    const result = await evaluateReminderWatch({ db, watch, now });
+    const result = await evaluateReminderWatch({ db, queue, watch, now });
     if (result.triggered) triggered += 1;
+    enqueuedDeliveries += Number(result.enqueued_deliveries || 0);
   }
-  return { watches: watches.length, triggered };
+  return { watches: watches.length, triggered, enqueued_deliveries: enqueuedDeliveries };
 }

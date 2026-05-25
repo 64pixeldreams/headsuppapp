@@ -77,7 +77,7 @@ export async function loadDigestWatches(db) {
   return result?.results || [];
 }
 
-export async function evaluateDigestWatch({ db, watch, now = new Date().toISOString() }) {
+export async function evaluateDigestWatch({ db, queue = null, watch, now = new Date().toISOString() }) {
   const config = parseWatchJson(watch.config_json);
   const [state, actionControls] = await Promise.all([
     db.prepare('SELECT * FROM watch_states WHERE watch_id = ? LIMIT 1').bind(watch.id).first(),
@@ -131,6 +131,7 @@ export async function evaluateDigestWatch({ db, watch, now = new Date().toISOStr
   const decision = { action: 'alert', severity: evaluation.severity, current_value: currentValue };
   const persisted = await persistAlertWithDeliveries({
     db,
+    queue,
     watch: { ...watch, name: watch.name || 'Digest' },
     evaluation,
     decision,
@@ -156,15 +157,22 @@ export async function evaluateDigestWatch({ db, watch, now = new Date().toISOStr
     .bind(watch.id, 'digest', now, now, JSON.stringify({ include: config.include || [], summary: evaluation.fields }), now)
     .run();
 
-  return { triggered: true, alert: persisted.alert, deliveries: persisted.deliveries };
+  return {
+    triggered: true,
+    alert: persisted.alert,
+    deliveries: persisted.deliveries,
+    enqueued_deliveries: persisted.enqueued_deliveries,
+  };
 }
 
-export async function evaluateDigestWatches({ db, now = new Date().toISOString() }) {
+export async function evaluateDigestWatches({ db, queue = null, now = new Date().toISOString() }) {
   const watches = await loadDigestWatches(db);
   let triggered = 0;
+  let enqueuedDeliveries = 0;
   for (const watch of watches) {
-    const result = await evaluateDigestWatch({ db, watch, now });
+    const result = await evaluateDigestWatch({ db, queue, watch, now });
     if (result.triggered) triggered += 1;
+    enqueuedDeliveries += Number(result.enqueued_deliveries || 0);
   }
-  return { watches: watches.length, triggered };
+  return { watches: watches.length, triggered, enqueued_deliveries: enqueuedDeliveries };
 }

@@ -36,6 +36,12 @@ npm run smoke:scheduled
 npm run smoke:delivery-retry
 npm run smoke:tenant-isolation
 npm run smoke:foretic
+npm run smoke:quiet-summary
+npm run smoke:action-controls
+npm run smoke:channel-contracts
+npm run smoke:aggregate-forward-dimensions
+npm run smoke:advanced-watches
+npm run smoke:operator-observability
 npm run soak:release
 ```
 
@@ -50,9 +56,11 @@ Required only for opt-in deployed release smokes:
 ```text
 CLOUDFLARE_API_TOKEN
 HEADSUPP_SMOKE_SLACK_WEBHOOK_URL
+HEADSUPP_BOOTSTRAP_TOKEN
+HEADSUPP_OPERATOR_TOKEN
 ```
 
-The CI workflow verifies these variables exist before running deployed smokes. It does not print their values.
+The CI workflow verifies the core deployed-smoke variables before running deployed smokes. Operator observability also needs `HEADSUPP_BOOTSTRAP_TOKEN` and `HEADSUPP_OPERATOR_TOKEN`; CI skips only that smoke when those operator-only secrets are absent. It does not print secret values.
 
 ## Coverage Matrix
 
@@ -63,6 +71,12 @@ smoke:foretic            Slack + local     Foretic-shaped provision/event/Slack 
 smoke:scheduled          D1 + deployed     MISSING_EXPECTED, DIGEST, AGGREGATE_FORWARD delivery rows
 smoke:delivery-retry     HTTP + deployed   retrying, sent, failed delivery states and no duplicate alerts
 smoke:tenant-isolation   D1 + deployed     same signal_key across tenants without alert/aggregate leakage
+smoke:quiet-summary      HTTP + deployed   quiet_summary_deliveries without normal alert rows
+smoke:action-controls    Slack + deployed  snooze, resume, mute, and ignored delivery states
+smoke:channel-contracts  API/D1 + deployed channel contracts, inherited signal defaults, read API safe shapes
+smoke:aggregate-forward-dimensions D1 + deployed dimension-filtered aggregate forwarding and no duplicate second pass
+smoke:advanced-watches   D1 + deployed     WINDOW, DELTA, relative change, reminders, recurring expectations, rich digest
+smoke:operator-observability API + deployed key lifecycle, audit read, observability overview, redaction
 load:smoke               local             10000 synthetic events fold into fewer aggregate deltas
 load:high-volume         local             configurable high-volume synthetic proof, default 100000 events
 soak:release             local             bounded throughput and fold-compression release proof
@@ -463,18 +477,12 @@ Known gaps:
 
 ```text
 deployed generic smokes still use some operator D1 cleanup/setup for deterministic proof data
-quiet-summary delivery has unit coverage but no deployed smoke
-watch action controls have unit coverage but no deployed smoke
-channel contract inheritance/read APIs have unit coverage but no deployed smoke
-dimensioned aggregate-forward payloads have unit coverage but no deployed dimensioned smoke
-WINDOW_* and DELTA_* watches have unit coverage but no deployed smoke
 Foretic smoke is fixture/local-runtime oriented, not a live Worker smoke
-operator key lifecycle and observability are unit/manual proven, not deployed-smoke proven
 no first-class OpenAPI YAML generator
 no email connector, Slack OAuth, dashboard, billing, or BI proof because they are out of v1 scope
 ```
 
-Batch 1 productization added API-key bootstrap/lifecycle actions and admin connector provisioning that writes the ingest KV lookup. A follow-up smoke should move the generic provisioning proof fully onto `/api/function` once a deployed bootstrap token is configured.
+The deployed smoke suite now includes dedicated scripts for quiet summaries, action controls, channel contracts/read APIs, dimensioned aggregate-forwarding, advanced watches, reminders, recurring expectations, rich digests, and operator observability. Some deterministic setup still uses the operator D1/KV harness so each smoke can clean up after itself safely.
 
 ## Release Checklist
 
@@ -489,7 +497,13 @@ Run this checklist before calling a deployment proven:
 6. npm run smoke:delivery-retry passes
 7. npm run smoke:tenant-isolation passes
 8. npm run smoke:foretic passes when Foretic-shaped proof is in scope
-9. npm run soak:release passes
-10. docs mention any intentionally skipped smoke and why
-11. secret scan finds no real Slack webhook URLs, API tokens, or connector secrets
+9. npm run smoke:quiet-summary passes
+10. npm run smoke:action-controls passes
+11. npm run smoke:channel-contracts passes
+12. npm run smoke:aggregate-forward-dimensions passes
+13. npm run smoke:advanced-watches passes
+14. npm run smoke:operator-observability passes when operator secrets are configured
+15. npm run soak:release passes
+16. docs mention any intentionally skipped smoke and why
+17. secret scan finds no real Slack webhook URLs, API tokens, or connector secrets
 ```

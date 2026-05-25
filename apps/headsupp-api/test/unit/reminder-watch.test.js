@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { evaluateReminderWatch } from '../../src/services/scheduled-watches/reminder.js';
 
-function reminderDb(batches = [], runs = []) {
+function reminderDb(batches = [], runs = [], subscribers = []) {
   return {
     prepare(sql) {
       return {
@@ -14,7 +14,7 @@ function reminderDb(batches = [], runs = []) {
               return null;
             },
             async all() {
-              if (sql.includes('subscribers')) return { results: [] };
+              if (sql.includes('subscribers')) return { results: subscribers };
               if (sql.includes('watch_action_controls')) return { results: [] };
               return { results: [] };
             },
@@ -73,6 +73,26 @@ test('reminder watch creates alert inside lead window', async () => {
   assert.equal(result.alert.severity, 'warning');
   assert.equal(result.alert.current_value, 518400);
   assert.equal(batches.length, 2);
+});
+
+test('reminder watch enqueues created alert deliveries when queue exists', async () => {
+  const batches = [];
+  const queueBatches = [];
+  const result = await evaluateReminderWatch({
+    db: reminderDb(batches, [], [{ subscriber_id: 'sub_123', destination_url: 'https://example.com/webhook' }]),
+    queue: {
+      async sendBatch(batch) {
+        queueBatches.push(batch);
+      },
+    },
+    watch,
+    now: '2026-05-26T00:00:00.000Z',
+  });
+
+  assert.equal(result.triggered, true);
+  assert.equal(result.deliveries.length, 1);
+  assert.equal(result.enqueued_deliveries, 1);
+  assert.equal(queueBatches[0][0].body.alertDeliveryId.startsWith('delivery_'), true);
 });
 
 test('reminder watch expires when configured', async () => {

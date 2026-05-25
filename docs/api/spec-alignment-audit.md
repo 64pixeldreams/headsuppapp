@@ -20,13 +20,13 @@ The core loop is implemented:
 connector -> queue -> aggregate -> watch -> alert / aggregate forward
 ```
 
-The strongest proof is the deployed Slack alert path, alert-decision smoke, scheduled watches smoke, delivery retry smoke, tenant-isolation smoke, local load smoke, and the unit/integration suite.
+The strongest proof is the deployed Slack alert path, alert-decision smoke, scheduled watches smoke, delivery retry smoke, tenant-isolation smoke, quiet-summary smoke, action-controls smoke, channel-contract/read smoke, dimensioned aggregate-forward smoke, advanced-watches smoke, operator observability smoke, local load smoke, and the unit/integration suite.
 
-The main non-AI/non-email gaps are now proof and hardening gaps:
+The remaining non-AI/non-email gaps are now mostly operational polish gaps:
 
 - Some deployed smokes still seed deterministic resources through D1/KV harnesses instead of the public `/api/function` control plane.
-- Quiet summaries, action controls, channel contract inheritance, dimensioned aggregate-forwarding, advanced watch types, reminder watches, recurring expectations v2, and operator key lifecycle need dedicated deployed smoke scripts.
-- Scheduled alert delivery and aggregate-forward repeat enqueue behavior need focused code-hardening stories.
+- `smoke:foretic` is still fixture/local-runtime oriented rather than a live Foretic Worker integration.
+- A first-class OpenAPI YAML generator is still not present.
 
 ## Product Principles
 
@@ -62,12 +62,9 @@ Proof:
 
 - `npm run smoke:generic-slack` proves normal events aggregate without Slack alerts.
 - `npm run smoke:alert-decisions` proves warning, suppression, escalation, recovery, and repeated recovery suppression.
+- `npm run smoke:quiet-summary` proves quiet-summary delivery without normal alert rows.
+- `npm run smoke:action-controls` proves snooze, resume, mute, and ignored delivery behavior against the deployed Worker.
 - Unit tests cover action-control gating and quiet-summary payloads.
-
-Gap:
-
-- There is no deployed smoke dedicated to quiet-summary delivery.
-- There is no deployed smoke dedicated to snooze/mute/resume suppressing and restoring Slack delivery.
 
 ### Fast Ingest
 
@@ -101,7 +98,7 @@ Proof:
 
 ### Correctness Over Cleverness
 
-Status: aligned with remaining hardening stories.
+Status: aligned.
 
 Evidence:
 
@@ -115,11 +112,9 @@ Proof:
 - Unit tests cover idempotency retry after aggregate-applied state, dimensioned aggregate-forward IDs, aggregate context preservation, delivery retry, and tenant guards.
 - `npm run smoke:delivery-retry` proves retry/backoff and permanent failure behavior.
 - `npm run smoke:tenant-isolation` proves shared signal keys do not leak across workspaces.
-
-Gaps:
-
-- Scheduled `MISSING_EXPECTED` and `DIGEST` alert paths should have a deployed proof that alert deliveries are enqueued and sent, not only persisted.
-- Aggregate-forward should use an explicit emitted cursor or sent-state gate so cron does not repeatedly enqueue existing delivery IDs.
+- `npm run smoke:scheduled` proves scheduled `MISSING_EXPECTED` and `DIGEST` alert-delivery rows are created and dispatched, and aggregate-forward does not duplicate the same closed bucket.
+- Unit tests prove scheduled `MISSING_EXPECTED`, `REMINDER_DUE`, and `DIGEST` enqueue created alert deliveries when a queue binding exists.
+- Unit tests prove duplicate aggregate-forward rows are not re-enqueued.
 
 ## Feature Alignment
 
@@ -179,16 +174,12 @@ AGGREGATE_FORWARD
 Proof:
 
 - Local tests cover core evaluator behavior.
-- Deployed smokes cover `LAST_VALUE_GT`, `MISSING_EXPECTED`, `DIGEST`, and `AGGREGATE_FORWARD`.
-
-Gaps:
-
-- `WINDOW_*`, `DELTA_*`, relative-change watches, reminder watches, and recurring-expectation v2 do not yet have deployed smoke coverage.
-- Weekly/monthly business-spend examples have local coverage and docs, but still need deployed smoke coverage.
+- Deployed smokes cover `LAST_VALUE_GT`, `MISSING_EXPECTED`, `DIGEST`, `AGGREGATE_FORWARD`, `WINDOW_*`, `DELTA_*`, relative-change watches, `REMINDER_DUE`, recurring-expectation v2, and rich weekly digest payloads.
+- `npm run smoke:advanced-watches` is the deployed proof for the newer watch families.
 
 ### Alerts And Deliveries
 
-Status: aligned with one scheduled-path hardening gap.
+Status: aligned.
 
 Evidence:
 
@@ -199,14 +190,11 @@ Proof:
 - `npm run smoke:generic-slack`
 - `npm run smoke:alert-decisions`
 - `npm run smoke:delivery-retry`
-
-Gap:
-
-- Scheduled alert types should have explicit deployed proof for delivery queue enqueue/send behavior.
+- `npm run smoke:scheduled`
 
 ### Aggregate Forwarding
 
-Status: partial.
+Status: aligned.
 
 Evidence:
 
@@ -216,12 +204,8 @@ Evidence:
 Proof:
 
 - `npm run smoke:scheduled` proves closed-bucket D1 delivery creation.
+- `npm run smoke:aggregate-forward-dimensions` proves dimension-filtered deployed forwarding and no duplicate second pass.
 - Unit tests prove dimension-safe delivery IDs and payload shape.
-
-Gaps:
-
-- Deployed smoke should prove dimensioned aggregate-forwarding with multiple dimensions in one bucket.
-- Cron should avoid repeated queue sends for an already-created aggregate delivery.
 
 ### Foretic
 
@@ -242,7 +226,7 @@ Gap:
 
 ### Channel Contracts, Read APIs, Action Controls, Quiet Summaries, Reminders, And Rich Digests
 
-Status: implemented with proof gaps.
+Status: aligned.
 
 Evidence:
 
@@ -256,10 +240,10 @@ Evidence:
 Proof:
 
 - Unit tests cover these paths.
-
-Gaps:
-
-- Add deployed smoke scripts for channel contract inheritance/read APIs, action controls, quiet-summary delivery, reminders, recurring expectations v2, and rich digests.
+- `npm run smoke:channel-contracts`
+- `npm run smoke:action-controls`
+- `npm run smoke:quiet-summary`
+- `npm run smoke:advanced-watches`
 
 ## Out Of Scope For V1
 

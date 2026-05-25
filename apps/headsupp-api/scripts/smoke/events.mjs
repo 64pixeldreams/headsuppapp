@@ -29,13 +29,26 @@ export async function sendSignedEvents({ baseUrl, connectorKey, connectorSecret,
   return body;
 }
 
-export function buildMetricEvent({ runId, name, signalKey, value, occurredAt = new Date().toISOString(), source }) {
+export function buildMetricEvent({
+  runId,
+  name,
+  signalKey,
+  value,
+  occurredAt = new Date().toISOString(),
+  source,
+  fields = {},
+  dimensions = {},
+  cta = null,
+}) {
+  const eventFields = { source, ...fields };
   return {
     idempotency_key: `generic-smoke:${runId}:${name}`,
     signal_key: signalKey,
     occurred_at: occurredAt,
     value: { num: value },
-    fields: { source },
+    fields: eventFields,
+    ...(Object.keys(dimensions).length > 0 ? { dimensions } : {}),
+    ...(cta ? { cta } : {}),
   };
 }
 

@@ -21,6 +21,12 @@
     "smoke:scheduled": "node scripts/scheduled-smoke.mjs",
     "smoke:delivery-retry": "node scripts/delivery-retry-smoke.mjs",
     "smoke:tenant-isolation": "node scripts/tenant-isolation-smoke.mjs",
+    "smoke:quiet-summary": "node scripts/quiet-summary-smoke.mjs",
+    "smoke:action-controls": "node scripts/action-controls-smoke.mjs",
+    "smoke:channel-contracts": "node scripts/channel-contracts-smoke.mjs",
+    "smoke:aggregate-forward-dimensions": "node scripts/aggregate-forward-dimensions-smoke.mjs",
+    "smoke:advanced-watches": "node scripts/advanced-watches-smoke.mjs",
+    "smoke:operator-observability": "node scripts/operator-observability-smoke.mjs",
     "release:verify-env": "node scripts/verify-release-env.mjs --slack-required",
     "provision:generic-smoke": "node scripts/provision-generic-smoke.mjs"
   },

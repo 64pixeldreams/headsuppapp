@@ -54,19 +54,6 @@ export async function loadAggregatesForWatch(db, watch, input) {
   return aggregate ? [aggregate] : [];
 }
 
-async function enqueueAlertDeliveries(queue, deliveries) {
-  if (!queue?.sendBatch || deliveries.length === 0) return 0;
-
-  await queue.sendBatch(
-    deliveries.map((delivery) => ({
-      body: {
-        alertDeliveryId: delivery.id,
-      },
-    })),
-  );
-  return deliveries.length;
-}
-
 export async function evaluateWatchRequest({ db, env = {}, input, now = input.now || new Date().toISOString() }) {
   const watch = await loadWatch(db, input.watchId);
   if (!watch) {
@@ -107,19 +94,19 @@ export async function evaluateWatchRequest({ db, env = {}, input, now = input.no
 
   const persisted = await persistAlertWithDeliveries({
     db,
+    queue: env.ALERT_DELIVERY_QUEUE,
     watch,
     evaluation,
     decision,
     input,
     now,
   });
-  const enqueued_deliveries = await enqueueAlertDeliveries(env.ALERT_DELIVERY_QUEUE, persisted.deliveries);
 
   return {
     evaluated: true,
     action: decision.action,
     alert_id: persisted.alert.id,
     deliveries: persisted.deliveries.length,
-    enqueued_deliveries,
+    enqueued_deliveries: persisted.enqueued_deliveries,
   };
 }

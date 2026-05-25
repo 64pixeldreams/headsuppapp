@@ -5,7 +5,7 @@ Use the private Heads Up client when you do not want to hand-write `POST /api/fu
 Package:
 
 ```text
-@64pixelholdings/headsupp-client
+@64pixeldreams/headsupp-client
 ```
 
 Location in this repository:
@@ -21,10 +21,17 @@ packages/headsupp-client
 Publish the wrapper as a private package through GitHub Packages or another private npm registry:
 
 ```bash
-npm install @64pixelholdings/headsupp-client
+npm install @64pixeldreams/headsupp-client
 ```
 
-This is the easiest and cleanest way for Foretic or any other service to use the SDK. Consumers get normal semver, lockfiles, Dependabot/private registry support, and no need to clone the Heads Up API repository.
+This package is published from the separate private SDK repository `64pixeldreams/headsupp-client-js`. Consumers get normal semver, lockfiles, Dependabot/private registry support, and no need to clone the Heads Up API repository.
+
+For GitHub Packages, add this to the consuming project's `.npmrc`:
+
+```text
+@64pixeldreams:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
 
 ### Local Development Path
 
@@ -104,7 +111,7 @@ HEADSUPP_CONNECTOR_SECRET=<connector secret>
 ## Create A Client
 
 ```js
-import { createHeadsUpClient } from '@64pixelholdings/headsupp-client';
+import { createHeadsUpClient } from '@64pixeldreams/headsupp-client';
 
 const headsup = createHeadsUpClient({
   baseUrl: process.env.HEADSUPP_BASE_URL,
@@ -293,7 +300,7 @@ const alerts = await headsup.listChannelAlerts({
 ## Error Handling
 
 ```js
-import { HeadsUpApiError } from '@64pixelholdings/headsupp-client';
+import { HeadsUpApiError } from '@64pixeldreams/headsupp-client';
 
 try {
   await headsup.createWorkspace({ name: 'Demo Workspace' });
@@ -308,7 +315,7 @@ try {
 ## Cloudflare Worker Example
 
 ```js
-import { createHeadsUpClient } from '@64pixelholdings/headsupp-client';
+import { createHeadsUpClient } from '@64pixeldreams/headsupp-client';
 
 export default {
   async fetch(_request, env) {

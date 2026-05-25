@@ -12,7 +12,7 @@ const signalKey = 'demo.scheduled';
 const startedAt = new Date().toISOString();
 const now = new Date();
 const closedBucketStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours() - 2, 0, 0, 0)).toISOString();
-const subscriberUrl = process.env.HEADSUPP_SMOKE_WEBHOOK_URL || 'https://example.com/headsupp-smoke';
+const subscriberUrl = process.env.HEADSUPP_SMOKE_WEBHOOK_URL || 'https://httpbin.org/status/200';
 
 function watchId(suffix) {
   return `${ids.watch}_${suffix}`;
@@ -74,10 +74,53 @@ async function insertAggregate() {
   );
 }
 
+async function insertAlertSubscriber() {
+  const timestamp = new Date().toISOString();
+  await client.d1Query(
+    `INSERT INTO subscribers (
+      id, subscriber_id, workspace_id, channel_id, subscriber_type, name, destination_url,
+      destination_url_redacted, secret_hash, mode, config_json, enabled, source_app,
+      external_tenant_id, external_user_id, external_resource_id, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      ids.webhookSubscriber,
+      ids.webhookSubscriber,
+      ids.workspace,
+      ids.channel,
+      'webhook',
+      'Scheduled smoke alert receiver',
+      subscriberUrl,
+      redactUrl(subscriberUrl),
+      null,
+      'alert',
+      '{}',
+      1,
+      'headsupp-smoke',
+      ids.scenarioId,
+      `${ids.scenarioId}-user`,
+      `${ids.scenarioId}-resource`,
+      timestamp,
+      timestamp,
+    ],
+  );
+}
+
 async function scheduledCounts() {
-  const [missingAlerts, digestAlerts, aggregateDeliveries, digestState, aggregatePayload] = await Promise.all([
+  const [missingAlerts, digestAlerts, missingDeliveries, digestDeliveries, sentAlertDeliveries, aggregateDeliveries, digestState, aggregatePayload] = await Promise.all([
     client.d1First('SELECT COUNT(*) AS count FROM alerts WHERE watch_id = ?', [watchId('missing')]),
     client.d1First('SELECT COUNT(*) AS count FROM alerts WHERE watch_id = ?', [watchId('digest')]),
+    client.d1First(
+      'SELECT COUNT(*) AS count FROM alert_deliveries WHERE alert_id IN (SELECT id FROM alerts WHERE watch_id = ?)',
+      [watchId('missing')],
+    ),
+    client.d1First(
+      'SELECT COUNT(*) AS count FROM alert_deliveries WHERE alert_id IN (SELECT id FROM alerts WHERE watch_id = ?)',
+      [watchId('digest')],
+    ),
+    client.d1First(
+      "SELECT COUNT(*) AS count FROM alert_deliveries WHERE subscriber_id = ? AND status IN ('sent', 'retrying', 'failed')",
+      [ids.webhookSubscriber],
+    ),
     client.d1First('SELECT COUNT(*) AS count FROM aggregate_deliveries WHERE subscriber_id = ?', [ids.subscriber]),
     client.d1First('SELECT last_digest_at FROM watch_states WHERE watch_id = ?', [watchId('digest')]),
     client.d1First('SELECT payload_json FROM aggregate_deliveries WHERE subscriber_id = ? LIMIT 1', [ids.subscriber]),
@@ -86,6 +129,9 @@ async function scheduledCounts() {
   return {
     missing_alerts: Number(missingAlerts?.count || 0),
     digest_alerts: Number(digestAlerts?.count || 0),
+    missing_alert_deliveries: Number(missingDeliveries?.count || 0),
+    digest_alert_deliveries: Number(digestDeliveries?.count || 0),
+    dispatched_alert_deliveries: Number(sentAlertDeliveries?.count || 0),
     aggregate_deliveries: Number(aggregateDeliveries?.count || 0),
     digest_state_updated: Boolean(digestState?.last_digest_at),
     aggregate_payload: aggregatePayload?.payload_json ? JSON.parse(aggregatePayload.payload_json) : null,
@@ -106,6 +152,7 @@ await provisionGenericScenario({
 });
 
 await client.d1Query('DELETE FROM watches WHERE id = ?', [ids.watch]);
+await insertAlertSubscriber();
 await insertAggregate();
 await insertWatch({
   id: watchId('missing'),
@@ -150,6 +197,9 @@ const firstPass = await pollUntil({
   isReady: (counts) =>
     counts.missing_alerts >= 1 &&
     counts.digest_alerts >= 1 &&
+    counts.missing_alert_deliveries >= 1 &&
+    counts.digest_alert_deliveries >= 1 &&
+    counts.dispatched_alert_deliveries >= 1 &&
     counts.digest_state_updated &&
     counts.aggregate_deliveries >= 1 &&
     counts.aggregate_payload?.delivery_id &&

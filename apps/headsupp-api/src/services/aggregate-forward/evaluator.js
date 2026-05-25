@@ -66,8 +66,10 @@ export async function evaluateAggregateForwardWatch({ db, queue, watch, now = ne
     );
   }
 
+  const created = deliveries.filter((delivery) => delivery.inserted !== false).length;
   return {
-    created: deliveries.length,
+    created,
+    existing: deliveries.length - created,
     enqueued: await enqueueAggregateDeliveries(queue, deliveries),
   };
 }
@@ -75,11 +77,13 @@ export async function evaluateAggregateForwardWatch({ db, queue, watch, now = ne
 export async function evaluateClosedAggregateForwardWatches({ db, queue, now = new Date().toISOString() }) {
   const watches = await loadAggregateForwardWatches(db);
   let created = 0;
+  let existing = 0;
   let enqueued = 0;
   for (const watch of watches) {
     const result = await evaluateAggregateForwardWatch({ db, queue, watch, now });
     created += result.created;
+    existing += result.existing || 0;
     enqueued += result.enqueued;
   }
-  return { watches: watches.length, created, enqueued };
+  return { watches: watches.length, created, existing, enqueued };
 }

@@ -9,10 +9,17 @@ This package is proprietary software owned by 64 Pixel Holdings LLC and operated
 Recommended production install once private package publishing is configured:
 
 ```bash
-npm install @64pixelholdings/headsupp-client
+npm install @64pixeldreams/headsupp-client
 ```
 
-Private package publishing is the preferred way for Foretic and other services to consume this client.
+Private GitHub Packages publishing from `64pixeldreams/headsupp-client-js` is the preferred way for services to consume this client.
+
+For GitHub Packages, add an `.npmrc` entry in the consuming project:
+
+```text
+@64pixeldreams:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
 
 Local workspace install while developing:
 
@@ -26,7 +33,7 @@ Zero-registry option:
 copy packages/headsupp-client/src into the consuming project
 ```
 
-If a consumer needs a Git dependency before private publishing exists, put this package in a separate private SDK repository and install it with:
+If a consumer needs a Git dependency before private publishing exists, install the separate private SDK repository directly:
 
 ```bash
 npm install git+ssh://git@github.com/64pixeldreams/headsupp-client-js.git
@@ -44,7 +51,7 @@ HEADSUPP_API_KEY=<service api key>
 ## Use
 
 ```js
-import { createHeadsUpClient } from '@64pixelholdings/headsupp-client';
+import { createHeadsUpClient } from '@64pixeldreams/headsupp-client';
 
 const headsup = createHeadsUpClient({
   baseUrl: process.env.HEADSUPP_BASE_URL,
@@ -52,16 +59,16 @@ const headsup = createHeadsUpClient({
 });
 
 const workspace = await headsup.createWorkspace({
-  name: 'Foretic Demo',
-  source_app: 'foretic',
-  external_tenant_id: 'foretic_org_123',
-  external_user_id: 'foretic_user_456',
+  name: 'Demo Workspace',
+  source_app: 'headsupp-demo',
+  external_tenant_id: 'demo_org_123',
+  external_user_id: 'demo_user_456',
 });
 
 const channel = await headsup.createChannel({
   workspace_id: workspace.workspace_id,
-  name: 'Forecast: May Revenue',
-  purpose: 'forecast_attention',
+  name: 'Demo Metrics',
+  purpose: 'metric_attention',
 });
 ```
 
@@ -72,14 +79,14 @@ await headsup.sendEvent({
   connectorKey: connector.connector_key,
   connectorSecret: connector.connector_secret,
   event: {
-    idempotency_key: 'foretic_fc_123_2026_05_25',
-    signal_key: 'forecast.revenue.pace',
+    idempotency_key: 'demo_metric_2026_05_25',
+    signal_key: 'demo.metric',
     occurred_at: new Date().toISOString(),
     value: { num: 82 },
-    fields: { forecast_id: 'fc_123', status: 'warning' },
+    fields: { source: 'demo', status: 'warning' },
     cta: {
-      label: 'View forecast',
-      url: 'https://foretic.io/forecasts/fc_123',
+      label: 'View metric',
+      url: 'https://example.com/metrics/demo',
     },
   },
 });
@@ -90,7 +97,7 @@ await headsup.sendEvent({
 Pass the Worker environment values and native `fetch`:
 
 ```js
-import { createHeadsUpClient } from '@64pixelholdings/headsupp-client';
+import { createHeadsUpClient } from '@64pixeldreams/headsupp-client';
 
 export default {
   async fetch(_request, env) {

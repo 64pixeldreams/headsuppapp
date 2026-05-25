@@ -29,7 +29,7 @@ export async function createAggregateDelivery({ db, aggregate, signal, channel, 
   payload.dedupe_key = `${delivery.subscriber_id}:${delivery.signal_id}:${delivery.bucket_type}:${delivery.bucket_start_at}:${delivery.dimensions_hash}`;
   delivery.payload_json = JSON.stringify(payload);
 
-  await db
+  const result = await db
     .prepare(
       `INSERT OR IGNORE INTO aggregate_deliveries (
         id, subscriber_id, signal_id, bucket_type, bucket_start_at, dimensions_hash, dimensions_json, status, attempt_count, payload_json,
@@ -55,12 +55,14 @@ export async function createAggregateDelivery({ db, aggregate, signal, channel, 
       delivery.updated_at,
     )
     .run();
+  delivery.inserted = result?.meta?.changes === undefined ? true : Number(result.meta.changes) > 0;
 
   return delivery;
 }
 
 export async function enqueueAggregateDeliveries(queue, deliveries) {
-  if (!queue?.sendBatch || deliveries.length === 0) return 0;
-  await queue.sendBatch(deliveries.map((delivery) => ({ body: { aggregateDeliveryId: delivery.id } })));
-  return deliveries.length;
+  const newDeliveries = deliveries.filter((delivery) => delivery.inserted !== false);
+  if (!queue?.sendBatch || newDeliveries.length === 0) return 0;
+  await queue.sendBatch(newDeliveries.map((delivery) => ({ body: { aggregateDeliveryId: delivery.id } })));
+  return newDeliveries.length;
 }

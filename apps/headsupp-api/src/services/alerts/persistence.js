@@ -62,6 +62,19 @@ export function buildAlertDeliveries({ alert, subscribers, now = new Date().toIS
   }));
 }
 
+export async function enqueueAlertDeliveries(queue, deliveries) {
+  if (!queue?.sendBatch || deliveries.length === 0) return 0;
+
+  await queue.sendBatch(
+    deliveries.map((delivery) => ({
+      body: {
+        alertDeliveryId: delivery.id,
+      },
+    })),
+  );
+  return deliveries.length;
+}
+
 function alertStatement(db, alert) {
   return db
     .prepare(
@@ -146,16 +159,26 @@ function deliveryStatement(db, delivery) {
     );
 }
 
-export async function persistAlertWithDeliveries({ db, watch, evaluation, decision, input, now = new Date().toISOString() }) {
+export async function persistAlertWithDeliveries({
+  db,
+  queue = null,
+  watch,
+  evaluation,
+  decision,
+  input,
+  now = new Date().toISOString(),
+}) {
   const alert = buildAlert({ watch, evaluation, decision, input, now });
   const subscribers = await loadAlertSubscribers(db, alert.channel_id);
   const deliveries = buildAlertDeliveries({ alert, subscribers, now });
   const statements = [alertStatement(db, alert), watchStateStatement(db, { watch, decision, now })];
   statements.push(...deliveries.map((delivery) => deliveryStatement(db, delivery)));
   await db.batch(statements);
+  const enqueued_deliveries = await enqueueAlertDeliveries(queue, deliveries);
 
   return {
     alert,
     deliveries,
+    enqueued_deliveries,
   };
 }

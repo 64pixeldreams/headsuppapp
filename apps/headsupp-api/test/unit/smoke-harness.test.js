@@ -42,6 +42,7 @@ test('builds signed-event inputs with unique idempotency keys', () => {
 
   assert.equal(event.idempotency_key, 'generic-smoke:run_1:trigger');
   assert.equal(event.value.num, 15);
+  assert.equal(event.fields.source, 'unit');
   assert.equal(events[0].occurred_at, '2026-05-24T10:00:00.000Z');
   assert.equal(new Set(events.map((item) => item.idempotency_key)).size, 2);
 });
@@ -78,8 +79,14 @@ test('smokeRuntime reads deploy defaults and environment overrides', () => {
     CLOUDFLARE_API_TOKEN: 'token',
     HEADSUPP_SMOKE_SLACK_WEBHOOK_URL: 'https://hooks.slack.com/services/T/B/C',
     HEADSUPP_SMOKE_BASE_URL: 'https://example.com/',
+    HEADSUPP_SMOKE_SERVICE_API_KEY: 'hu_service',
+    HEADSUPP_BOOTSTRAP_TOKEN: 'bootstrap',
+    HEADSUPP_OPERATOR_TOKEN: 'operator',
   });
 
   assert.equal(runtime.baseUrl, 'https://example.com');
   assert.equal(runtime.apiToken, 'token');
+  assert.equal(runtime.serviceApiKey, 'hu_service');
+  assert.equal(runtime.bootstrapToken, 'bootstrap');
+  assert.equal(runtime.operatorToken, 'operator');
 });
