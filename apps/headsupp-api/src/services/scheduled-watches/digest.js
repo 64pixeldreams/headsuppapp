@@ -1,5 +1,6 @@
 import { parseWatchJson } from '../watches/evaluate-watch.js';
 import { persistAlertWithDeliveries } from '../alerts/persistence.js';
+import { actionControlGate, loadActiveWatchActionControls } from '../watches/action-controls.js';
 
 function digestDue(config, state, now) {
   if (!state?.last_digest_at) return true;
@@ -15,7 +16,12 @@ export async function loadDigestWatches(db) {
 
 export async function evaluateDigestWatch({ db, watch, now = new Date().toISOString() }) {
   const config = parseWatchJson(watch.config_json);
-  const state = await db.prepare('SELECT * FROM watch_states WHERE watch_id = ? LIMIT 1').bind(watch.id).first();
+  const [state, actionControls] = await Promise.all([
+    db.prepare('SELECT * FROM watch_states WHERE watch_id = ? LIMIT 1').bind(watch.id).first(),
+    loadActiveWatchActionControls(db, watch, now),
+  ]);
+  const gate = actionControlGate(actionControls, now);
+  if (gate.blocked) return { triggered: false, reason: gate.reason };
   if (!digestDue(config, state, now)) return { triggered: false, reason: 'DIGEST_NOT_DUE' };
 
   const aggregate = await db

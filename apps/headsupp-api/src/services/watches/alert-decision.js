@@ -1,4 +1,5 @@
 import { parseWatchJson } from './evaluate-watch.js';
+import { actionControlGate } from './action-controls.js';
 
 const SEVERITY_RANK = {
   info: 0,
@@ -43,11 +44,20 @@ export function recoveryTriggered(watch, currentValue) {
   return currentValue < threshold;
 }
 
-export function decideAlertAction({ watch, evaluation, state = null, now = new Date().toISOString() }) {
+export function decideAlertAction({ watch, evaluation, state = null, actionControls = [], now = new Date().toISOString() }) {
   if (!evaluation.supported) {
     return {
       action: 'none',
       reason: evaluation.reason,
+    };
+  }
+
+  const actionGate = actionControlGate(actionControls, now);
+  if (actionGate.blocked) {
+    return {
+      action: 'none',
+      reason: actionGate.reason,
+      action_control_id: actionGate.control?.id || actionGate.control?.action_id || null,
     };
   }
 

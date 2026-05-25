@@ -1,11 +1,20 @@
 import {
   createAdminChannel,
+  createAdminChannelContract,
   createAdminConnector,
   createAdminSignal,
   createAdminSubscriber,
   createAdminWatch,
   createAdminWorkspace,
+  getAdminChannelContract,
+  ignoreAdminAlert,
+  listAdminChannelContractVersions,
+  muteAdminWatch,
+  resumeAdminWatch,
+  snoozeAdminWatch,
+  updateAdminChannelContract,
 } from '../services/admin/control-plane.js';
+import { getAdminWatchState, listAdminAlertTimeline, listAdminChannelAlerts } from '../services/admin/read-models.js';
 import { createKVControlPlaneStore } from '../services/control-plane/kv-store.js';
 import { writeAuditLog } from '../services/audit/control-plane-audit.js';
 
@@ -41,6 +50,8 @@ function targetFromResult(result) {
     ['subscriber', 'subscriber'],
     ['signal', 'signal'],
     ['watch', 'watch'],
+    ['channel_contract', 'channel_contract'],
+    ['action_control', 'watch_action_control'],
   ];
   for (const [key, type] of pairs) {
     if (result?.[key]) return { targetType: type, targetId: result[key].id || result[key][`${key}_id`] };
@@ -57,7 +68,7 @@ export async function registerAdminFunctions(cloudFunction) {
         if (missingDb) return resultToResponse(missingDb);
         const input = payload || {};
         const store = env.HEADSUPP_CACHE ? createKVControlPlaneStore(env.HEADSUPP_CACHE) : null;
-        const result = await handler({ auth, input, db: env.DB, store });
+        const result = await handler({ auth, input, db: env.DB, store, now: new Date().toISOString() });
         const target = targetFromResult(result);
         await writeAuditLog({
           db: env.DB,
@@ -81,4 +92,15 @@ export async function registerAdminFunctions(cloudFunction) {
   defineAdmin('admin.createSubscriber', createAdminSubscriber);
   defineAdmin('admin.createSignal', createAdminSignal);
   defineAdmin('admin.createWatch', createAdminWatch);
+  defineAdmin('admin.createChannelContract', createAdminChannelContract);
+  defineAdmin('admin.updateChannelContract', updateAdminChannelContract);
+  defineAdmin('admin.getChannelContract', getAdminChannelContract);
+  defineAdmin('admin.listChannelContractVersions', listAdminChannelContractVersions);
+  defineAdmin('admin.listChannelAlerts', listAdminChannelAlerts);
+  defineAdmin('admin.getWatchState', getAdminWatchState);
+  defineAdmin('admin.listAlertTimeline', listAdminAlertTimeline);
+  defineAdmin('admin.snoozeWatch', snoozeAdminWatch);
+  defineAdmin('admin.muteWatch', muteAdminWatch);
+  defineAdmin('admin.resumeWatch', resumeAdminWatch);
+  defineAdmin('admin.ignoreAlert', ignoreAdminAlert);
 }

@@ -35,6 +35,8 @@ Local:
 cd apps/headsupp-api
 npx wrangler d1 execute headsup_db --local --file "migrations/0001_headsupp_core.sql"
 npx wrangler d1 execute headsup_db --local --file "migrations/0002_correctness_closure.sql"
+npx wrangler d1 execute headsup_db --local --file "migrations/0003_channel_contracts_and_read_apis.sql"
+npx wrangler d1 execute headsup_db --local --file "migrations/0004_watch_actions_and_quiet_summaries.sql"
 ```
 
 Remote, only when the Cloudflare token has D1 import permissions:
@@ -43,6 +45,8 @@ Remote, only when the Cloudflare token has D1 import permissions:
 cd apps/headsupp-api
 npx wrangler d1 execute headsup_db --remote --file "migrations/0001_headsupp_core.sql"
 npx wrangler d1 execute headsup_db --remote --file "migrations/0002_correctness_closure.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/0003_channel_contracts_and_read_apis.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/0004_watch_actions_and_quiet_summaries.sql"
 ```
 
 The migration uses `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`.
@@ -160,8 +164,9 @@ Remove-Item Env:CLOUDFLARE_API_TOKEN
 Expected:
 
 ```text
-missing-expected creates one absence alert
+missing-expected creates one absence alert unless action controls suppress it
 digest creates one digest alert and updates digest state
+quiet summaries create quiet_summary_deliveries without creating alert rows when quiet_summary subscribers exist
 aggregate-forward creates one delivery with delivery_id and dedupe_key
 a later cron pass does not duplicate the same aggregate-forward delivery
 ```

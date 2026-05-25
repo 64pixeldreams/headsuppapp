@@ -1,5 +1,6 @@
 import { parseWatchJson } from '../watches/evaluate-watch.js';
 import { decideAlertAction } from '../watches/alert-decision.js';
+import { loadActiveWatchActionControls } from '../watches/action-controls.js';
 import { persistAlertWithDeliveries } from '../alerts/persistence.js';
 
 function windowStart(now, expectedEvery = {}) {
@@ -41,8 +42,11 @@ export async function evaluateMissingExpectedWatch({ db, watch, now = new Date()
     threshold: minimumCount,
     severity: config.severity || 'warning',
   };
-  const state = await db.prepare('SELECT * FROM watch_states WHERE watch_id = ? LIMIT 1').bind(watch.id).first();
-  const decision = decideAlertAction({ watch, evaluation, state, now });
+  const [state, actionControls] = await Promise.all([
+    db.prepare('SELECT * FROM watch_states WHERE watch_id = ? LIMIT 1').bind(watch.id).first(),
+    loadActiveWatchActionControls(db, watch, now),
+  ]);
+  const decision = decideAlertAction({ watch, evaluation, state, actionControls, now });
   if (!['alert', 'escalation', 'recovery'].includes(decision.action)) {
     return { triggered: false, action: decision.action, reason: decision.reason };
   }

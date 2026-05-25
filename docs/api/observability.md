@@ -35,6 +35,11 @@ Example response:
         "pending": 4,
         "retrying": 1,
         "failed": 2
+      },
+      "quiet_summaries": {
+        "pending": 0,
+        "retrying": 0,
+        "failed": 0
       }
     },
     "operator_health": {
@@ -69,3 +74,5 @@ error: scheduled task status reports error
 ```
 
 Operational fields are safe for operators. They do not include raw payloads, API keys, connector secrets, or full webhook destinations.
+
+Quiet-summary counts are delivery-state counts for scheduled proof-of-silence messages. The endpoint still does not return quiet-summary payload bodies or destination URLs.

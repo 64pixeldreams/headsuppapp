@@ -27,6 +27,17 @@ admin.createConnector
 admin.createSubscriber
 admin.createSignal
 admin.createWatch
+admin.createChannelContract
+admin.updateChannelContract
+admin.getChannelContract
+admin.listChannelContractVersions
+admin.listChannelAlerts
+admin.getWatchState
+admin.listAlertTimeline
+admin.snoozeWatch
+admin.muteWatch
+admin.resumeWatch
+admin.ignoreAlert
 ```
 
 ## Permissions
@@ -38,6 +49,12 @@ connector:create
 subscriber:create
 signal:create
 watch:create
+channel_contract:create
+channel_contract:update
+channel_contract:read
+alert:read
+watch:read
+watch:control
 ```
 
 The Foretic service permission set already includes these permissions plus `foretic:provision`.
@@ -134,6 +151,8 @@ Subscriber responses include redacted URL metadata. Do not expose real Slack web
 }
 ```
 
+If the channel has an active channel contract, `admin.createSignal` inherits `default_dimensions` and `cta_policy` into the signal contract when the payload does not provide them. Contract `default_watch_templates` are materialized into watch rows unless `materialize_watch_templates` is `false`.
+
 ## Tenant Guards
 
 Admin actions enforce workspace/channel/signal relationships before writing referenced resources:
@@ -175,6 +194,134 @@ Sensitive control-plane actions write safe audit rows to D1. Audit metadata reda
       "severity": "warning"
     },
     "cooldown_seconds": 3600
+  }
+}
+```
+
+## Channel Contracts
+
+Channel contracts declare the intent and default shape of a channel. Create and update actions both write a new active version and archive the previous active version for the channel.
+
+```json
+{
+  "action": "admin.createChannelContract",
+  "payload": {
+    "workspace_id": "ws_123",
+    "channel_id": "ch_123",
+    "purpose": "Forecast attention monitoring",
+    "expected_signal_types": ["forecast_state"],
+    "default_dimensions": ["forecast_id", "status"],
+    "default_watch_templates": [
+      {
+        "name": "Forecast pace below warning",
+        "watch_type": "LAST_VALUE_LT",
+        "config": { "threshold": 85, "severity": "warning" },
+        "cooldown_seconds": 3600
+      }
+    ],
+    "cta_policy": { "required": true, "kind": "review" }
+  }
+}
+```
+
+Read the active contract:
+
+```json
+{
+  "action": "admin.getChannelContract",
+  "payload": {
+    "workspace_id": "ws_123",
+    "channel_id": "ch_123"
+  }
+}
+```
+
+List version history with `admin.listChannelContractVersions`. Contract reads and writes are tenant scoped and audited.
+
+## Alert And Watch State Reads
+
+Alert and quiet-state reads are safe control-plane functions. They return alert summaries, timestamps, CTA fields, and sanitized context fields. They do not return subscriber destinations, delivery response bodies, connector secrets, or raw webhook URLs.
+
+```json
+{
+  "action": "admin.listChannelAlerts",
+  "payload": {
+    "workspace_id": "ws_123",
+    "channel_id": "ch_123",
+    "limit": 50
+  }
+}
+```
+
+```json
+{
+  "action": "admin.getWatchState",
+  "payload": {
+    "workspace_id": "ws_123",
+    "channel_id": "ch_123",
+    "watch_id": "watch_123"
+  }
+}
+```
+
+`admin.listAlertTimeline` returns the same safe alert shape ordered by `triggered_at` for recent channel history. `admin.listChannelAlerts` includes `metadata.suppressed_watch_count` when watches are currently in cooldown.
+
+## Watch Action Controls
+
+Manual attention controls are tenant-scoped and audited. They write durable action rows that the watch decision path reads before cooldown/escalation logic.
+
+Snooze a watch until a timestamp:
+
+```json
+{
+  "action": "admin.snoozeWatch",
+  "payload": {
+    "workspace_id": "ws_123",
+    "channel_id": "ch_123",
+    "watch_id": "watch_123",
+    "snooze_until": "2026-05-24T12:00:00.000Z",
+    "reason": "Known maintenance window"
+  }
+}
+```
+
+Mute a watch or signal:
+
+```json
+{
+  "action": "admin.muteWatch",
+  "payload": {
+    "workspace_id": "ws_123",
+    "channel_id": "ch_123",
+    "signal_id": "sig_123",
+    "reason": "Temporarily noisy source"
+  }
+}
+```
+
+Resume clears active snooze/mute controls for the watch or signal and writes a completed resume action:
+
+```json
+{
+  "action": "admin.resumeWatch",
+  "payload": {
+    "workspace_id": "ws_123",
+    "channel_id": "ch_123",
+    "watch_id": "watch_123"
+  }
+}
+```
+
+Ignore an alert marks pending/retrying deliveries for that alert as `ignored` so it is not redelivered:
+
+```json
+{
+  "action": "admin.ignoreAlert",
+  "payload": {
+    "workspace_id": "ws_123",
+    "channel_id": "ch_123",
+    "alert_id": "alert_123",
+    "reason": "Already handled"
   }
 }
 ```

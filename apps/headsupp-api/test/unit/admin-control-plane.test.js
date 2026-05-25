@@ -2,14 +2,22 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  buildChannelContractRow,
   buildConnectorRow,
   buildSubscriberRow,
   buildWatchRow,
+  createAdminChannelContract,
   createAdminConnector,
   createAdminSignal,
   createAdminSubscriber,
   createAdminWatch,
   createAdminWorkspace,
+  getAdminChannelContract,
+  ignoreAdminAlert,
+  muteAdminWatch,
+  resumeAdminWatch,
+  snoozeAdminWatch,
+  updateAdminChannelContract,
 } from '../../src/services/admin/control-plane.js';
 
 function dbRecorder(calls = []) {
@@ -43,6 +51,9 @@ function scopedDb(rows = {}, calls = []) {
               if (/FROM workspaces/.test(sql)) return rows.workspace || null;
               if (/FROM channels/.test(sql)) return rows.channel || null;
               if (/FROM signals/.test(sql)) return rows.signal || null;
+              if (/FROM watches/.test(sql)) return rows.watch || null;
+              if (/FROM alerts/.test(sql)) return rows.alert || null;
+              if (/FROM channel_contracts/.test(sql)) return rows.channelContract || null;
               return null;
             },
           };
@@ -102,6 +113,102 @@ test('admin signal creation can persist a contract', async () => {
   assert.match(insertCalls[1].sql, /INSERT OR IGNORE INTO signal_contracts/);
 });
 
+test('channel contract creation archives the active version and inserts the next version', async () => {
+  const calls = [];
+  const result = await createAdminChannelContract({
+    auth: { user_id: 'user_admin', permissions: ['channel_contract:create'] },
+    db: scopedDb(
+      {
+        workspace: { id: 'ws_123', workspace_id: 'ws_123', source_app: 'demo', external_tenant_id: 'tenant_1' },
+        channel: {
+          id: 'ch_123',
+          channel_id: 'ch_123',
+          workspace_id: 'ws_123',
+          source_app: 'demo',
+          external_tenant_id: 'tenant_1',
+        },
+        channelContract: {
+          id: 'chct_old',
+          channel_contract_id: 'chct_old',
+          workspace_id: 'ws_123',
+          channel_id: 'ch_123',
+          version: 1,
+          status: 'active',
+          expected_signal_types_json: '[]',
+          default_dimensions_json: '[]',
+          default_watch_templates_json: '[]',
+          cta_policy_json: '{}',
+        },
+      },
+      calls,
+    ),
+    input: {
+      workspace_id: 'ws_123',
+      channel_id: 'ch_123',
+      purpose: 'Forecast attention',
+      expected_signal_types: ['forecast_state'],
+      default_dimensions: ['forecast_id'],
+      default_watch_templates: [{ name: 'Pace low', watch_type: 'LAST_VALUE_LT', config: { threshold: 85 } }],
+      cta_policy: { required: true },
+    },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.channel_contract.version, 2);
+  assert.deepEqual(result.channel_contract.default_dimensions, ['forecast_id']);
+  assert.match(calls.find((call) => /UPDATE channel_contracts/.test(call.sql)).sql, /status = \?/);
+  assert.match(calls.find((call) => /INSERT OR IGNORE INTO channel_contracts/.test(call.sql)).sql, /channel_contracts/);
+});
+
+test('channel contract update rejects invalid templates before writing', async () => {
+  const calls = [];
+  const result = await updateAdminChannelContract({
+    auth: { user_id: 'user_admin', permissions: ['channel_contract:update'] },
+    db: scopedDb(
+      {
+        workspace: { id: 'ws_123', workspace_id: 'ws_123' },
+        channel: { id: 'ch_123', channel_id: 'ch_123', workspace_id: 'ws_123' },
+      },
+      calls,
+    ),
+    input: {
+      workspace_id: 'ws_123',
+      channel_id: 'ch_123',
+      default_watch_templates: [{ name: 'Missing type' }],
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'INVALID_CHANNEL_CONTRACT');
+  assert.equal(calls.some((call) => /INSERT OR IGNORE INTO channel_contracts/.test(call.sql)), false);
+});
+
+test('channel contract reads are tenant scoped', async () => {
+  const result = await getAdminChannelContract({
+    auth: {
+      user_id: 'user_admin',
+      permissions: ['channel_contract:read'],
+      source_app: 'demo',
+      external_tenant_id: 'tenant_b',
+    },
+    db: scopedDb({
+      workspace: { id: 'ws_123', workspace_id: 'ws_123', source_app: 'demo', external_tenant_id: 'tenant_a' },
+      channel: {
+        id: 'ch_123',
+        channel_id: 'ch_123',
+        workspace_id: 'ws_123',
+        source_app: 'demo',
+        external_tenant_id: 'tenant_a',
+      },
+    }),
+    input: { workspace_id: 'ws_123', channel_id: 'ch_123' },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'TENANT_SCOPE_MISMATCH');
+});
+
 test('connector row includes one-time secret material', () => {
   const row = buildConnectorRow(
     { workspace_id: 'ws_123', channel_id: 'ch_123', connector_type: 'webhook' },
@@ -136,6 +243,23 @@ test('watch row serializes config JSON', () => {
   });
 
   assert.deepEqual(JSON.parse(row.config_json), { threshold: 85 });
+});
+
+test('channel contract row serializes contract fields', () => {
+  const row = buildChannelContractRow(
+    {
+      workspace_id: 'ws_123',
+      channel_id: 'ch_123',
+      default_dimensions: ['forecast_id'],
+      cta_policy: { required: true },
+    },
+    1,
+    '2026-05-24T10:00:00.000Z',
+  );
+
+  assert.equal(row.version, 1);
+  assert.deepEqual(JSON.parse(row.default_dimensions_json), ['forecast_id']);
+  assert.deepEqual(JSON.parse(row.cta_policy_json), { required: true });
 });
 
 test('admin connector writes connector metadata to KV store', async () => {
@@ -205,4 +329,127 @@ test('admin watch rejects signal outside channel scope', async () => {
 
   assert.equal(result.ok, false);
   assert.equal(result.code, 'SIGNAL_SCOPE_MISMATCH');
+});
+
+test('admin signal creation inherits channel contract defaults and materializes watch templates', async () => {
+  const calls = [];
+  const result = await createAdminSignal({
+    auth: { user_id: 'user_admin', permissions: ['signal:create'] },
+    db: scopedDb(
+      {
+        workspace: { id: 'ws_123', workspace_id: 'ws_123' },
+        channel: { id: 'ch_123', channel_id: 'ch_123', workspace_id: 'ws_123' },
+        channelContract: {
+          id: 'chct_123',
+          channel_contract_id: 'chct_123',
+          workspace_id: 'ws_123',
+          channel_id: 'ch_123',
+          version: 1,
+          status: 'active',
+          expected_signal_types_json: '["metric"]',
+          default_dimensions_json: '["forecast_id"]',
+          default_watch_templates_json: '[{"name":"Pace low","watch_type":"LAST_VALUE_LT","config":{"threshold":85}}]',
+          cta_policy_json: '{"required":true}',
+        },
+      },
+      calls,
+    ),
+    input: {
+      workspace_id: 'ws_123',
+      channel_id: 'ch_123',
+      signal_key: 'forecast.revenue.pace',
+    },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.signal_contract.dimensions, ['forecast_id']);
+  assert.deepEqual(result.signal_contract.cta_policy, { required: true });
+  assert.equal(result.materialized_watches.length, 1);
+  assert.equal(calls.filter((call) => /INSERT OR IGNORE INTO watches/.test(call.sql)).length, 1);
+});
+
+test('admin snooze watch creates tenant-scoped action control', async () => {
+  const calls = [];
+  const result = await snoozeAdminWatch({
+    auth: { user_id: 'user_admin', permissions: ['watch:control'], source_app: 'demo', external_tenant_id: 'tenant_1' },
+    db: scopedDb(
+      {
+        workspace: { id: 'ws_123', workspace_id: 'ws_123', source_app: 'demo', external_tenant_id: 'tenant_1' },
+        channel: {
+          id: 'ch_123',
+          channel_id: 'ch_123',
+          workspace_id: 'ws_123',
+          source_app: 'demo',
+          external_tenant_id: 'tenant_1',
+        },
+        watch: { id: 'watch_123', watch_id: 'watch_123', workspace_id: 'ws_123', channel_id: 'ch_123' },
+      },
+      calls,
+    ),
+    input: {
+      workspace_id: 'ws_123',
+      channel_id: 'ch_123',
+      watch_id: 'watch_123',
+      snooze_until: '2026-05-24T11:00:00.000Z',
+      reason: 'Too noisy',
+    },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.action_control.action_type, 'snooze');
+  assert.equal(result.action_control.target_type, 'watch');
+  assert.match(calls.find((call) => /INSERT OR IGNORE INTO watch_action_controls/.test(call.sql)).sql, /watch_action_controls/);
+});
+
+test('admin mute and resume signal writes durable controls', async () => {
+  const calls = [];
+  const db = scopedDb(
+    {
+      workspace: { id: 'ws_123', workspace_id: 'ws_123' },
+      channel: { id: 'ch_123', channel_id: 'ch_123', workspace_id: 'ws_123' },
+      signal: { id: 'sig_123', signal_id: 'sig_123', workspace_id: 'ws_123', channel_id: 'ch_123' },
+    },
+    calls,
+  );
+  const mute = await muteAdminWatch({
+    auth: { user_id: 'user_admin', permissions: ['watch:control'] },
+    db,
+    input: { workspace_id: 'ws_123', channel_id: 'ch_123', signal_id: 'sig_123' },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+  const resume = await resumeAdminWatch({
+    auth: { user_id: 'user_admin', permissions: ['watch:control'] },
+    db,
+    input: { workspace_id: 'ws_123', channel_id: 'ch_123', signal_id: 'sig_123' },
+    now: '2026-05-24T10:05:00.000Z',
+  });
+
+  assert.equal(mute.ok, true);
+  assert.equal(mute.action_control.action_type, 'mute');
+  assert.equal(resume.ok, true);
+  assert.equal(resume.action_control.action_type, 'resume');
+  assert.equal(calls.some((call) => /UPDATE watch_action_controls/.test(call.sql)), true);
+});
+
+test('admin ignore alert marks pending deliveries ignored', async () => {
+  const calls = [];
+  const result = await ignoreAdminAlert({
+    auth: { user_id: 'user_admin', permissions: ['watch:control'] },
+    db: scopedDb(
+      {
+        workspace: { id: 'ws_123', workspace_id: 'ws_123' },
+        channel: { id: 'ch_123', channel_id: 'ch_123', workspace_id: 'ws_123' },
+        alert: { id: 'alert_123', workspace_id: 'ws_123', channel_id: 'ch_123' },
+      },
+      calls,
+    ),
+    input: { workspace_id: 'ws_123', channel_id: 'ch_123', alert_id: 'alert_123' },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.action_control.action_type, 'ignore');
+  assert.equal(calls.some((call) => /UPDATE alert_deliveries/.test(call.sql) && call.params[0] === 'ignored'), true);
 });

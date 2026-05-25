@@ -32,6 +32,15 @@ As a user, I want channel setup assistance from purpose text and sample events s
 ## Done Definition
 
 - Setup assistant entrypoint exists as a safe, review-first stub.
+- Story is renamed with `_done` only after all Cursor rules and proof gates pass.
+
+## Cursor Rules And Proof Gates
+
+- Follow `cursor.js`: use CFKit CloudFunctions for control-plane actions, keep draft generation side-effect free, and require explicit authorization for any apply step.
+- Write focused tests for input validation, deterministic draft shaping, no-side-effect guarantees, and approved apply handoff.
+- Run `npm run check` from `apps/headsupp-api`.
+- Run `npm run load:smoke` if applying drafts can affect runtime watch/signal defaults.
+- Update API docs and confirm no secrets, real user samples, or private payloads are committed.
 
 ## Status
 

@@ -31,7 +31,9 @@ function createDb(calls = []) {
                   ],
                 };
               }
-              if (sql.includes('alert_deliveries') || sql.includes('aggregate_deliveries')) return { results: [] };
+              if (sql.includes('alert_deliveries') || sql.includes('aggregate_deliveries') || sql.includes('quiet_summary_deliveries')) {
+                return { results: [] };
+              }
               return { results: [] };
             },
             async first() {
@@ -76,4 +78,5 @@ test('processRetryableDeliveries returns retry counts', async () => {
 
   assert.equal(result.alert_retries, 0);
   assert.equal(result.aggregate_retries, 0);
+  assert.equal(result.quiet_summary_retries, 0);
 });

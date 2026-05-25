@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { DEFAULT_SIGNAL_CONTRACT, resolveSignalAndContract } from '../../src/services/aggregation/signal-resolution.js';
 
-function fakeDb({ signal = null, contract = null } = {}) {
+function fakeDb({ signal = null, contract = null, channelContract = null } = {}) {
   const inserts = [];
   return {
     inserts,
@@ -14,6 +14,7 @@ function fakeDb({ signal = null, contract = null } = {}) {
             async first() {
               if (sql.includes('FROM signals')) return signal;
               if (sql.includes('FROM signal_contracts')) return contract;
+              if (sql.includes('FROM channel_contracts')) return channelContract;
               return null;
             },
             async run() {
@@ -67,4 +68,18 @@ test('lazily creates missing signal and default contract', async () => {
   assert.equal(result.signal.signal_key, 'forecast.revenue.pace');
   assert.deepEqual(result.contract, DEFAULT_SIGNAL_CONTRACT);
   assert.equal(db.inserts.length, 2);
+});
+
+test('lazily created signal contracts inherit active channel contract defaults', async () => {
+  const db = fakeDb({
+    channelContract: {
+      default_dimensions_json: '["forecast_id","status"]',
+      cta_policy_json: '{"required":true}',
+    },
+  });
+  const result = await resolveSignalAndContract(db, message, '2026-05-24T10:00:00.000Z');
+
+  assert.equal(result.contractCreated, true);
+  assert.deepEqual(result.contract.dimensions, ['forecast_id', 'status']);
+  assert.deepEqual(result.contract.cta_policy, { required: true });
 });

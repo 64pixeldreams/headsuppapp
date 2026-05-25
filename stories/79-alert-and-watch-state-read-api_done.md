@@ -35,7 +35,17 @@ As an operator, I need read APIs for alerts and watch state so quiet operation r
 
 - Alert/watch-state read APIs are available and documented.
 - Scope/auth behavior is covered by tests.
+- Story is renamed with `_done` only after all Cursor rules and proof gates pass.
+
+## Cursor Rules And Proof Gates
+
+- Follow `cursor.js`: use CFKit CloudFunctions for read actions, keep responses safe, and enforce tenant boundaries with `source_app`, `external_tenant_id`, `external_user_id`, and `workspace_id`.
+- Write focused unit tests for query shaping and integration tests for auth/tenant isolation.
+- Run `npm run check` from `apps/headsupp-api`.
+- Run `npm run smoke:tenant-isolation` if read APIs are used in deployed proof paths.
+- Create `docs/api/alerts-and-deliveries.md` or document the read APIs in `docs/api/reference.md`; do not leave docs ambiguous.
+- Confirm no secrets or full subscriber destinations are returned or committed.
 
 ## Status
 
-Pending.
+Done.

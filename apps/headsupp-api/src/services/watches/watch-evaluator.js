@@ -1,5 +1,6 @@
 import { evaluateWatchAgainstAggregates, watchConfig } from './evaluate-watch.js';
 import { decideAlertAction } from './alert-decision.js';
+import { loadActiveWatchActionControls } from './action-controls.js';
 import { persistAlertWithDeliveries } from '../alerts/persistence.js';
 
 export async function loadWatch(db, watchId) {
@@ -74,16 +75,17 @@ export async function evaluateWatchRequest({ db, env = {}, input, now = input.no
     };
   }
 
-  const [state, aggregates] = await Promise.all([
+  const [state, aggregates, actionControls] = await Promise.all([
     loadWatchState(db, watch.id || watch.watch_id),
     loadAggregatesForWatch(db, watch, input),
+    loadActiveWatchActionControls(db, watch, now),
   ]);
   const evaluation = evaluateWatchAgainstAggregates(watch, aggregates);
   if (input.eventContext) {
     evaluation.cta = input.eventContext.cta || evaluation.cta || null;
     evaluation.fields = input.eventContext.fields || evaluation.fields || {};
   }
-  const decision = decideAlertAction({ watch, evaluation, state, now });
+  const decision = decideAlertAction({ watch, evaluation, state, actionControls, now });
 
   if (!['alert', 'escalation', 'recovery'].includes(decision.action)) {
     return {

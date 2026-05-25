@@ -21,6 +21,9 @@ Heads Up is not a dashboard, BI tool, or per-event alerting system. The core pro
 - Retries transient delivery failures with backoff.
 - Keeps tenants/workspaces isolated by `source_app`, `external_tenant_id`, `external_user_id`, and `workspace_id`.
 - Exposes operator-safe observability for delivery health, retry backlog, and scheduled cron status.
+- Supports channel contracts for default dimensions, CTA policy, and watch-template bootstrap.
+- Exposes safe alert and watch-state reads so quiet channels remain auditable.
+- Supports explicit watch action controls and quiet-summary delivery.
 
 ## Current App
 
@@ -106,6 +109,9 @@ Apply the D1 schema:
 ```bash
 cd apps/headsupp-api
 npx wrangler d1 execute headsup_db --remote --file "migrations/0001_headsupp_core.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/0002_correctness_closure.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/0003_channel_contracts_and_read_apis.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/0004_watch_actions_and_quiet_summaries.sql"
 ```
 
 ## Tests And Proofs
@@ -154,7 +160,7 @@ Runtime secrets such as Cloudflare API tokens and Slack webhook URLs must be pas
 - Delivery services: `apps/headsupp-api/src/services/delivery/`
 - Scheduled tasks: `apps/headsupp-api/src/services/scheduler/scheduled-tasks.js`
 - Observability: `apps/headsupp-api/src/services/observability/overview.js`
-- D1 schema: `apps/headsupp-api/migrations/0001_headsupp_core.sql`, `apps/headsupp-api/migrations/0002_correctness_closure.sql`
+- D1 schema: `apps/headsupp-api/migrations/0001_headsupp_core.sql`, `apps/headsupp-api/migrations/0002_correctness_closure.sql`, `apps/headsupp-api/migrations/0003_channel_contracts_and_read_apis.sql`, `apps/headsupp-api/migrations/0004_watch_actions_and_quiet_summaries.sql`
 
 ## CI And Release
 

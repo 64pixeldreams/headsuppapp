@@ -33,6 +33,16 @@ As a user, I need trend-oriented watch types beyond simple deltas so alerts repr
 ## Done Definition
 
 - Trend watch types are supported, tested, and documented.
+- Story is renamed with `_done` only after all Cursor rules and proof gates pass.
+
+## Cursor Rules And Proof Gates
+
+- Follow `cursor.js`: evaluate watches against aggregates/state only, never raw events, and keep evaluator changes focused.
+- Write focused unit tests for each new watch type and edge case before/alongside implementation.
+- Run `npm run check` from `apps/headsupp-api`.
+- Run `npm run load:smoke` because aggregate history behavior is involved.
+- Run deployed watch proofs when credentials are available: `npm run smoke:generic-slack` and `npm run smoke:alert-decisions`.
+- Update API docs and confirm no secrets are committed.
 
 ## Status
 

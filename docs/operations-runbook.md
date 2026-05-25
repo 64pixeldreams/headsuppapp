@@ -138,9 +138,37 @@ Apply migration:
 cd apps/headsupp-api
 npx wrangler d1 execute headsup_db --remote --file "migrations/0001_headsupp_core.sql"
 npx wrangler d1 execute headsup_db --remote --file "migrations/0002_correctness_closure.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/0003_channel_contracts_and_read_apis.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/0004_watch_actions_and_quiet_summaries.sql"
 ```
 
 The migration is written with `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`. It should add missing schema without dropping existing data.
+
+## Watch Action Controls
+
+Snooze, mute, resume, and ignore are CFKit admin actions:
+
+```text
+admin.snoozeWatch
+admin.muteWatch
+admin.resumeWatch
+admin.ignoreAlert
+```
+
+Check `control_plane_audit_logs` for action history. Active snooze/mute rows in `watch_action_controls` suppress watch notifications before cooldown/escalation logic. `admin.ignoreAlert` marks pending or retrying deliveries for that alert as `ignored`.
+
+## Quiet Summaries
+
+Quiet summaries are scheduled proof-of-silence messages. They require subscribers with `mode = quiet_summary` and write to `quiet_summary_deliveries`, not `alerts`.
+
+If summaries are missing:
+
+```text
+confirm subscriber mode is quiet_summary
+check quiet_summary_deliveries for recent rows
+check /api/v1/observability/overview deliveries.quiet_summaries
+check scheduled_tasks metadata for quiet_summary counts
+```
 
 ## Cron Not Running
 

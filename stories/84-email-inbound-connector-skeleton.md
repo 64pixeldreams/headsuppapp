@@ -30,6 +30,15 @@ As a platform owner, I need a minimal inbound-email connector scaffold so we can
 ## Done Definition
 
 - Email ingress skeleton exists and is isolated behind explicit feature gating.
+- Story is renamed with `_done` only after all Cursor rules and proof gates pass.
+
+## Cursor Rules And Proof Gates
+
+- Follow `cursor.js`: keep email ingress isolated from the existing webhook hot path, preserve tenant boundaries, and do not build full email/AI parsing in this story.
+- Write focused tests for connector registration, feature gating, and email envelope queue handoff.
+- Run `npm run check` from `apps/headsupp-api`.
+- Run `npm run load:smoke` to prove webhook/API event throughput is not regressed.
+- Update API docs and operations notes; confirm no real email credentials, webhook URLs, API keys, or tokens are committed.
 
 ## Status
 

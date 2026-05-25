@@ -16,6 +16,25 @@ function parseContract(value) {
   }
 }
 
+function parseJson(value, fallback) {
+  if (!value) return fallback;
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function signalContractFromChannelContract(row) {
+  if (!row) return DEFAULT_SIGNAL_CONTRACT;
+  return {
+    ...DEFAULT_SIGNAL_CONTRACT,
+    dimensions: parseJson(row.default_dimensions_json, []),
+    cta_policy: parseJson(row.cta_policy_json, {}),
+  };
+}
+
 async function getSignal(db, channelId, signalKey) {
   return db
     .prepare('SELECT * FROM signals WHERE channel_id = ? AND signal_key = ? LIMIT 1')
@@ -62,11 +81,19 @@ async function getContract(db, signalId) {
   return db.prepare('SELECT * FROM signal_contracts WHERE signal_id = ? LIMIT 1').bind(signalId).first();
 }
 
+async function getChannelContract(db, channelId) {
+  return db
+    .prepare('SELECT * FROM channel_contracts WHERE channel_id = ? AND status = ? ORDER BY version DESC LIMIT 1')
+    .bind(channelId, 'active')
+    .first();
+}
+
 async function createDefaultContract(db, signal, now) {
+  const channelContract = await getChannelContract(db, signal.channel_id);
   const contractRow = {
     id: stableId('contract', signal.id),
     signal_id: signal.id,
-    contract_json: JSON.stringify(DEFAULT_SIGNAL_CONTRACT),
+    contract_json: JSON.stringify(signalContractFromChannelContract(channelContract)),
     created_at: now,
     updated_at: now,
   };

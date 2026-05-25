@@ -106,7 +106,10 @@ Modes:
 ```text
 alert
 aggregate_forward
+quiet_summary
 ```
+
+`quiet_summary` subscribers receive scheduled “all quiet” summaries. They do not receive normal alert payloads and do not create alert rows.
 
 ## Delivery Payloads
 
@@ -138,6 +141,33 @@ Generic alert webhook payload:
   }
 }
 ```
+
+Generic quiet-summary webhook payload:
+
+```json
+{
+  "type": "heads_up.quiet_summary",
+  "workspace_id": "ws_123",
+  "channel_id": "ch_123",
+  "channel_name": "Forecasts",
+  "status": "quiet",
+  "generated_at": "2026-05-24T10:00:00.000Z",
+  "watches": [
+    {
+      "watch_id": "watch_123",
+      "name": "Forecast pace warning",
+      "watch_type": "LAST_VALUE_LT",
+      "last_status": "quiet",
+      "last_evaluated_at": "2026-05-24T09:45:00.000Z",
+      "last_alert_at": null,
+      "cooldown_until": null,
+      "updated_at": "2026-05-24T09:45:00.000Z"
+    }
+  ]
+}
+```
+
+Slack quiet-summary payloads are concise text messages derived from the same safe payload.
 
 Outbound webhook deliveries are signed when an outbound signing secret is configured (`subscriber.config_json.signing_secret` or `OUTBOUND_WEBHOOK_SIGNING_SECRET`):
 

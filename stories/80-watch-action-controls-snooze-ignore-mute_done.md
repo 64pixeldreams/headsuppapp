@@ -35,7 +35,17 @@ As a human operator, I need to snooze, ignore, or mute noisy watch outcomes so a
 
 - Action controls work end-to-end and are auditable.
 - No regression in existing watch decision semantics.
+- Story is renamed with `_done` only after all Cursor rules and proof gates pass.
+
+## Cursor Rules And Proof Gates
+
+- Follow `cursor.js`: keep decision-state modules small, audit control-plane actions, and preserve tenant boundaries on every action.
+- Write focused tests before/alongside implementation for snooze, ignore, mute, resume, and audit logging.
+- Run `npm run check` from `apps/headsupp-api`.
+- Run deployed alert decision proof when credentials are available: `npm run smoke:alert-decisions`.
+- Run `npm run smoke:tenant-isolation` if action state can affect tenant-scoped watches.
+- Update API docs and operations runbook in the same change; confirm no secrets are committed.
 
 ## Status
 
-Pending.
+Done.

@@ -165,6 +165,7 @@ validate event shape again
 mark raw_event_dedupe status as processing
 skip aggregate/watch work for already-processed idempotency keys
 resolve or lazily create signal and signal_contract
+inherit active channel contract default dimensions and CTA policy when a signal_contract is created
 extract value/time/cta from contract paths with value.num fallback
 create aggregate deltas for configured bucket types
 fold deltas by workspace/channel/signal/bucket/dimensions_hash

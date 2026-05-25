@@ -2,6 +2,9 @@ import { requirePermission } from '../auth/permissions.js';
 import { generateConnectorSecret, publicConnector } from '../connectors/secrets.js';
 import { stableId } from '../ids/stable-id.js';
 import { validateSubscriberUrl, redactUrl } from '../subscribers/urls.js';
+import { buildActionControlRow } from '../watches/action-controls.js';
+
+const VALID_SUBSCRIBER_MODES = new Set(['alert', 'aggregate_forward', 'quiet_summary']);
 
 function denyIfNeeded(auth, permission) {
   const allowed = requirePermission(auth, permission);
@@ -78,9 +81,18 @@ export function buildConnectorRow(input, now = new Date().toISOString(), secretF
 }
 
 export function buildSubscriberRow(input, now = new Date().toISOString()) {
+  const mode = input.mode || 'alert';
+  if (!VALID_SUBSCRIBER_MODES.has(mode)) {
+    return {
+      ok: false,
+      status: 400,
+      code: 'INVALID_SUBSCRIBER_MODE',
+      message: `Subscriber mode must be one of: ${Array.from(VALID_SUBSCRIBER_MODES).join(', ')}.`,
+    };
+  }
   const validation = validateSubscriberUrl(input.subscriber_type || 'webhook', input.destination_url);
   if (!validation.ok) return validation;
-  const key = input.subscriber_key || `${input.channel_id}:${input.subscriber_type || 'webhook'}:${input.destination_url}`;
+  const key = input.subscriber_key || `${input.channel_id}:${input.subscriber_type || 'webhook'}:${mode}:${input.destination_url}`;
   const id = input.subscriber_id || stableId('sub', key);
   return {
     ok: true,
@@ -94,7 +106,7 @@ export function buildSubscriberRow(input, now = new Date().toISOString()) {
       destination_url: input.destination_url,
       destination_url_redacted: redactUrl(input.destination_url),
       secret_hash: null,
-      mode: input.mode || 'alert',
+      mode,
       config_json: JSON.stringify(input.config || {}),
       enabled: input.enabled === false ? 0 : 1,
       source_app: input.source_app || null,
@@ -145,6 +157,109 @@ export function buildWatchRow(input, now = new Date().toISOString()) {
   };
 }
 
+function parseJsonField(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeArrayField(value, fieldName) {
+  if (value === undefined || value === null) return { ok: true, value: [] };
+  if (!Array.isArray(value)) {
+    return { ok: false, status: 400, code: 'INVALID_CHANNEL_CONTRACT', message: `${fieldName} must be an array.` };
+  }
+  return { ok: true, value };
+}
+
+function normalizeObjectField(value, fieldName) {
+  if (value === undefined || value === null) return { ok: true, value: {} };
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    return { ok: false, status: 400, code: 'INVALID_CHANNEL_CONTRACT', message: `${fieldName} must be an object.` };
+  }
+  return { ok: true, value };
+}
+
+export function normalizeChannelContractInput(input = {}) {
+  const expectedSignalTypes = normalizeArrayField(input.expected_signal_types, 'expected_signal_types');
+  if (!expectedSignalTypes.ok) return expectedSignalTypes;
+  const defaultDimensions = normalizeArrayField(input.default_dimensions, 'default_dimensions');
+  if (!defaultDimensions.ok) return defaultDimensions;
+  const defaultWatchTemplates = normalizeArrayField(input.default_watch_templates, 'default_watch_templates');
+  if (!defaultWatchTemplates.ok) return defaultWatchTemplates;
+  const ctaPolicy = normalizeObjectField(input.cta_policy, 'cta_policy');
+  if (!ctaPolicy.ok) return ctaPolicy;
+
+  for (const [index, template] of defaultWatchTemplates.value.entries()) {
+    if (!template || typeof template !== 'object' || Array.isArray(template) || !template.watch_type) {
+      return {
+        ok: false,
+        status: 400,
+        code: 'INVALID_CHANNEL_CONTRACT',
+        message: `default_watch_templates[${index}] must include a watch_type.`,
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    contract: {
+      purpose: input.purpose || null,
+      expected_signal_types: expectedSignalTypes.value,
+      default_dimensions: defaultDimensions.value,
+      default_watch_templates: defaultWatchTemplates.value,
+      cta_policy: ctaPolicy.value,
+    },
+  };
+}
+
+export function buildChannelContractRow(input, version, now = new Date().toISOString()) {
+  const id = input.channel_contract_id || stableId('chct', `${input.channel_id}:${version}`);
+  return {
+    id,
+    channel_contract_id: id,
+    workspace_id: input.workspace_id,
+    channel_id: input.channel_id,
+    version,
+    status: 'active',
+    purpose: input.purpose || null,
+    expected_signal_types_json: JSON.stringify(input.expected_signal_types || []),
+    default_dimensions_json: JSON.stringify(input.default_dimensions || []),
+    default_watch_templates_json: JSON.stringify(input.default_watch_templates || []),
+    cta_policy_json: JSON.stringify(input.cta_policy || {}),
+    source_app: input.source_app || null,
+    external_tenant_id: input.external_tenant_id || null,
+    external_user_id: input.external_user_id || null,
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+function publicChannelContract(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    channel_contract_id: row.channel_contract_id,
+    workspace_id: row.workspace_id,
+    channel_id: row.channel_id,
+    version: Number(row.version || 1),
+    status: row.status,
+    purpose: row.purpose || null,
+    expected_signal_types: parseJsonField(row.expected_signal_types_json, []),
+    default_dimensions: parseJsonField(row.default_dimensions_json, []),
+    default_watch_templates: parseJsonField(row.default_watch_templates_json, []),
+    cta_policy: parseJsonField(row.cta_policy_json, {}),
+    source_app: row.source_app || null,
+    external_tenant_id: row.external_tenant_id || null,
+    external_user_id: row.external_user_id || null,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
 async function insertRow(db, table, row) {
   const columns = Object.keys(row);
   const placeholders = columns.map(() => '?').join(', ');
@@ -160,6 +275,16 @@ async function firstRow(db, sql, params = []) {
   const prepared = db.prepare(sql).bind(...params);
   if (typeof prepared.first === 'function') return prepared.first();
   return null;
+}
+
+async function allRows(db, sql, params = []) {
+  if (typeof db.prepare !== 'function') return [];
+  const prepared = db.prepare(sql).bind(...params);
+  if (typeof prepared.all === 'function') {
+    const result = await prepared.all();
+    return result?.results || [];
+  }
+  return [];
 }
 
 function tenantMismatch(auth, row) {
@@ -179,6 +304,22 @@ async function loadChannel(db, channelId) {
 
 async function loadSignal(db, signalId) {
   return firstRow(db, 'SELECT * FROM signals WHERE id = ? OR signal_id = ? LIMIT 1', [signalId, signalId]);
+}
+
+async function loadWatch(db, watchId) {
+  return firstRow(db, 'SELECT * FROM watches WHERE id = ? OR watch_id = ? LIMIT 1', [watchId, watchId]);
+}
+
+async function loadAlert(db, alertId) {
+  return firstRow(db, 'SELECT * FROM alerts WHERE id = ? LIMIT 1', [alertId]);
+}
+
+async function loadActiveChannelContract(db, channelId) {
+  return firstRow(
+    db,
+    'SELECT * FROM channel_contracts WHERE channel_id = ? AND status = ? ORDER BY version DESC LIMIT 1',
+    [channelId, 'active'],
+  );
 }
 
 function ownershipError(code, message) {
@@ -214,6 +355,30 @@ async function requireSignalScope({ db, auth, workspaceId, channelId, signalId }
   }
   if (tenantMismatch(auth, signal)) {
     return ownershipError('TENANT_SCOPE_MISMATCH', 'Signal is outside the authenticated tenant scope.');
+  }
+  return null;
+}
+
+async function requireWatchScope({ db, auth, workspaceId, channelId, watchId }) {
+  const watch = await loadWatch(db, watchId);
+  if (!watch) return { ok: false, status: 404, code: 'WATCH_NOT_FOUND', message: 'Watch was not found.' };
+  if (watch.workspace_id !== workspaceId || watch.channel_id !== channelId) {
+    return ownershipError('WATCH_SCOPE_MISMATCH', 'Watch does not belong to workspace and channel.');
+  }
+  if (tenantMismatch(auth, watch)) {
+    return ownershipError('TENANT_SCOPE_MISMATCH', 'Watch is outside the authenticated tenant scope.');
+  }
+  return null;
+}
+
+async function requireAlertScope({ db, auth, workspaceId, channelId, alertId }) {
+  const alert = await loadAlert(db, alertId);
+  if (!alert) return { ok: false, status: 404, code: 'ALERT_NOT_FOUND', message: 'Alert was not found.' };
+  if (alert.workspace_id !== workspaceId || alert.channel_id !== channelId) {
+    return ownershipError('ALERT_SCOPE_MISMATCH', 'Alert does not belong to workspace and channel.');
+  }
+  if (tenantMismatch(auth, alert)) {
+    return ownershipError('TENANT_SCOPE_MISMATCH', 'Alert is outside the authenticated tenant scope.');
   }
   return null;
 }
@@ -279,19 +444,26 @@ export async function createAdminSignal({ auth, db, input, now }) {
     (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
     (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
   if (scopeDenied) return scopeDenied;
+  const activeChannelContract = await loadActiveChannelContract(db, input.channel_id);
+  const inheritedContract = activeChannelContract ? publicChannelContract(activeChannelContract) : null;
+  const signalContract = buildSignalContract(input.contract, inheritedContract);
   const row = buildSignalRow(input, now);
   await insertRow(db, 'signals', row);
-  if (input.contract) {
+  if (signalContract) {
     await insertRow(db, 'signal_contracts', {
       id: input.signal_contract_id || stableId('sigct', row.id),
       signal_contract_id: input.signal_contract_id || stableId('sigct', row.id),
       signal_id: row.id,
-      contract_json: JSON.stringify(input.contract),
+      contract_json: JSON.stringify(signalContract),
       created_at: now,
       updated_at: now,
     });
   }
-  return { ok: true, signal: row };
+  const materialized_watches =
+    input.materialize_watch_templates === false
+      ? []
+      : await materializeWatchTemplates({ db, input, signal: row, channelContract: inheritedContract, now });
+  return { ok: true, signal: row, signal_contract: signalContract, materialized_watches };
 }
 
 export async function createAdminWatch({ auth, db, input, now }) {
@@ -310,4 +482,231 @@ export async function createAdminWatch({ auth, db, input, now }) {
   if (scopeDenied) return scopeDenied;
   const row = buildWatchRow(input, now);
   return { ok: true, watch: await insertRow(db, 'watches', row) };
+}
+
+function buildSignalContract(explicitContract, channelContract) {
+  if (explicitContract) {
+    const inheritedDimensions = channelContract?.default_dimensions || [];
+    return {
+      ...explicitContract,
+      dimensions: explicitContract.dimensions || inheritedDimensions,
+      cta_policy: explicitContract.cta_policy || channelContract?.cta_policy,
+    };
+  }
+  if (!channelContract) return null;
+  return {
+    dimensions: channelContract.default_dimensions || [],
+    cta_policy: channelContract.cta_policy || {},
+  };
+}
+
+async function materializeWatchTemplates({ db, input, signal, channelContract, now }) {
+  const templates = channelContract?.default_watch_templates || [];
+  const rows = [];
+  for (const [index, template] of templates.entries()) {
+    const watchInput = {
+      workspace_id: input.workspace_id,
+      channel_id: input.channel_id,
+      signal_id: signal.id,
+      name: template.name || `${signal.signal_key} ${template.watch_type}`,
+      watch_type: template.watch_type,
+      config: template.config || {},
+      cooldown_seconds: template.cooldown_seconds,
+      escalation: template.escalation,
+      recovery: template.recovery,
+      enabled: template.enabled,
+      watch_id: template.watch_id || stableId('watch', `${signal.id}:template:${index}:${template.watch_type}`),
+    };
+    const row = buildWatchRow(watchInput, now);
+    rows.push(await insertRow(db, 'watches', row));
+  }
+  return rows;
+}
+
+async function upsertChannelContractVersion({ db, input, channel, now }) {
+  const normalized = normalizeChannelContractInput(input);
+  if (!normalized.ok) return normalized;
+  const active = await loadActiveChannelContract(db, input.channel_id);
+  const version = active ? Number(active.version || 0) + 1 : 1;
+  await db
+    .prepare('UPDATE channel_contracts SET status = ?, updated_at = ? WHERE channel_id = ? AND status = ?')
+    .bind('archived', now, input.channel_id, 'active')
+    .run();
+  const row = buildChannelContractRow(inheritOwnership({ ...input, ...normalized.contract }, channel), version, now);
+  return { ok: true, channel_contract: publicChannelContract(await insertRow(db, 'channel_contracts', row)) };
+}
+
+export async function createAdminChannelContract({ auth, db, input, now }) {
+  const denied = denyIfNeeded(auth, 'channel_contract:create');
+  if (denied) return denied;
+  const scopeDenied =
+    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
+  if (scopeDenied) return scopeDenied;
+  const channel = await loadChannel(db, input.channel_id);
+  return upsertChannelContractVersion({ db, input, channel, now });
+}
+
+export async function updateAdminChannelContract({ auth, db, input, now }) {
+  const denied = denyIfNeeded(auth, 'channel_contract:update');
+  if (denied) return denied;
+  const scopeDenied =
+    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
+  if (scopeDenied) return scopeDenied;
+  const channel = await loadChannel(db, input.channel_id);
+  return upsertChannelContractVersion({ db, input, channel, now });
+}
+
+export async function getAdminChannelContract({ auth, db, input }) {
+  const denied = denyIfNeeded(auth, 'channel_contract:read');
+  if (denied) return denied;
+  const scopeDenied =
+    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
+  if (scopeDenied) return scopeDenied;
+  const row = input.channel_contract_id
+    ? await firstRow(db, 'SELECT * FROM channel_contracts WHERE channel_contract_id = ? AND channel_id = ? LIMIT 1', [
+        input.channel_contract_id,
+        input.channel_id,
+      ])
+    : await loadActiveChannelContract(db, input.channel_id);
+  if (!row) return { ok: false, status: 404, code: 'CHANNEL_CONTRACT_NOT_FOUND', message: 'Channel contract was not found.' };
+  return { ok: true, channel_contract: publicChannelContract(row) };
+}
+
+export async function listAdminChannelContractVersions({ auth, db, input }) {
+  const denied = denyIfNeeded(auth, 'channel_contract:read');
+  if (denied) return denied;
+  const scopeDenied =
+    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
+  if (scopeDenied) return scopeDenied;
+  const rows = await allRows(
+    db,
+    'SELECT * FROM channel_contracts WHERE channel_id = ? ORDER BY version DESC LIMIT ?',
+    [input.channel_id, Math.min(Number(input.limit || 20), 100)],
+  );
+  return { ok: true, channel_contracts: rows.map(publicChannelContract) };
+}
+
+function publicActionControl(row) {
+  return {
+    id: row.id,
+    action_id: row.action_id,
+    workspace_id: row.workspace_id,
+    channel_id: row.channel_id,
+    target_type: row.target_type,
+    target_id: row.target_id,
+    action_type: row.action_type,
+    status: row.status,
+    reason: row.reason || null,
+    expires_at: row.expires_at || null,
+    actor_user_id: row.actor_user_id || null,
+    source_app: row.source_app || null,
+    external_tenant_id: row.external_tenant_id || null,
+    external_user_id: row.external_user_id || null,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function targetFromActionInput(input) {
+  if (input.watch_id) return { targetType: 'watch', targetId: input.watch_id };
+  if (input.signal_id) return { targetType: 'signal', targetId: input.signal_id };
+  if (input.alert_id) return { targetType: 'alert', targetId: input.alert_id };
+  return { targetType: null, targetId: null };
+}
+
+async function requireActionTargetScope({ db, auth, input, targetType, targetId }) {
+  if (targetType === 'watch') {
+    return requireWatchScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id, watchId: targetId });
+  }
+  if (targetType === 'signal') {
+    return requireSignalScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id, signalId: targetId });
+  }
+  if (targetType === 'alert') {
+    return requireAlertScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id, alertId: targetId });
+  }
+  return { ok: false, status: 400, code: 'INVALID_ACTION_TARGET', message: 'Action target must include watch_id, signal_id, or alert_id.' };
+}
+
+async function createActionControl({ auth, db, input, actionType, now }) {
+  const denied = denyIfNeeded(auth, 'watch:control');
+  if (denied) return denied;
+  const baseScope =
+    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
+  if (baseScope) return baseScope;
+  const { targetType, targetId } = targetFromActionInput(input);
+  const targetScope = await requireActionTargetScope({ db, auth, input, targetType, targetId });
+  if (targetScope) return targetScope;
+  if (actionType === 'snooze' && !input.snooze_until && !input.expires_at) {
+    return { ok: false, status: 400, code: 'SNOOZE_UNTIL_REQUIRED', message: 'snooze_until or expires_at is required.' };
+  }
+  const channel = await loadChannel(db, input.channel_id);
+  const row = buildActionControlRow({
+    input: inheritOwnership(input, channel),
+    targetType,
+    targetId,
+    actionType,
+    actorUserId: auth?.user_id || null,
+    now,
+  });
+  await insertRow(db, 'watch_action_controls', row);
+  if (actionType === 'ignore' && targetType === 'alert') {
+    await db
+      .prepare("UPDATE alert_deliveries SET status = ?, updated_at = ? WHERE alert_id = ? AND status IN ('pending', 'retrying')")
+      .bind('ignored', now, targetId)
+      .run();
+  }
+  return { ok: true, action_control: publicActionControl(row) };
+}
+
+export async function snoozeAdminWatch({ auth, db, input, now }) {
+  return createActionControl({ auth, db, input, actionType: 'snooze', now });
+}
+
+export async function muteAdminWatch({ auth, db, input, now }) {
+  return createActionControl({ auth, db, input, actionType: 'mute', now });
+}
+
+export async function ignoreAdminAlert({ auth, db, input, now }) {
+  return createActionControl({ auth, db, input, actionType: 'ignore', now });
+}
+
+export async function resumeAdminWatch({ auth, db, input, now }) {
+  const denied = denyIfNeeded(auth, 'watch:control');
+  if (denied) return denied;
+  const baseScope =
+    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
+  if (baseScope) return baseScope;
+  const { targetType, targetId } = targetFromActionInput(input);
+  if (!['watch', 'signal'].includes(targetType)) {
+    return { ok: false, status: 400, code: 'INVALID_RESUME_TARGET', message: 'Resume target must include watch_id or signal_id.' };
+  }
+  const targetScope = await requireActionTargetScope({ db, auth, input, targetType, targetId });
+  if (targetScope) return targetScope;
+  await db
+    .prepare(
+      `UPDATE watch_action_controls
+       SET status = ?, updated_at = ?
+       WHERE workspace_id = ? AND channel_id = ? AND target_type = ? AND target_id = ?
+         AND action_type IN ('snooze', 'mute') AND status = 'active'`,
+    )
+    .bind('cleared', now, input.workspace_id, input.channel_id, targetType, targetId)
+    .run();
+  const channel = await loadChannel(db, input.channel_id);
+  const row = buildActionControlRow({
+    input: inheritOwnership(input, channel),
+    targetType,
+    targetId,
+    actionType: 'resume',
+    status: 'completed',
+    actorUserId: auth?.user_id || null,
+    now,
+  });
+  await insertRow(db, 'watch_action_controls', row);
+  return { ok: true, action_control: publicActionControl(row) };
 }

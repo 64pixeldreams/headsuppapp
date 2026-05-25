@@ -36,6 +36,15 @@ As a platform owner, I need a pluggable AI classification interface for email no
 ## Done Definition
 
 - AI classification integration seam exists and is test-covered.
+- Story is renamed with `_done` only after all Cursor rules and proof gates pass.
+
+## Cursor Rules And Proof Gates
+
+- Follow `cursor.js`: keep AI/provider code behind a small interface, use deterministic fallback behavior, and avoid committing real provider keys or private email fixtures.
+- Write focused tests for adapter contract, fallback classifier, confidence/provenance persistence, and low-confidence routing.
+- Run `npm run check` from `apps/headsupp-api`.
+- Run `npm run load:smoke` to prove existing webhook/API processing is not regressed.
+- Update API docs/spec proof notes and confirm no model credentials, tokens, or private payloads are committed.
 
 ## Status
 

@@ -2,7 +2,7 @@ import { stableId } from '../ids/stable-id.js';
 import { ownershipFieldsFromContext, requireChannelInWorkspace } from '../ownership/tenant-scope.js';
 import { redactUrl, validateSubscriberUrl } from './urls.js';
 
-const VALID_MODES = new Set(['alert', 'aggregate_forward']);
+const VALID_MODES = new Set(['alert', 'aggregate_forward', 'quiet_summary']);
 
 export function publicSubscriber(subscriber) {
   return {

@@ -83,11 +83,11 @@ Release automation and operations:
 Prioritize non-email architecture first, then email/AI stubs:
 
 ```text
-77 Channel contract model
-78 Channel contract runtime defaults
-79 Alert and watch-state read API
-80 Watch action controls (snooze/ignore/mute)
-81 Quiet status summary delivery
+77 Channel contract model_done
+78 Channel contract runtime defaults_done
+79 Alert and watch-state read API_done
+80 Watch action controls (snooze/ignore/mute)_done
+81 Quiet status summary delivery_done
 82 Advanced trend watch types
 83 Recurring expectations v2
 84 Email inbound connector skeleton

@@ -5,10 +5,10 @@ async function countFirst(db, sql, params = []) {
   return Number(row?.count || row?.count_value || 0);
 }
 
-function healthFromCounts({ alertRetrying, alertFailed, aggregateRetrying, aggregateFailed, cronStatus }) {
+function healthFromCounts({ alertRetrying, alertFailed, aggregateRetrying, aggregateFailed, quietSummaryRetrying, quietSummaryFailed, cronStatus }) {
   if (cronStatus?.status === 'error') return 'error';
-  if (alertFailed > 0 || aggregateFailed > 0) return 'degraded';
-  if (alertRetrying > 0 || aggregateRetrying > 0) return 'watch';
+  if (alertFailed > 0 || aggregateFailed > 0 || quietSummaryFailed > 0) return 'degraded';
+  if (alertRetrying > 0 || aggregateRetrying > 0 || quietSummaryRetrying > 0) return 'watch';
   return 'ok';
 }
 
@@ -27,6 +27,9 @@ export async function getObservabilityOverview(db, { now = new Date().toISOStrin
     dueAggregateRetries,
     oldAlertPending,
     oldAggregatePending,
+    quietSummaryPending,
+    quietSummaryRetrying,
+    quietSummaryFailed,
   ] = await Promise.all([
     countFirst(db, 'SELECT COUNT(*) AS count FROM watches WHERE enabled = 1'),
     countFirst(db, "SELECT COUNT(*) AS count FROM alert_deliveries WHERE status = 'pending'"),
@@ -40,9 +43,20 @@ export async function getObservabilityOverview(db, { now = new Date().toISOStrin
     countFirst(db, "SELECT COUNT(*) AS count FROM aggregate_deliveries WHERE status = 'retrying' AND next_retry_at <= ?", [now]),
     countFirst(db, "SELECT COUNT(*) AS count FROM alert_deliveries WHERE status = 'pending' AND created_at <= ?", [oldPendingBefore]),
     countFirst(db, "SELECT COUNT(*) AS count FROM aggregate_deliveries WHERE status = 'pending' AND created_at <= ?", [oldPendingBefore]),
+    countFirst(db, "SELECT COUNT(*) AS count FROM quiet_summary_deliveries WHERE status = 'pending'"),
+    countFirst(db, "SELECT COUNT(*) AS count FROM quiet_summary_deliveries WHERE status = 'retrying'"),
+    countFirst(db, "SELECT COUNT(*) AS count FROM quiet_summary_deliveries WHERE status = 'failed'"),
   ]);
   const cronStatus = await loadOperationalStatus(db, 'scheduled_tasks');
-  const health = healthFromCounts({ alertRetrying, alertFailed, aggregateRetrying, aggregateFailed, cronStatus });
+  const health = healthFromCounts({
+    alertRetrying,
+    alertFailed,
+    aggregateRetrying,
+    aggregateFailed,
+    quietSummaryRetrying,
+    quietSummaryFailed,
+    cronStatus,
+  });
 
   return {
     status: health,
@@ -58,6 +72,11 @@ export async function getObservabilityOverview(db, { now = new Date().toISOStrin
         pending: aggregatePending,
         retrying: aggregateRetrying,
         failed: aggregateFailed,
+      },
+      quiet_summaries: {
+        pending: quietSummaryPending,
+        retrying: quietSummaryRetrying,
+        failed: quietSummaryFailed,
       },
     },
     operator_health: {

@@ -33,6 +33,15 @@ As an integrator, I need a dedicated email-to-signal normalization pipeline cont
 ## Done Definition
 
 - Email normalization pipeline skeleton is in place for later parser/AI work.
+- Story is renamed with `_done` only after all Cursor rules and proof gates pass.
+
+## Cursor Rules And Proof Gates
+
+- Follow `cursor.js`: keep parsing pipeline modules small, isolate email jobs from webhook aggregation, and do not add provider-specific AI coupling here.
+- Write focused tests for job shape, parser interface boundaries, failure routing, and placeholder normalized output.
+- Run `npm run check` from `apps/headsupp-api`.
+- Run `npm run load:smoke` to prove existing ingest/aggregation is not regressed.
+- Update API docs/runbooks and confirm no secrets or raw private email samples are committed.
 
 ## Status
 

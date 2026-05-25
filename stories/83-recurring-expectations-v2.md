@@ -34,6 +34,16 @@ As a finance/revenue operator, I need richer “expected event” contracts so a
 ## Done Definition
 
 - Recurring expectation semantics are robust enough for payment-arrival style use cases.
+- Story is renamed with `_done` only after all Cursor rules and proof gates pass.
+
+## Cursor Rules And Proof Gates
+
+- Follow `cursor.js`: implement absence detection through scheduled evaluation, not ingest, and keep expectation matching tenant-scoped.
+- Write focused tests for due windows, amount ranges, fulfilled cycles, grace periods, and skip/snooze interactions.
+- Run `npm run check` from `apps/headsupp-api`.
+- Run `npm run smoke:scheduled` because this changes scheduled absence behavior.
+- Run `npm run smoke:tenant-isolation` if expectation matching reads tenant-scoped aggregates/events.
+- Update API docs/runbooks and confirm no secrets are committed.
 
 ## Status
 

@@ -29,6 +29,28 @@ CREATE TABLE IF NOT EXISTS channels (
 
 CREATE INDEX IF NOT EXISTS idx_channels_workspace_id ON channels(workspace_id);
 
+CREATE TABLE IF NOT EXISTS channel_contracts (
+  id TEXT PRIMARY KEY,
+  channel_contract_id TEXT UNIQUE,
+  workspace_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  purpose TEXT,
+  expected_signal_types_json TEXT NOT NULL DEFAULT '[]',
+  default_dimensions_json TEXT NOT NULL DEFAULT '[]',
+  default_watch_templates_json TEXT NOT NULL DEFAULT '[]',
+  cta_policy_json TEXT NOT NULL DEFAULT '{}',
+  source_app TEXT,
+  external_tenant_id TEXT,
+  external_user_id TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_channel_contracts_channel_status ON channel_contracts(channel_id, status);
+CREATE INDEX IF NOT EXISTS idx_channel_contracts_workspace ON channel_contracts(workspace_id, channel_id);
+
 CREATE TABLE IF NOT EXISTS connectors (
   id TEXT PRIMARY KEY,
   connector_id TEXT UNIQUE,
@@ -122,6 +144,28 @@ CREATE INDEX IF NOT EXISTS idx_watches_signal_id ON watches(signal_id);
 CREATE INDEX IF NOT EXISTS idx_watches_channel_id ON watches(channel_id);
 CREATE INDEX IF NOT EXISTS idx_watches_enabled ON watches(enabled);
 
+CREATE TABLE IF NOT EXISTS watch_action_controls (
+  id TEXT PRIMARY KEY,
+  action_id TEXT UNIQUE,
+  workspace_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  target_type TEXT NOT NULL,
+  target_id TEXT NOT NULL,
+  action_type TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  reason TEXT,
+  expires_at TEXT,
+  actor_user_id TEXT,
+  source_app TEXT,
+  external_tenant_id TEXT,
+  external_user_id TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_watch_action_controls_target ON watch_action_controls(target_type, target_id, status, expires_at);
+CREATE INDEX IF NOT EXISTS idx_watch_action_controls_channel ON watch_action_controls(workspace_id, channel_id, created_at);
+
 CREATE TABLE IF NOT EXISTS watch_states (
   watch_id TEXT PRIMARY KEY,
   last_status TEXT,
@@ -211,6 +255,26 @@ CREATE TABLE IF NOT EXISTS alert_deliveries (
 );
 
 CREATE INDEX IF NOT EXISTS idx_alert_deliveries_status_next ON alert_deliveries(status, next_retry_at);
+
+CREATE TABLE IF NOT EXISTS quiet_summary_deliveries (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  subscriber_id TEXT NOT NULL,
+  destination_url TEXT NOT NULL,
+  status TEXT NOT NULL,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  payload_json TEXT NOT NULL,
+  last_attempt_at TEXT,
+  next_retry_at TEXT,
+  response_code INTEGER,
+  response_body TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_quiet_summary_deliveries_status_next ON quiet_summary_deliveries(status, next_retry_at);
+CREATE INDEX IF NOT EXISTS idx_quiet_summary_deliveries_channel_created ON quiet_summary_deliveries(workspace_id, channel_id, created_at);
 
 CREATE TABLE IF NOT EXISTS aggregate_deliveries (
   id TEXT PRIMARY KEY,

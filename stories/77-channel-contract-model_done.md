@@ -38,7 +38,17 @@ As an operator, I need each channel to declare its intent and expected signal sh
 
 - Channel contracts are persisted and addressable by API.
 - Versioning and scope checks are proven by tests.
+- Story is renamed with `_done` only after all Cursor rules and proof gates pass.
+
+## Cursor Rules And Proof Gates
+
+- Follow `cursor.js`: build this story independently, keep modules small, use CFKit CloudFunctions for control-plane actions, and preserve `source_app`, `external_tenant_id`, `external_user_id`, and `workspace_id` tenant boundaries.
+- Write focused unit/integration tests before or alongside implementation.
+- Run `npm run check` from `apps/headsupp-api`.
+- Apply local and remote D1 migrations if the schema changes.
+- Update API docs in the same change.
+- Confirm no real Slack webhooks, API keys, connector secrets, or tokens are committed.
 
 ## Status
 
-Pending.
+Done.
