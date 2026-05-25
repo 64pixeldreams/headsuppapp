@@ -97,6 +97,15 @@ Aggregate-forward webhook bodies include stable ids so Foretic can safely dedupe
 }
 ```
 
-## Known Hardening Gap
+## Proof
 
-`aggregate_deliveries` prevents duplicate delivery rows for the same dimensioned bucket. A follow-up runtime story should add an emitted cursor or queue-send guard so cron does not repeatedly enqueue an already-created delivery ID.
+`aggregate_deliveries` prevents duplicate delivery rows for the same dimensioned bucket, and queue sends are limited to newly inserted rows.
+
+Use the focused deployed proof for dimension filtering and duplicate suppression:
+
+```bash
+cd apps/headsupp-api
+npm run smoke:aggregate-forward-dimensions
+```
+
+Unit tests also cover duplicate aggregate-forward rows so an ignored insert is not re-enqueued.

@@ -1,4 +1,4 @@
-# Protected Observability
+# 74 Protected Observability_done
 
 ## User Story
 
@@ -34,4 +34,4 @@ As a platform operator, I need observability endpoints protected by auth so oper
 
 ## Status
 
-Pending.
+Done. `/api/v1/observability/overview` requires operator authentication, the safe response shape is documented, and `smoke:operator-observability` proves the deployed path.

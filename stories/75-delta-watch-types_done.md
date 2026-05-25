@@ -1,4 +1,4 @@
-# Delta Watch Types
+# 75 Delta Watch Types_done
 
 ## User Story
 
@@ -33,4 +33,4 @@ As a user, I need `DELTA_LT` and `DELTA_GT` watches so alerting can trigger on c
 
 ## Status
 
-Pending.
+Done. `DELTA_GT` and `DELTA_LT` are implemented, documented, covered by local tests, and included in `npm run smoke:advanced-watches`.

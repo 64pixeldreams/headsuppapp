@@ -11,7 +11,10 @@ README.md
 docs/api/README.md
 docs/api/cursor-api-instructions.md
 docs/api/quickstart.md
+docs/api/node-cloudflare-client.md
+docs/api/foretic-wrapper-guide.md
 docs/api/reference.md
+docs/api/openapi.yaml
 docs/api/spec-alignment-audit.md
 docs/api/smoke-test-suite.md
 docs/final-smoke-runbook.md

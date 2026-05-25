@@ -1,4 +1,4 @@
-# Late Event Last Value Correctness
+# 69 Late Event Last Value Correctness_done
 
 ## User Story
 
@@ -32,4 +32,4 @@ As an operator, I need late/out-of-order events to preserve the true latest valu
 
 ## Status
 
-Pending.
+Done. Aggregate upsert preserves the latest `last_value` by event time, with regression coverage in aggregate tests and release proof through `npm run check`.

@@ -173,6 +173,34 @@ aggregate-forward creates one delivery with delivery_id and dedupe_key
 a later cron pass does not duplicate the same aggregate-forward delivery
 ```
 
+## Dedicated Hardening Smokes
+
+These deployed smokes cover the newer runtime features and proof gates:
+
+```powershell
+cd apps/headsupp-api
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+npm run smoke:quiet-summary
+npm run smoke:action-controls
+npm run smoke:channel-contracts
+npm run smoke:aggregate-forward-dimensions
+npm run smoke:advanced-watches
+Remove-Item Env:CLOUDFLARE_API_TOKEN
+```
+
+Operator observability also requires the operator secrets:
+
+```powershell
+cd apps/headsupp-api
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+$env:HEADSUPP_BOOTSTRAP_TOKEN='<runtime bootstrap token>'
+$env:HEADSUPP_OPERATOR_TOKEN='<runtime operator token>'
+npm run smoke:operator-observability
+Remove-Item Env:CLOUDFLARE_API_TOKEN
+Remove-Item Env:HEADSUPP_BOOTSTRAP_TOKEN
+Remove-Item Env:HEADSUPP_OPERATOR_TOKEN
+```
+
 ## Delivery Retry Smoke
 
 This deployed smoke proves retry and permanent failure handling with test HTTP status endpoints.
@@ -220,10 +248,10 @@ Remove-Item Env:HEADSUPP_SOAK_EVENTS_PER_TICK
 Expected:
 
 ```text
-tenant A and tenant B both ingest demo.shared.metric
-tenant A high value creates one alert and one delivery
-tenant B normal value creates no alert or delivery
-each tenant aggregate keeps its own last_value
+ok: true
+summary.total_events > 0
+summary.fold_compression_ratio < 1
+summary.throughput_events_per_second > 0
 ```
 
 ## Deploy

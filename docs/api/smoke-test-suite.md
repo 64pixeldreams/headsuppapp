@@ -478,11 +478,13 @@ Known gaps:
 ```text
 deployed generic smokes still use some operator D1 cleanup/setup for deterministic proof data
 Foretic smoke is fixture/local-runtime oriented, not a live Worker smoke
-no first-class OpenAPI YAML generator
+OpenAPI YAML is checked in, but it is not generated from route metadata yet
 no email connector, Slack OAuth, dashboard, billing, or BI proof because they are out of v1 scope
 ```
 
 The deployed smoke suite now includes dedicated scripts for quiet summaries, action controls, channel contracts/read APIs, dimensioned aggregate-forwarding, advanced watches, reminders, recurring expectations, rich digests, and operator observability. Some deterministic setup still uses the operator D1/KV harness so each smoke can clean up after itself safely.
+
+Smoke harness migration path: keep deterministic D1/KV setup for tests that need precise cleanup and seeded scheduler state, but prefer `/api/function` provisioning for new smokes where the public control plane can create the needed resources without weakening proof reliability.
 
 ## Release Checklist
 

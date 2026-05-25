@@ -49,6 +49,12 @@ npm run smoke:alert-decisions
 npm run smoke:scheduled
 npm run smoke:delivery-retry
 npm run smoke:tenant-isolation
+npm run smoke:quiet-summary
+npm run smoke:action-controls
+npm run smoke:channel-contracts
+npm run smoke:aggregate-forward-dimensions
+npm run smoke:advanced-watches
+npm run smoke:operator-observability
 ```
 
 If a smoke fails after provisioning, rerun once after checking Worker logs. Do not repeatedly run failing smokes without reading the error because deterministic smoke resources may keep the same IDs.
@@ -140,6 +146,7 @@ npx wrangler d1 execute headsup_db --remote --file "migrations/0001_headsupp_cor
 npx wrangler d1 execute headsup_db --remote --file "migrations/0002_correctness_closure.sql"
 npx wrangler d1 execute headsup_db --remote --file "migrations/0003_channel_contracts_and_read_apis.sql"
 npx wrangler d1 execute headsup_db --remote --file "migrations/0004_watch_actions_and_quiet_summaries.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/0005_correctness_closure_runtime.sql"
 ```
 
 The migration is written with `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`. It should add missing schema without dropping existing data.
@@ -218,6 +225,14 @@ Before declaring a release proven:
 7. smoke:scheduled passes
 8. smoke:delivery-retry passes
 9. smoke:tenant-isolation passes
-10. /api/v1/observability/overview reports acceptable operator_health
-11. secret scan finds no real tokens or webhooks in repo
+10. smoke:quiet-summary passes
+11. smoke:action-controls passes
+12. smoke:channel-contracts passes
+13. smoke:aggregate-forward-dimensions passes
+14. smoke:advanced-watches passes
+15. smoke:operator-observability passes when operator secrets are configured
+16. npm run load:high-volume passes
+17. npm run soak:release passes
+18. /api/v1/observability/overview reports acceptable operator_health
+19. secret scan finds no real tokens or webhooks in repo
 ```

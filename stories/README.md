@@ -65,17 +65,17 @@ Release automation and operations:
 ## Correctness Closure Batch
 
 ```text
-66 Foretic D1 canonical provisioning
-67 Contract path extraction
-68 Dimensioned aggregates
-69 Late event last value correctness
-70 Idempotency processed state
-71 CTA and data preservation
-72 Foretic recovery semantics
-73 Outbound webhook signing
-74 Protected observability
-75 Delta watch types
-76 Release soak test
+66 Foretic D1 canonical provisioning_partial
+67 Contract path extraction_done
+68 Dimensioned aggregates_done
+69 Late event last value correctness_done
+70 Idempotency processed state_partial
+71 CTA and data preservation_done
+72 Foretic recovery semantics_partial
+73 Outbound webhook signing_done
+74 Protected observability_done
+75 Delta watch types_done
+76 Release soak test_done
 ```
 
 ## Website Alignment Batch
@@ -88,8 +88,8 @@ Prioritize non-email architecture first, then email/AI stubs:
 79 Alert and watch-state read API_done
 80 Watch action controls (snooze/ignore/mute)_done
 81 Quiet status summary delivery_done
-82 Advanced trend watch types
-83 Recurring expectations v2
+82 Advanced trend watch types_partial
+83 Recurring expectations v2_partial
 84 Email inbound connector skeleton
 85 Email normalization pipeline stub
 86 AI classification interface (email)

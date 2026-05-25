@@ -6,19 +6,33 @@ This package is proprietary software owned by 64 Pixel Holdings LLC and operated
 
 ## Install
 
-Recommended production install once private package publishing is configured:
+Recommended production install from GitHub Packages:
 
 ```bash
-npm install @64pixeldreams/headsupp-client
+npm install @64pixeldreams/headsupp-client@0.1.0
 ```
 
 Private GitHub Packages publishing from `64pixeldreams/headsuppclientsdk` is the preferred way for services to consume this client.
 
-For GitHub Packages, add an `.npmrc` entry in the consuming project:
+For GitHub Packages, add an `.npmrc` entry in the consuming project. Local developers should use a GitHub personal access token with `read:packages`; GitHub Actions can use a repository secret such as `GH_PACKAGES_TOKEN`.
 
 ```text
 @64pixeldreams:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+//npm.pkg.github.com/:_authToken=${GH_PACKAGES_TOKEN}
+always-auth=true
+```
+
+GitHub Actions install example:
+
+```yaml
+- uses: actions/setup-node@v4
+  with:
+    node-version: "22"
+    registry-url: "https://npm.pkg.github.com"
+    scope: "@64pixeldreams"
+- run: npm ci
+  env:
+    NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
 ```
 
 Local workspace install while developing:
@@ -33,13 +47,31 @@ Zero-registry option:
 copy packages/headsupp-client/src into the consuming project
 ```
 
-If a consumer needs a Git dependency before private publishing exists, install the separate private SDK repository directly:
+If a consumer needs a Git dependency, pin the separate private SDK repository to a release tag:
 
 ```bash
-npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git
+npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git#v0.1.0
 ```
 
 Do not make production consumers clone the full Heads Up API repo unless there is no alternative.
+
+## Release
+
+The canonical SDK repository is `64pixeldreams/headsuppclientsdk`. This in-repo package folder is mirrored there until a future process changes the source of truth.
+
+Release checklist:
+
+```bash
+npm test
+npm version patch
+git push origin main --tags
+```
+
+Confirm the GitHub Actions publish workflow succeeds, then verify with an authenticated npm query:
+
+```bash
+npm view @64pixeldreams/headsupp-client version --registry=https://npm.pkg.github.com
+```
 
 ## Environment
 

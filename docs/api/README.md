@@ -12,6 +12,7 @@ node-cloudflare-client.md     wrapper install and usage guide
 foretic-wrapper-guide.md      Foretic provisioning and event-sending flow
 cursor-api-instructions.md    copy-paste PowerShell API sheet
 reference.md                  full endpoint and action reference
+openapi.yaml                  machine-readable deployed endpoint surface
 ```
 
 ## Current API Truth
@@ -28,6 +29,7 @@ schema-and-migrations.md
 smoke-test-suite.md
 spec-alignment-audit.md
 spec-fit-and-proof-tests.md
+openapi.yaml
 ```
 
 ## Documentation Standard

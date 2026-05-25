@@ -1,4 +1,4 @@
-# CTA And Data Preservation
+# 71 CTA And Data Preservation_done
 
 ## User Story
 
@@ -34,4 +34,4 @@ As an alert consumer, I need actionable CTA and context data in alerts so notifi
 
 ## Status
 
-Pending.
+Done. CTA, fields, and safe event context are preserved into alerts and aggregate-forward payloads, with docs/tests covered by `npm run check` and deployed smoke payload assertions.

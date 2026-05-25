@@ -1,4 +1,4 @@
-# Idempotency Processed State
+# 70 Idempotency Processed State_partial
 
 ## User Story
 
@@ -36,4 +36,4 @@ As a reliability owner, I need idempotency to avoid both duplicates and event lo
 
 ## Status
 
-Pending.
+Partial. Runtime idempotency now tracks processing, aggregate-applied, and processed states so retries avoid both duplicate counting and dropped work, with local tests and load proof. A dedicated deployed duplicate-idempotency smoke remains future proof polish.

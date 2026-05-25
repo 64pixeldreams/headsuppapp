@@ -69,10 +69,11 @@ Expect:
 minute = 2026-05-23T14:37:00.000Z
 hour = 2026-05-23T14:00:00.000Z
 day = 2026-05-23T00:00:00.000Z
+week = 2026-05-18T00:00:00.000Z
 month = 2026-05-01T00:00:00.000Z
 ```
 
-If weekly buckets are added later, add week tests before implementing spend watches that depend on them.
+Weekly bucket support is part of the operational API and should remain covered before implementing weekly spend watch examples.
 
 ### Batch Folding
 

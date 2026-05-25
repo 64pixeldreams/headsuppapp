@@ -63,6 +63,7 @@ https://headsupp_app.martin-598.workers.dev
 - Foretic wrapper guide: `docs/api/foretic-wrapper-guide.md`
 - Cursor API instruction sheet: `docs/api/cursor-api-instructions.md`
 - API reference: `docs/api/reference.md`
+- OpenAPI endpoint surface: `docs/api/openapi.yaml`
 - Spec alignment audit: `docs/api/spec-alignment-audit.md`
 - Authentication and tenant rules: `docs/api/authentication.md`
 - Admin/control-plane API: `docs/api/admin.md`
@@ -102,15 +103,25 @@ Package:
 Install options:
 
 ```bash
-# Preferred once private package publishing is configured
-npm install @64pixeldreams/headsupp-client
+# Preferred private GitHub Packages install
+npm install @64pixeldreams/headsupp-client@0.1.0
 
 # Local development from this repo
 npm install ../headsupp/packages/headsupp-client
 
-# Git fallback from the private SDK repo
-npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git
+# Tag-pinned Git fallback from the private SDK repo
+npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git#v0.1.0
 ```
+
+For GitHub Packages, consuming projects need:
+
+```text
+@64pixeldreams:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GH_PACKAGES_TOKEN}
+always-auth=true
+```
+
+Use a GitHub token with `read:packages` for third-party installs.
 
 Minimal setup:
 

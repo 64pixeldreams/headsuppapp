@@ -1,4 +1,4 @@
-# Foretic D1 Canonical Provisioning
+# 66 Foretic D1 Canonical Provisioning_partial
 
 ## User Story
 
@@ -46,4 +46,4 @@ As a platform operator, I need Foretic provisioning to create runtime resources 
 
 ## Status
 
-Pending.
+Partial. Foretic provisioning is D1-canonical for runtime workspaces, channels, connectors, signals, watches, and subscribers, and `npm run smoke:foretic` covers the Foretic-shaped loop. The safe backfill command for legacy KV-only setups and a live Foretic Worker proof remain future scope.

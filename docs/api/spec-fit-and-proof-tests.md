@@ -2,7 +2,7 @@
 
 This note maps the current API to the product spec and lists the tests that prove it.
 
-For endpoint/action schemas, see `reference.md`. For the release smoke matrix, see `smoke-test-suite.md`.
+For endpoint/action schemas, see `reference.md` and `openapi.yaml`. For the release smoke matrix, see `smoke-test-suite.md`.
 
 ## Current Spec Fit
 
@@ -35,13 +35,17 @@ Local automated checks:
 cd apps/headsupp-api
 npm run check
 npm run load:smoke
+npm run load:high-volume
+npm run soak:release
 ```
 
 Current result:
 
 ```text
-178 tests passing
+unit/integration tests pass
 load smoke accepts 10000 synthetic events
+high-volume load smoke accepts 100000 synthetic events by default
+release soak reports bounded throughput and fold compression
 ```
 
 Deployed generic Slack smoke:
@@ -108,6 +112,29 @@ aggregate-forward payload includes delivery_id, dimension-safe dedupe_key, dimen
 later cron pass does not duplicate the same closed-bucket delivery
 ```
 
+Additional deployed smokes:
+
+```bash
+cd apps/headsupp-api
+npm run smoke:quiet-summary
+npm run smoke:action-controls
+npm run smoke:channel-contracts
+npm run smoke:aggregate-forward-dimensions
+npm run smoke:advanced-watches
+npm run smoke:operator-observability
+```
+
+Expected proof:
+
+```text
+quiet summaries create quiet_summary_deliveries without alert rows
+action controls prove snooze, resume, mute, and ignored delivery behavior
+channel contracts materialize defaults and safe read shapes
+dimensioned aggregate-forwarding filters dimensions and does not duplicate second pass
+advanced watches cover WINDOW, DELTA, relative change, reminders, recurring expectations, and rich digests
+operator observability covers service-key lifecycle, audit reads, health overview, and redaction
+```
+
 Deployed delivery retry smoke:
 
 ```powershell
@@ -159,4 +186,4 @@ observability endpoint requires operator auth token
 
 The current generic provisioning command is an operator smoke utility backed by Cloudflare API credentials. A future hardening pass should add deployed smoke coverage that provisions through `/api/function` using an API key.
 
-Other non-AI/non-email proof gaps are tracked in `spec-alignment-audit.md`: quiet-summary deployed proof, action-control deployed proof, dimensioned aggregate-forward deployed proof, live Foretic Worker proof, scheduled alert delivery enqueue proof, and aggregate-forward cursor/requeue hardening.
+Other non-AI/non-email proof gaps are tracked in `spec-alignment-audit.md`: live Foretic Worker proof and migration of some deterministic smoke setup from D1/KV harness operations to `/api/function` provisioning.

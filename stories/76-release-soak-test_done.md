@@ -1,4 +1,4 @@
-# Release Soak Test
+# 76 Release Soak Test_done
 
 ## User Story
 
@@ -35,4 +35,4 @@ As a release owner, I need a bounded soak test so we can prove stability over su
 
 ## Status
 
-Pending.
+Done. `npm run soak:release` is implemented, documented in the smoke and final runbooks, and reports a machine-readable throughput/fold-compression summary.

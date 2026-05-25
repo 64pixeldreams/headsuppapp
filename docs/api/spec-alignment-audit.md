@@ -22,11 +22,11 @@ connector -> queue -> aggregate -> watch -> alert / aggregate forward
 
 The strongest proof is the deployed Slack alert path, alert-decision smoke, scheduled watches smoke, delivery retry smoke, tenant-isolation smoke, quiet-summary smoke, action-controls smoke, channel-contract/read smoke, dimensioned aggregate-forward smoke, advanced-watches smoke, operator observability smoke, local load smoke, and the unit/integration suite.
 
-The remaining non-AI/non-email gaps are now mostly operational polish gaps:
+The remaining non-AI/non-email gaps are now operational polish gaps:
 
 - Some deployed smokes still seed deterministic resources through D1/KV harnesses instead of the public `/api/function` control plane.
 - `smoke:foretic` is still fixture/local-runtime oriented rather than a live Foretic Worker integration.
-- A first-class OpenAPI YAML generator is still not present.
+- The checked-in OpenAPI YAML documents the deployed endpoint surface; a generated spec can be added later if endpoint definitions move into structured route metadata.
 
 ## Product Principles
 
@@ -262,14 +262,8 @@ Not implemented by design:
 
 ## Recommended Next Stories
 
-Non-AI/non-email follow-up stories should focus on proof and hardening:
+Non-AI/non-email follow-up stories should focus on the remaining proof polish:
 
-1. Deployed quiet-summary smoke.
-2. Deployed watch action-control smoke.
-3. Deployed channel-contract/read API smoke.
-4. Deployed dimensioned aggregate-forward smoke.
-5. Scheduled alert delivery enqueue hardening.
-6. Aggregate-forward emitted cursor/requeue hardening.
-7. Deployed advanced watch smoke for `WINDOW_*`, `DELTA_*`, and relative-change watches.
-8. Deployed reminder, recurring-expectation v2, and rich digest smoke.
-9. Deployed operator key lifecycle and observability smoke.
+1. Replace more deterministic D1/KV smoke setup with `/api/function` provisioning where it does not weaken cleanup or proof reliability.
+2. Add a live Foretic Worker smoke when Foretic runtime details are available.
+3. Consider generating `openapi.yaml` from structured endpoint metadata if the route/action registry is later made machine-readable.

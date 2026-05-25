@@ -1,4 +1,4 @@
-# Outbound Webhook Signing
+# 73 Outbound Webhook Signing_done
 
 ## User Story
 
@@ -36,4 +36,4 @@ As a subscriber system owner, I need signed outbound webhook deliveries so I can
 
 ## Status
 
-Pending.
+Done. Generic and aggregate-forward webhook delivery paths include timestamp, signature, and delivery-id headers when signing is configured, with signing helper tests and subscriber docs.

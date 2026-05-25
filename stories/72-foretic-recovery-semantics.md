@@ -1,4 +1,4 @@
-# Foretic Recovery Semantics
+# 72 Foretic Recovery Semantics_partial
 
 ## User Story
 
@@ -33,4 +33,4 @@ As a Foretic user, I need recovery alerts to mean “a previously triggered bad 
 
 ## Status
 
-Pending.
+Partial. Recovery semantics are implemented in the generic watch decision path and Foretic-shaped examples use recovery configuration. A deployed Foretic-specific warning -> critical -> recovery smoke remains future proof work.

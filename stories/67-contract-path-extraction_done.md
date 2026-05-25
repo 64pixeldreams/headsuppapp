@@ -1,4 +1,4 @@
-# Contract Path Extraction
+# 67 Contract Path Extraction_done
 
 ## User Story
 
@@ -39,4 +39,4 @@ As an integrator, I want signal contracts to define how values/time/cta/dimensio
 
 ## Status
 
-Pending.
+Done. Implemented through contract extraction runtime, fallback `value.num` support, ingest docs, reference docs, and `npm run check`.

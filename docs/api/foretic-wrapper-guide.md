@@ -9,16 +9,17 @@ Use the wrapper so Foretic does not need to hand-write CFKit actions, response u
 Recommended production path:
 
 ```bash
-npm install @64pixeldreams/headsupp-client
+npm install @64pixeldreams/headsupp-client@0.1.0
 ```
 
 Use the private GitHub Packages release from `64pixeldreams/headsuppclientsdk` for Foretic production. This lets Foretic pin a version in `package-lock.json` and update intentionally.
 
-Add this to Foretic's `.npmrc`:
+Add this to Foretic's `.npmrc`. Local developers need a GitHub personal access token with `read:packages`; CI should use a package-read secret such as `GH_PACKAGES_TOKEN`.
 
 ```text
 @64pixeldreams:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+//npm.pkg.github.com/:_authToken=${GH_PACKAGES_TOKEN}
+always-auth=true
 ```
 
 Local development install while both repositories are on one machine:
@@ -27,10 +28,10 @@ Local development install while both repositories are on one machine:
 npm install ../headsupp/packages/headsupp-client
 ```
 
-If private package publishing is not ready, the next best path is a separate private SDK repository:
+If Foretic needs to install directly from Git, pin the SDK repository release tag:
 
 ```bash
-npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git
+npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git#v0.1.0
 ```
 
 Avoid making Foretic depend on the whole Heads Up API repository. If you need to inspect only the wrapper from this repo, use sparse checkout:
@@ -49,7 +50,7 @@ Zero-registry fallback:
 copy packages/headsupp-client/src into the Foretic backend
 ```
 
-Recommendation: private package first, separate private SDK repo second, sparse checkout/vendor only for short-term development.
+Recommendation: private package first, tag-pinned SDK repo install second, sparse checkout/vendor only for short-term development.
 
 ## Foretic Environment
 

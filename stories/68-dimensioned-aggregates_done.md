@@ -1,4 +1,4 @@
-# Dimensioned Aggregates
+# 68 Dimensioned Aggregates_done
 
 ## User Story
 
@@ -38,4 +38,4 @@ As a user, I need aggregates and watch evaluation to remain separated per dimens
 
 ## Status
 
-Pending.
+Done. Implemented through `dimensions_hash`/`dimensions_json`, dimension-aware fold and aggregate-forward identity, schema/docs updates, local tests, `npm run load:smoke`, and `npm run smoke:aggregate-forward-dimensions`.
