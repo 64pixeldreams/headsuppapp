@@ -12,7 +12,7 @@ Recommended production path:
 npm install @64pixeldreams/headsupp-client
 ```
 
-Use the private GitHub Packages release from `64pixeldreams/headsupp-client-js` for Foretic production. This lets Foretic pin a version in `package-lock.json` and update intentionally.
+Use the private GitHub Packages release from `64pixeldreams/headsuppclientsdk` for Foretic production. This lets Foretic pin a version in `package-lock.json` and update intentionally.
 
 Add this to Foretic's `.npmrc`:
 
@@ -30,7 +30,7 @@ npm install ../headsupp/packages/headsupp-client
 If private package publishing is not ready, the next best path is a separate private SDK repository:
 
 ```bash
-npm install git+ssh://git@github.com/64pixeldreams/headsupp-client-js.git
+npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git
 ```
 
 Avoid making Foretic depend on the whole Heads Up API repository. If you need to inspect only the wrapper from this repo, use sparse checkout:

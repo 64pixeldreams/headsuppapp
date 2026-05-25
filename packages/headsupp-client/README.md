@@ -12,7 +12,7 @@ Recommended production install once private package publishing is configured:
 npm install @64pixeldreams/headsupp-client
 ```
 
-Private GitHub Packages publishing from `64pixeldreams/headsupp-client-js` is the preferred way for services to consume this client.
+Private GitHub Packages publishing from `64pixeldreams/headsuppclientsdk` is the preferred way for services to consume this client.
 
 For GitHub Packages, add an `.npmrc` entry in the consuming project:
 
@@ -36,7 +36,7 @@ copy packages/headsupp-client/src into the consuming project
 If a consumer needs a Git dependency before private publishing exists, install the separate private SDK repository directly:
 
 ```bash
-npm install git+ssh://git@github.com/64pixeldreams/headsupp-client-js.git
+npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git
 ```
 
 Do not make production consumers clone the full Heads Up API repo unless there is no alternative.

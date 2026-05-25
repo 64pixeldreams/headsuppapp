@@ -108,8 +108,8 @@ npm install @64pixeldreams/headsupp-client
 # Local development from this repo
 npm install ../headsupp/packages/headsupp-client
 
-# Git fallback if the wrapper is split into a private SDK repo
-npm install git+ssh://git@github.com/64pixeldreams/headsupp-client-js.git
+# Git fallback from the private SDK repo
+npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git
 ```
 
 Minimal setup:

@@ -24,7 +24,7 @@ Publish the wrapper as a private package through GitHub Packages or another priv
 npm install @64pixeldreams/headsupp-client
 ```
 
-This package is published from the separate private SDK repository `64pixeldreams/headsupp-client-js`. Consumers get normal semver, lockfiles, Dependabot/private registry support, and no need to clone the Heads Up API repository.
+This package is published from the separate private SDK repository `64pixeldreams/headsuppclientsdk`. Consumers get normal semver, lockfiles, Dependabot/private registry support, and no need to clone the Heads Up API repository.
 
 For GitHub Packages, add this to the consuming project's `.npmrc`:
 
@@ -46,13 +46,13 @@ npm install ../headsupp/packages/headsupp-client
 If outside teams need the SDK before private npm publishing is set up, create a separate private repository just for the wrapper, for example:
 
 ```text
-64pixeldreams/headsupp-client-js
+64pixeldreams/headsuppclientsdk
 ```
 
 Then install from Git:
 
 ```bash
-npm install git+ssh://git@github.com/64pixeldreams/headsupp-client-js.git
+npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git
 ```
 
 This is better than asking consumers to clone the whole Heads Up API repo.
