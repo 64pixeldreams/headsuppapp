@@ -39,6 +39,46 @@ test('calls control-plane actions and unwraps resources', async () => {
   assert.deepEqual(JSON.parse(calls[0].init.body), { action: 'admin.createWorkspace', payload: { name: 'Demo' } });
 });
 
+test('supports getChannel and updateChannel wrappers', async () => {
+  const calls = [];
+  const client = createHeadsUpClient({
+    baseUrl: 'https://headsupp.example',
+    apiKey: 'hu_api_test',
+    fetch: async (url, init) => {
+      calls.push({ url, init });
+      return jsonResponse({
+        success: true,
+        data: {
+          ok: true,
+          channel: {
+            channel_id: 'ch_demo',
+            name: 'Demo Channel',
+            metadata: { forecast_id: 'fc_123' },
+          },
+        },
+      });
+    },
+  });
+
+  const channel = await client.getChannel({ workspace_id: 'ws_demo', channel_id: 'ch_demo' });
+  const updated = await client.updateChannel({
+    workspace_id: 'ws_demo',
+    channel_id: 'ch_demo',
+    metadata: { forecast_id: 'fc_456' },
+  });
+
+  assert.equal(channel.channel_id, 'ch_demo');
+  assert.equal(updated.metadata.forecast_id, 'fc_123');
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    action: 'admin.getChannel',
+    payload: { workspace_id: 'ws_demo', channel_id: 'ch_demo' },
+  });
+  assert.deepEqual(JSON.parse(calls[1].init.body), {
+    action: 'admin.updateChannel',
+    payload: { workspace_id: 'ws_demo', channel_id: 'ch_demo', metadata: { forecast_id: 'fc_456' } },
+  });
+});
+
 test('throws useful API errors', async () => {
   const client = createHeadsUpClient({
     baseUrl: 'https://headsupp.example',

@@ -2,6 +2,8 @@
 
 Private Node and Cloudflare Workers client for the Heads Up API.
 
+For API onboarding, start with `docs/api/quickstart.md` in the main repo, then use `docs/api/reference.md` for all props.
+
 This package is proprietary software owned by 64 Pixel Holdings LLC and operated by Inc64 LLC.
 
 The client wraps:
@@ -70,6 +72,8 @@ const result = await operator.bootstrapServiceApiKey({
   permissions: [
     'workspace:create',
     'channel:create',
+    'channel:read',
+    'channel:update',
     'connector:create',
     'subscriber:create',
     'signal:create',
@@ -113,6 +117,24 @@ const channel = await headsup.createChannel({
   workspace_id: workspace.workspace_id,
   name: 'Demo Metrics',
   purpose: 'Attention-worthy metric changes',
+  metadata: {
+    user_id: 'user_demo',
+    forecast_id: 'forecast_coffee_2026',
+  },
+});
+
+const existingChannel = await headsup.getChannel({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+});
+
+await headsup.updateChannel({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  metadata: {
+    ...existingChannel.metadata,
+    budget_id: 'budget_coffee_primary',
+  },
 });
 
 const connector = await headsup.createConnector({

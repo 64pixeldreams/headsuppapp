@@ -82,6 +82,8 @@ export function createHeadsUpClient({ baseUrl, apiKey, bootstrapToken, fetch: fe
       requestFunction('operator.bootstrapServiceApiKey', payload, { bootstrapToken }).then((data) => data),
     createWorkspace: (payload) => requestFunction('admin.createWorkspace', payload).then((data) => resource(data, 'workspace')),
     createChannel: (payload) => requestFunction('admin.createChannel', payload).then((data) => resource(data, 'channel')),
+    getChannel: (payload) => requestFunction('admin.getChannel', payload).then((data) => resource(data, 'channel')),
+    updateChannel: (payload) => requestFunction('admin.updateChannel', payload).then((data) => resource(data, 'channel')),
     createChannelContract: (payload) =>
       requestFunction('admin.createChannelContract', payload).then((data) => resource(data, 'channel_contract')),
     updateChannelContract: (payload) =>

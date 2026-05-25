@@ -1,5 +1,7 @@
 # Subscribers API
 
+Primary docs: use `quickstart.md` for setup flow and `reference.md` for canonical payload props. Use this file for subscriber-specific context.
+
 Subscribers receive alert or aggregate outputs.
 
 For a full receiver implementation guide, including signature verification and retry behavior, see `webhook-receivers.md`.

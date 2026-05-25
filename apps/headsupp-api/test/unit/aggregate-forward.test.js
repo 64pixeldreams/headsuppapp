@@ -29,13 +29,14 @@ test('builds aggregate-forward payload for closed bucket', () => {
   const payload = buildAggregateForwardPayload({
     aggregate,
     signal: { signal_key: 'oxygen.percent' },
-    channel: { channel_id: 'ch_123' },
+    channel: { channel_id: 'ch_123', metadata_json: '{"forecast_id":"fc_123"}' },
   });
 
   assert.equal(payload.event_type, 'aggregate_bucket_closed');
   assert.equal(payload.bucket.end_at, '2026-05-24T11:00:00.000Z');
   assert.equal(payload.dimensions_hash, 'h123');
   assert.equal(payload.dimensions.forecast_id, 'fc_123');
+  assert.equal(payload.channel_metadata.forecast_id, 'fc_123');
   assert.equal(payload.fields.status, 'warning');
   assert.equal(payload.cta.url, 'https://foretic.io/forecasts/fc_123');
   assert.equal(payload.values.avg, 14);
@@ -59,13 +60,14 @@ test('creates aggregate delivery row with stable payload', async () => {
     db,
     aggregate,
     signal: { signal_key: 'oxygen.percent' },
-    channel: { channel_id: 'ch_123' },
+    channel: { channel_id: 'ch_123', metadata_json: '{"forecast_id":"fc_123"}' },
     subscriber: { subscriber_id: 'sub_123' },
     now: '2026-05-24T11:01:00.000Z',
   });
 
   assert.equal(delivery.status, 'pending');
   assert.equal(JSON.parse(delivery.payload_json).values.count, 7);
+  assert.equal(JSON.parse(delivery.payload_json).channel_metadata.forecast_id, 'fc_123');
   assert.equal(JSON.parse(delivery.payload_json).dedupe_key, 'sub_123:sig_123:hour:2026-05-24T10:00:00.000Z:h123');
   assert.equal(JSON.parse(delivery.payload_json).delivery_id, delivery.id);
   assert.equal(delivery.dimensions_hash, 'h123');

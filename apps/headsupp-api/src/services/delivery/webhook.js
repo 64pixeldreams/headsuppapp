@@ -1,7 +1,17 @@
 import { classifyDeliveryResult } from './backoff.js';
 import { buildSignedWebhookHeaders } from './signing.js';
 
-export function genericAlertPayload(alert) {
+function parseChannelMetadata(channel) {
+  if (!channel) return {};
+  if (channel.metadata && typeof channel.metadata === 'object' && !Array.isArray(channel.metadata)) return channel.metadata;
+  try {
+    return channel.metadata_json ? JSON.parse(channel.metadata_json) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function genericAlertPayload(alert, channel = null) {
   let payload = {};
   try {
     payload = alert.payload_json ? JSON.parse(alert.payload_json) : {};
@@ -20,6 +30,7 @@ export function genericAlertPayload(alert) {
     current_value: alert.current_value,
     threshold_value: alert.threshold_value,
     triggered_at: alert.triggered_at,
+    channel_metadata: parseChannelMetadata(channel),
     fields: payload.fields || {},
     cta: alert.cta_url
       ? {
@@ -37,9 +48,9 @@ export function slackAlertPayload(alert) {
   };
 }
 
-export function alertDeliveryPayload(alert, subscriber) {
+export function alertDeliveryPayload(alert, subscriber, channel = null) {
   if (subscriber.subscriber_type === 'slack_webhook') return slackAlertPayload(alert);
-  return genericAlertPayload(alert);
+  return genericAlertPayload(alert, channel);
 }
 
 export async function updateAlertDeliveryState(db, deliveryId, state, responseBody = null) {
@@ -68,6 +79,7 @@ export async function dispatchAlertDelivery({
   delivery,
   alert,
   subscriber,
+  channel,
   env = {},
   fetchFn = fetch,
   now = new Date().toISOString(),
@@ -77,7 +89,7 @@ export async function dispatchAlertDelivery({
   let error = null;
 
   try {
-    const body = JSON.stringify(alertDeliveryPayload(alert, subscriber));
+    const body = JSON.stringify(alertDeliveryPayload(alert, subscriber, channel));
     const signedHeaders = await buildSignedWebhookHeaders({
       body,
       deliveryId: delivery.id,

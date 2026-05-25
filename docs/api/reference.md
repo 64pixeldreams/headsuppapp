@@ -1,178 +1,30 @@
-# Heads Up API Reference
+# Heads Up API Reference (Props)
 
-This is the current public API reference for `headsupp_app`. It is OpenAPI-style, but kept as Markdown so Cursor and engineers can read it quickly.
+Use this after `quickstart.md`.
 
-If you are learning the API, start with `quickstart.md`, `getting-started-api-keys.md`, `webhook-receivers.md`, and `watch-types.md`. This file is the detailed reference after you understand the flow.
+This file is the canonical property reference for integration work. It covers:
+
+- `POST /api/function` action payloads.
+- `POST /v1/events/{connector_key}` ingest payload.
+- Read APIs.
+- Callback payload contracts.
 
 ## Service
 
-Base URLs:
-
 ```text
-local: http://localhost:8787
-deployed: https://headsupp_app.martin-598.workers.dev
-```
-
-Content type:
-
-```text
-application/json
-```
-
-All examples use fake IDs, fake domains, and placeholder secrets. Runtime-only values such as API keys, connector secrets, Cloudflare tokens, and Slack webhook URLs must stay outside the repo.
-
-## Product Contract
-
-Heads Up is an attention-processing API:
-
-```text
-connector -> channel -> signal -> aggregate -> watch -> alert or aggregate forward
-```
-
-Important behavior:
-
-```text
-ingest authenticates, validates, queues, and returns 202
-raw events update aggregates asynchronously
-watches evaluate aggregate rows, not raw events
-subscribers receive alerts or aggregate outputs only when a watch path requires it
+Base URL (deployed): https://headsupp_app.martin-598.workers.dev
+Base URL (local):    http://localhost:8787
+Content-Type:        application/json
 ```
 
 ## Authentication
 
-Control-plane functions use CFKit auth:
+- Control-plane actions: `Authorization: Bearer <api_key>`.
+- Ingest route: `X-HeadsUp-Timestamp` and `X-HeadsUp-Signature`.
 
-```text
-Authorization: Bearer <api_key>
-```
+## Function Envelope
 
-Event ingest uses connector HMAC:
-
-```text
-X-HeadsUp-Timestamp: <ISO timestamp>
-X-HeadsUp-Signature: sha256=<hmac>
-```
-
-HMAC message:
-
-```text
-<timestamp>.<raw JSON body>
-```
-
-## GET /health
-
-Purpose: lightweight health check.
-
-Authentication: none.
-
-Response `200`:
-
-```json
-{
-  "status": "ok",
-  "app": "headsupp_app",
-  "framework": "CFKit",
-  "role": "attention-processing-api",
-  "timestamp": "2026-05-24T18:00:00.000Z"
-}
-```
-
-## GET /api/v1/health
-
-Purpose: versioned health check.
-
-Authentication: none.
-
-Response shape matches `GET /health`.
-
-## GET /api/v1/observability/overview
-
-Purpose: read-only operational counts for verification. This is not a dashboard API and must not return secrets, raw event bodies, or subscriber payload bodies.
-
-Authentication: operator token required.
-
-Accepted headers:
-
-```text
-Authorization: Bearer <HEADSUPP_OPERATOR_TOKEN>
-X-HeadsUp-Operator-Token: <HEADSUPP_OPERATOR_TOKEN>
-X-HeadsUp-Bootstrap-Token: <HEADSUPP_BOOTSTRAP_TOKEN>
-```
-
-Response `200`:
-
-```json
-{
-  "success": true,
-  "data": {
-    "status": "ok",
-    "active_watches": 2,
-    "aggregate_rows": 99,
-    "deliveries": {
-      "alerts": {
-        "pending": 1,
-        "retrying": 0,
-        "failed": 0
-      },
-      "aggregates": {
-        "pending": 0,
-        "retrying": 0,
-        "failed": 0
-      }
-    },
-    "operator_health": {
-      "retry_backlog": {
-        "alerts_due": 0,
-        "aggregates_due": 0
-      },
-      "old_pending": {
-        "alerts": 0,
-        "aggregates": 0
-      },
-      "scheduled_tasks": {
-        "status": "ok",
-        "last_success_at": "2026-05-24T18:00:00.000Z",
-        "last_failure_at": null,
-        "last_error_code": null,
-        "last_error_message": null,
-        "updated_at": "2026-05-24T18:00:00.000Z"
-      }
-    }
-  }
-}
-```
-
-Error `501`:
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "DB_NOT_CONFIGURED",
-    "message": "DB binding is required for observability."
-  }
-}
-```
-
-Error `401`:
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "UNAUTHORIZED",
-    "message": "Operator authentication is required."
-  }
-}
-```
-
-## POST /api/function
-
-Purpose: CFKit control-plane and helper actions.
-
-Authentication: action-dependent. Admin and auth context actions require a Bearer API key. Health/version actions do not.
-
-Request:
+All control-plane requests use:
 
 ```json
 {
@@ -181,246 +33,124 @@ Request:
 }
 ```
 
-Error `400` when action is missing:
+## Action Props
 
-```json
-{
-  "success": false,
-  "error": {
-    "code": "MISSING_ACTION",
-    "message": "Action is required"
-  }
-}
-```
+### `admin.createWorkspace`
 
-### Public Helper Actions
+Payload props:
 
-```text
-headsupp.health
-headsupp.version
-headsupp.authContext
-```
+- `name` (string, required): workspace display name.
+- `workspace_key` (string, optional): stable external key.
+- `source_app` (string, optional): producer app label.
+- `external_tenant_id` (string, optional): tenant scoping key.
+- `external_user_id` (string, optional): user scoping key.
+- `status` (string, optional): defaults to `active`.
 
-`headsupp.authContext` returns a sanitized auth summary and must never expose API keys.
+Returns `data.workspace`.
 
-### Operator Actions
+### `admin.createChannel`
 
-```text
-operator.bootstrapServiceApiKey
-operator.listServiceApiKeys
-operator.revokeServiceApiKey
-operator.rotateServiceApiKey
-operator.listAuditLogs
-```
+Payload props:
 
-Bootstrap request:
+- `workspace_id` (string, required): parent workspace.
+- `name` (string, required): channel display name.
+- `channel_key` (string, optional): stable external key.
+- `purpose` (string, optional): business purpose.
+- `status` (string, optional): defaults to `active`.
+- `source_app` (string, optional): app ownership.
+- `external_tenant_id` (string, optional): tenant ownership.
+- `external_user_id` (string, optional): user ownership.
+- `external_resource_id` (string, optional): external entity ID.
+- `metadata` (object, optional): user-defined context echoed in callbacks.
 
-```json
-{
-  "action": "operator.bootstrapServiceApiKey",
-  "payload": {
-    "name": "Heads Up provisioning service",
-    "user_id": "service:headsupp-operator",
-    "permissions": [
-      "workspace:create",
-      "channel:create",
-      "connector:create",
-      "subscriber:create",
-      "signal:create",
-      "watch:create",
-      "channel_contract:create",
-      "channel_contract:update",
-      "channel_contract:read",
-      "alert:read",
-      "watch:read",
-      "watch:control"
-    ]
-  }
-}
-```
+Returns `data.channel` with:
 
-Header:
+- channel identity fields.
+- ownership fields.
+- `metadata` (object).
+- `metadata_json` (storage field).
 
-```text
-X-HeadsUp-Bootstrap-Token: <runtime bootstrap token>
-```
+### `admin.getChannel`
 
-Creation and rotation return the raw `api_key` once. List and revoke actions return safe metadata only.
+Payload props:
 
-### Admin Actions
+- `workspace_id` (string, required).
+- `channel_id` (string, required).
 
-```text
-admin.createWorkspace
-admin.createChannel
-admin.createConnector
-admin.createSubscriber
-admin.createSignal
-admin.createWatch
-admin.createChannelContract
-admin.updateChannelContract
-admin.getChannelContract
-admin.listChannelContractVersions
-admin.listChannelAlerts
-admin.getWatchState
-admin.listAlertTimeline
-admin.snoozeWatch
-admin.muteWatch
-admin.resumeWatch
-admin.ignoreAlert
-```
+Permission: `channel:read`.
 
-Required permissions:
+Returns `data.channel`.
 
-```text
-workspace:create
-channel:create
-connector:create
-subscriber:create
-signal:create
-watch:create
-channel_contract:create
-channel_contract:update
-channel_contract:read
-alert:read
-watch:read
-watch:control
-```
+### `admin.updateChannel`
 
-### Create Workspace
+Payload props:
 
-Request:
+- `workspace_id` (string, required).
+- `channel_id` (string, required).
+- `name` (string, optional).
+- `purpose` (string, optional).
+- `metadata` (object, optional): replaces channel metadata.
 
-```json
-{
-  "action": "admin.createWorkspace",
-  "payload": {
-    "name": "Demo Workspace",
-    "source_app": "headsupp-demo",
-    "external_tenant_id": "demo-tenant",
-    "external_user_id": "demo-user"
-  }
-}
-```
+Permission: `channel:update`.
 
-### Create Channel
+Returns `data.channel`.
 
-Request:
+### `admin.createSubscriber`
 
-```json
-{
-  "action": "admin.createChannel",
-  "payload": {
-    "workspace_id": "ws_demo",
-    "name": "Demo Channel",
-    "purpose": "Smoke test events"
-  }
-}
-```
+Payload props:
 
-### Create Connector
+- `workspace_id` (string, required).
+- `channel_id` (string, required).
+- `subscriber_type` (string, required): `webhook` or `slack_webhook`.
+- `destination_url` (string, required, https).
+- `display_name` (string, optional).
+- `mode` (string, optional): `alert`, `aggregate_forward`, `quiet_summary`. Defaults to `alert`.
+- `config` (object, optional): receiver settings (for example `signing_secret`).
+- `enabled` (boolean, optional): defaults to true.
 
-Request:
+Returns `data.subscriber` (redacted destination only).
 
-```json
-{
-  "action": "admin.createConnector",
-  "payload": {
-    "workspace_id": "ws_demo",
-    "channel_id": "ch_demo",
-    "connector_type": "webhook"
-  }
-}
-```
+### `admin.createSignal`
 
-Response includes `connector_key` and a one-time `connector_secret`. Store the secret outside the repo.
+Payload props:
 
-### Create Signal
+- `workspace_id` (string, required).
+- `channel_id` (string, required).
+- `signal_key` (string, required): producer signal identifier.
+- `signal_type` (string, optional): defaults to `metric`.
+- `value_mode` (string, optional): defaults to `last`.
+- `unit` (string, optional).
+- `description` (string, optional).
+- `contract` (object, optional): signal contract fields.
+- `materialize_watch_templates` (boolean, optional): default true.
 
-Request:
+Returns `data.signal` and optional `data.signal_contract`.
 
-```json
-{
-  "action": "admin.createSignal",
-  "payload": {
-    "workspace_id": "ws_demo",
-    "channel_id": "ch_demo",
-    "signal_key": "demo.metric",
-    "signal_type": "metric",
-    "value_mode": "last",
-    "contract": {
-      "default_bucket_types": ["minute", "hour", "day", "week"],
-      "dimensions": ["source"]
-    }
-  }
-}
-```
+### `admin.createWatch`
 
-Signals created in a channel with an active channel contract inherit contract `default_dimensions` and `cta_policy`. Contract watch templates materialize into watches unless the payload sets `materialize_watch_templates` to `false`.
+Payload props:
 
-### Channel Contract
+- `workspace_id` (string, required).
+- `channel_id` (string, required).
+- `signal_id` (string, required).
+- `name` (string, required).
+- `watch_type` (string, required).
+- `config` (object, required): watch-specific config.
+- `cooldown_seconds` (number, optional).
+- `escalation` (object, optional).
+- `recovery` (object, optional).
+- `enabled` (boolean, optional).
 
-Request:
+Returns `data.watch`.
 
-```json
-{
-  "action": "admin.createChannelContract",
-  "payload": {
-    "workspace_id": "ws_demo",
-    "channel_id": "ch_demo",
-    "purpose": "Forecast attention monitoring",
-    "expected_signal_types": ["forecast_state"],
-    "default_dimensions": ["forecast_id", "status"],
-    "default_watch_templates": [
-      {
-        "name": "Pace below warning",
-        "watch_type": "LAST_VALUE_LT",
-        "config": {
-          "threshold": 85,
-          "severity": "warning"
-        }
-      }
-    ],
-    "cta_policy": {
-      "required": true,
-      "kind": "review"
-    }
-  }
-}
-```
-
-Use `admin.updateChannelContract` with the same payload shape to create the next active version. Use `admin.getChannelContract` for the active version and `admin.listChannelContractVersions` for history.
-
-### Create Watch
-
-Request:
-
-```json
-{
-  "action": "admin.createWatch",
-  "payload": {
-    "workspace_id": "ws_demo",
-    "channel_id": "ch_demo",
-    "signal_id": "sig_demo",
-    "name": "Demo metric high",
-    "watch_type": "LAST_VALUE_GT",
-    "config": {
-      "threshold": 10,
-      "severity": "warning",
-      "bucket_type": "minute"
-    },
-    "cooldown_seconds": 3600
-  }
-}
-```
-
-Supported watch families in the current API:
+Supported watch types:
 
 ```text
 LAST_VALUE_GT
 LAST_VALUE_LT
+WINDOW_SUM_GT
 WINDOW_AVG_GT
 WINDOW_AVG_LT
-WINDOW_SUM_GT
 WINDOW_COUNT_GT
 DELTA_GT
 DELTA_LT
@@ -435,386 +165,33 @@ DIGEST
 AGGREGATE_FORWARD
 ```
 
-Scheduled watches run from Cloudflare Cron, not inline ingest.
+## Ingest Props (`POST /v1/events/{connector_key}`)
 
-Supported aggregate bucket types:
+Headers:
 
-```text
-minute
-hour
-day
-week
-month
-```
+- `X-HeadsUp-Timestamp` (required).
+- `X-HeadsUp-Signature` (required): `sha256=<hmac>`.
 
-Weekly buckets use a UTC Monday boundary.
+Single-event payload props:
 
-Weekly spend example:
+- `idempotency_key` (string, required).
+- `signal_key` (string, required).
+- `occurred_at` (string ISO timestamp, required).
+- `value` (object, required): usually `{ "num": <number> }`.
+- `fields` (object, optional): custom context.
+- `cta` (object, optional): `label`, `url`, optional `kind`.
 
-```json
-{
-  "watch_type": "WINDOW_SUM_GT",
-  "config": {
-    "threshold": 500,
-    "severity": "warning",
-    "bucket_type": "week",
-    "window": {
-      "size": 1
-    }
-  }
-}
-```
-
-Rolling average example:
-
-```json
-{
-  "watch_type": "WINDOW_AVG_GT",
-  "config": {
-    "threshold": 250,
-    "severity": "warning",
-    "bucket_type": "minute",
-    "window": {
-      "size": 3
-    }
-  }
-}
-```
-
-Event count example:
-
-```json
-{
-  "watch_type": "WINDOW_COUNT_GT",
-  "config": {
-    "threshold": 100,
-    "severity": "critical",
-    "bucket_type": "hour",
-    "window": {
-      "size": 1
-    }
-  }
-}
-```
-
-Absolute delta example:
-
-```json
-{
-  "watch_type": "DELTA_GT",
-  "config": {
-    "threshold": 20,
-    "severity": "warning",
-    "bucket_type": "minute"
-  }
-}
-```
-
-Percent-change example:
-
-```json
-{
-  "watch_type": "PERCENT_CHANGE_GT",
-  "config": {
-    "threshold": 50,
-    "severity": "warning",
-    "bucket_type": "hour"
-  }
-}
-```
-
-Relative-change example for "API usage suddenly doubles":
-
-```json
-{
-  "watch_type": "PREVIOUS_PERIOD_RATIO_GT",
-  "config": {
-    "threshold": 2,
-    "severity": "warning",
-    "bucket_type": "hour"
-  }
-}
-```
-
-Spike example:
-
-```json
-{
-  "watch_type": "SPIKE_GT",
-  "config": {
-    "threshold": 100,
-    "severity": "critical",
-    "bucket_type": "minute"
-  }
-}
-```
-
-Reminder example for "renewal is due in seven days":
-
-```json
-{
-  "watch_type": "REMINDER_DUE",
-  "config": {
-    "due_at": "2026-06-01T00:00:00.000Z",
-    "lead": {
-      "unit": "day",
-      "count": 7
-    },
-    "severity": "warning",
-    "label": "OpenAI renewal"
-  }
-}
-```
-
-Recurring expectation v2 can constrain due windows and value ranges while preserving existing count-in-window behavior:
-
-```json
-{
-  "watch_type": "MISSING_EXPECTED",
-  "config": {
-    "bucket_type": "day",
-    "due_window": {
-      "start_at": "2026-05-24T00:00:00.000Z",
-      "end_at": "2026-05-24T23:59:59.000Z"
-    },
-    "minimum_count": 1,
-    "value_range": {
-      "field": "sum",
-      "min": 100,
-      "max": 200
-    }
-  }
-}
-```
-
-Digest watches support `hourly`, `daily`, `weekly`, and `monthly` schedules. For richer summaries, pass `signal_ids`:
-
-```json
-{
-  "watch_type": "DIGEST",
-  "config": {
-    "schedule": "weekly",
-    "signal_ids": ["sig_revenue", "sig_churn"],
-    "include": ["sum", "count", "avg", "last"]
-  }
-}
-```
-
-### Create Subscriber
-
-Slack alert subscriber:
-
-```json
-{
-  "action": "admin.createSubscriber",
-  "payload": {
-    "workspace_id": "ws_demo",
-    "channel_id": "ch_demo",
-    "subscriber_type": "slack_webhook",
-    "destination_url": "https://hooks.slack.com/services/T_TEST/B_TEST/SECRET",
-    "display_name": "#demo-alerts",
-    "mode": "alert"
-  }
-}
-```
-
-Generic alert webhook subscriber:
-
-```json
-{
-  "action": "admin.createSubscriber",
-  "payload": {
-    "workspace_id": "ws_demo",
-    "channel_id": "ch_demo",
-    "subscriber_type": "webhook",
-    "destination_url": "https://example.com/heads-up/alerts",
-    "display_name": "Demo alert callback",
-    "mode": "alert",
-    "config": {
-      "signing_secret": "receiver_shared_secret"
-    }
-  }
-}
-```
-
-Generic aggregate-forward webhook subscriber:
-
-```json
-{
-  "action": "admin.createSubscriber",
-  "payload": {
-    "workspace_id": "ws_demo",
-    "channel_id": "ch_demo",
-    "subscriber_type": "webhook",
-    "destination_url": "https://example.com/heads-up/aggregates",
-    "display_name": "Demo aggregate callback",
-    "mode": "aggregate_forward"
-  }
-}
-```
-
-Rules:
-
-```text
-destination_url must be https
-slack_webhook destinations must be Slack incoming webhook URLs
-mode must be alert, aggregate_forward, or quiet_summary
-responses return destination_url_redacted, not full destination_url
-```
-
-### Alert And Watch-State Reads
-
-```json
-{
-  "action": "admin.listChannelAlerts",
-  "payload": {
-    "workspace_id": "ws_demo",
-    "channel_id": "ch_demo",
-    "limit": 50
-  }
-}
-```
-
-Response alerts include `id`, `watch_id`, `signal_id`, `triggered_at`, `severity`, values, summary text, CTA fields, sanitized `fields`, and `created_at`. The response also includes `metadata.suppressed_watch_count` and `metadata.as_of`.
-
-```json
-{
-  "action": "admin.getWatchState",
-  "payload": {
-    "workspace_id": "ws_demo",
-    "channel_id": "ch_demo",
-    "watch_id": "watch_demo"
-  }
-}
-```
-
-Watch state responses include trust timestamps such as `last_evaluated_at`, `last_alert_at`, `cooldown_until`, `last_digest_at`, `last_recovery_at`, and `updated_at`. `admin.listAlertTimeline` returns recent safe channel alert history in reverse chronological order.
-
-### Watch Action Controls
-
-Snooze, mute, resume, and ignore are audited control-plane actions:
-
-```json
-{
-  "action": "admin.snoozeWatch",
-  "payload": {
-    "workspace_id": "ws_demo",
-    "channel_id": "ch_demo",
-    "watch_id": "watch_demo",
-    "snooze_until": "2026-05-24T12:00:00.000Z",
-    "reason": "Maintenance window"
-  }
-}
-```
-
-```json
-{
-  "action": "admin.muteWatch",
-  "payload": {
-    "workspace_id": "ws_demo",
-    "channel_id": "ch_demo",
-    "signal_id": "sig_demo",
-    "reason": "Noisy source"
-  }
-}
-```
-
-```json
-{
-  "action": "admin.resumeWatch",
-  "payload": {
-    "workspace_id": "ws_demo",
-    "channel_id": "ch_demo",
-    "watch_id": "watch_demo"
-  }
-}
-```
-
-```json
-{
-  "action": "admin.ignoreAlert",
-  "payload": {
-    "workspace_id": "ws_demo",
-    "channel_id": "ch_demo",
-    "alert_id": "alert_demo"
-  }
-}
-```
-
-Active snooze/mute controls suppress watch notifications until expiry or resume. Ignored alerts mark pending/retrying alert deliveries as `ignored`.
-
-### Quiet Summary Delivery
-
-Quiet summaries use subscribers with `mode: "quiet_summary"` and are generated by scheduled work, not ingest/watch evaluation.
-
-```json
-{
-  "action": "admin.createSubscriber",
-  "payload": {
-    "workspace_id": "ws_demo",
-    "channel_id": "ch_demo",
-    "subscriber_type": "webhook",
-    "destination_url": "https://example.com/heads-up/quiet",
-    "mode": "quiet_summary",
-    "config": {
-      "schedule": "hourly"
-    }
-  }
-}
-```
-
-Generic webhook payloads use `type: "heads_up.quiet_summary"` and include `workspace_id`, `channel_id`, `generated_at`, `status: "quiet"`, and per-watch last-evaluated metadata.
-
-## POST /v1/events/{connector_key}
-
-Purpose: event ingest.
-
-Authentication: connector HMAC.
-
-Asynchronous behavior: a successful response means raw messages were queued. Aggregates, watch decisions, alerts, and deliveries happen after queue processing.
-
-Single event request:
-
-```json
-{
-  "idempotency_key": "evt_demo_001",
-  "signal_key": "demo.metric",
-  "occurred_at": "2026-05-24T18:00:00.000Z",
-  "value": {
-    "num": 15
-  },
-  "fields": {
-    "source": "demo"
-  },
-  "cta": {
-    "label": "View",
-    "url": "https://example.com/demo",
-    "kind": "review"
-  }
-}
-```
-
-Batch request:
+Batch payload:
 
 ```json
 {
   "events": [
-    {
-      "idempotency_key": "evt_demo_001",
-      "signal_key": "demo.metric",
-      "occurred_at": "2026-05-24T18:00:00.000Z",
-      "value": {
-        "num": 5
-      },
-      "fields": {
-        "source": "demo"
-      }
-    }
+    { "idempotency_key": "evt_1", "signal_key": "demo.metric", "occurred_at": "2026-05-25T10:00:00.000Z", "value": { "num": 1 } }
   ]
 }
 ```
 
-Response `202`:
+Success response:
 
 ```json
 {
@@ -826,138 +203,140 @@ Response `202`:
 }
 ```
 
-Common ingest errors:
+## Read API Props
 
-```text
-400 INVALID_JSON
-400 INVALID_EVENT_PAYLOAD
-401 MISSING_CONNECTOR
-401 MISSING_SIGNATURE
-401 INVALID_SIGNATURE
-401 STALE_TIMESTAMP
-405 METHOD_NOT_ALLOWED
-501 INGEST_STORE_NOT_CONFIGURED
-501 RAW_EVENTS_QUEUE_NOT_CONFIGURED
-```
+### `admin.listChannelAlerts`
 
-The exact validation code is returned in `error.code`.
+Payload props:
 
-## Control-Plane Errors
+- `workspace_id` (string, required).
+- `channel_id` (string, required).
+- `limit` (number, optional, max 200).
 
-Common admin/operator errors:
+Returns:
 
-```text
-BOOTSTRAP_AUTH_REQUIRED
-AUTH_REQUIRED
-PERMISSION_DENIED
-TENANT_SCOPE_MISMATCH
-WORKSPACE_CHANNEL_MISMATCH
-SIGNAL_SCOPE_MISMATCH
-MISSING_KEY_ID
-API_KEY_NOT_FOUND
-DB_NOT_CONFIGURED
-```
+- `alerts` (array of safe alert rows).
+- `metadata.suppressed_watch_count`.
+- `metadata.as_of`.
 
-Admin resource creation writes safe audit rows. Audit metadata redacts raw keys, connector secrets, tokens, and destination URLs.
+### `admin.getWatchState`
 
-## Subscriber Payloads
+Payload props:
 
-Slack alert payload:
+- `workspace_id` (string, required).
+- `channel_id` (string, required).
+- `watch_id` (string, required).
 
-```json
-{
-  "text": "Demo metric high is warning at 15. View: https://example.com/demo"
-}
-```
+Returns `watch_state` with timestamps and cooldown information.
 
-Generic alert webhook payload:
+### `admin.listAlertTimeline`
+
+Payload props:
+
+- same as `admin.listChannelAlerts`.
+
+Returns `timeline` entries ordered by trigger time.
+
+## Callback Payload Props
+
+### Alert Callback (`type = heads_up.alert`)
 
 ```json
 {
   "type": "heads_up.alert",
-  "alert_id": "alert_demo",
+  "alert_id": "alert_123",
   "workspace_id": "ws_demo",
   "channel_id": "ch_demo",
   "signal_id": "sig_demo",
   "watch_id": "watch_demo",
   "severity": "warning",
-  "summary": "Demo metric high is warning at 15.",
-  "current_value": 15,
-  "threshold_value": 10,
-  "triggered_at": "2026-05-24T18:00:00.000Z",
-  "cta": {
-    "label": "View",
-    "url": "https://example.com/demo"
-  }
-}
-```
-
-Digest alert payloads use the same `type: "heads_up.alert"` envelope. Digest-specific summary data is included in safe fields:
-
-```json
-{
-  "type": "heads_up.alert",
-  "alert_id": "alert_digest_demo",
-  "workspace_id": "ws_demo",
-  "channel_id": "ch_demo",
-  "watch_id": "watch_digest",
-  "severity": "info",
-  "summary": "Weekly digest for Demo Metrics",
+  "summary": "Coffee weekly spend high is warning at 56.75.",
+  "current_value": 56.75,
+  "threshold_value": 50,
+  "triggered_at": "2026-05-25T18:00:00.000Z",
+  "channel_metadata": {
+    "user_id": "user_demo",
+    "forecast_id": "forecast_coffee_2026"
+  },
   "fields": {
-    "digest": true,
-    "schedule": "weekly",
-    "signals": [
-      {
-        "signal_id": "sig_revenue",
-        "sum": 1200,
-        "count": 7,
-        "avg": 171.43,
-        "last": 200
-      }
-    ]
+    "vendor": "local_shop"
+  },
+  "cta": {
+    "label": "Open coffee ledger",
+    "url": "https://example.com/coffee"
   }
 }
 ```
 
-Aggregate-forward webhook payload:
+Machine-parseable routing keys: `type`, `watch_id`, `signal_id`, `channel_metadata`.
+
+### Aggregate Callback (`event_type = aggregate_bucket_closed`)
 
 ```json
 {
   "source": "heads_up",
   "event_type": "aggregate_bucket_closed",
-  "delivery_id": "aggdel_demo",
-  "dedupe_key": "sub_demo:sig_demo:hour:2026-05-24T17:00:00.000Z:d7a4bf91",
-  "signal_key": "demo.metric",
+  "delivery_id": "aggdel_123",
+  "dedupe_key": "sub_123:sig_123:hour:2026-05-25T17:00:00.000Z:d0",
+  "signal_key": "spend.coffee.usd",
   "workspace_id": "ws_demo",
   "channel_id": "ch_demo",
-  "dimensions_hash": "d7a4bf91",
-  "dimensions": {
-    "source": "demo"
+  "channel_metadata": {
+    "user_id": "user_demo",
+    "forecast_id": "forecast_coffee_2026"
   },
+  "dimensions_hash": "d0",
+  "dimensions": {},
   "bucket": {
     "type": "hour",
-    "start_at": "2026-05-24T17:00:00.000Z",
-    "end_at": "2026-05-24T18:00:00.000Z"
+    "start_at": "2026-05-25T17:00:00.000Z",
+    "end_at": "2026-05-25T18:00:00.000Z"
   },
   "values": {
-    "sum": 42,
-    "count": 3,
-    "avg": 14,
-    "min": 10,
-    "max": 17,
-    "last": 15
+    "sum": 56.75,
+    "count": 1,
+    "avg": 56.75,
+    "min": 56.75,
+    "max": 56.75,
+    "last": 56.75
   },
-  "fields": {
-    "source": "demo"
-  },
-  "cta": {
-    "label": "View",
-    "url": "https://example.com/demo"
-  }
+  "fields": {},
+  "cta": null
 }
 ```
 
-Delivery status rules:
+### Quiet Summary Callback (`type = heads_up.quiet_summary`)
+
+```json
+{
+  "type": "heads_up.quiet_summary",
+  "workspace_id": "ws_demo",
+  "channel_id": "ch_demo",
+  "channel_name": "Coffee Spend",
+  "channel_metadata": {
+    "user_id": "user_demo",
+    "forecast_id": "forecast_coffee_2026"
+  },
+  "status": "quiet",
+  "generated_at": "2026-05-25T18:00:00.000Z",
+  "watches": [
+    {
+      "watch_id": "watch_123",
+      "name": "Coffee weekly spend high",
+      "watch_type": "WINDOW_SUM_GT",
+      "last_status": "quiet",
+      "last_evaluated_at": "2026-05-25T17:59:00.000Z",
+      "last_alert_at": null,
+      "cooldown_until": null,
+      "updated_at": "2026-05-25T17:59:00.000Z"
+    }
+  ]
+}
+```
+
+## Retry Rules
+
+Delivery classification:
 
 ```text
 2xx => sent
@@ -965,40 +344,23 @@ Delivery status rules:
 400, 401, 403, 404 => failed
 ```
 
-## Tenant Boundaries
-
-All control-plane resources should preserve:
+## Common Errors
 
 ```text
-source_app
-external_tenant_id
-external_user_id
-workspace_id
+AUTH_REQUIRED
+PERMISSION_DENIED
+TENANT_SCOPE_MISMATCH
+WORKSPACE_CHANNEL_MISMATCH
+CHANNEL_NOT_FOUND
+INVALID_CHANNEL_METADATA
+INVALID_SIGNATURE
+STALE_TIMESTAMP
+INVALID_EVENT_PAYLOAD
 ```
 
-Ingest ownership is resolved from the connector, not from event body fields.
+## Related Docs
 
-## Verification Commands
-
-Local:
-
-```bash
-cd apps/headsupp-api
-npm run check
-npm run load:smoke
-```
-
-Deployed proof suite:
-
-```bash
-cd apps/headsupp-api
-npm run smoke:generic-slack
-npm run smoke:alert-decisions
-npm run smoke:scheduled
-npm run smoke:delivery-retry
-npm run smoke:tenant-isolation
-npm run smoke:foretic
-npm run soak:release
-```
-
-See `docs/api/smoke-test-suite.md` for required runtime environment variables and pass/fail signals.
+- `quickstart.md` for the fastest path.
+- `node-cloudflare-client.md` for SDK usage.
+- `webhook-receivers.md` for receiver implementation.
+- `openapi.yaml` for machine-readable endpoint schema.

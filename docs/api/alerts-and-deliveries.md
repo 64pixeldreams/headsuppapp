@@ -1,5 +1,7 @@
 # Alerts And Deliveries
 
+Primary docs: use `quickstart.md` for setup flow and `reference.md` for canonical read/callback props. This file stays focused on read-path behavior.
+
 Purpose: inspect alert history and watch quiet state without exposing webhook destinations or delivery secrets.
 
 This file covers read APIs. For outbound Slack messages, generic alert callback payloads, aggregate-forward callbacks, quiet-summary callbacks, retry behavior, and signature verification, see `webhook-receivers.md`.

@@ -1,40 +1,33 @@
-# Heads Up API Quickstart
+# Heads Up Quickstart (1-2-3-4-5)
 
-This guide creates a complete working integration:
+Start here for a full working integration.
 
-```text
-API key -> workspace -> channel -> subscriber -> connector -> signal -> watch -> signed event -> alert callback
-```
+This quickstart shows one complete path:
 
-Use the SDK guide (`node-cloudflare-client.md`) if you prefer JavaScript instead of raw HTTP. Use `getting-started-api-keys.md` if you only need first-run key setup.
+1. Create a service API key.
+2. Create a channel with channel metadata.
+3. Subscribe a webhook callback.
+4. Create a coffee-spend watch.
+5. Send an event and receive a callback.
 
-## 0. Set Environment Values
+If you need full action-by-action property definitions, use `reference.md`.
+
+## Prerequisites
 
 ```bash
 HEADSUPP_BASE_URL=https://headsupp_app.martin-598.workers.dev
-HEADSUPP_BOOTSTRAP_TOKEN=<operator bootstrap token>
-HEADSUPP_API_KEY=<service api key after bootstrap>
+HEADSUPP_BOOTSTRAP_TOKEN=<bootstrap token>
 ```
 
-For Slack alerts:
+After step 1:
 
 ```bash
-HEADSUPP_SLACK_WEBHOOK_URL=<Slack incoming webhook URL>
-```
-
-For generic callback alerts:
-
-```bash
-HEADSUPP_CALLBACK_URL=https://example.com/headsupp/alerts
+HEADSUPP_API_KEY=<service api key>
 ```
 
 Do not commit these values.
 
-## 1. Get A Service API Key
-
-If you already have `HEADSUPP_API_KEY`, skip this step.
-
-Request:
+## 1) Create A Service API Key
 
 ```bash
 curl -X POST "$HEADSUPP_BASE_URL/api/function" \
@@ -44,46 +37,29 @@ curl -X POST "$HEADSUPP_BASE_URL/api/function" \
     "action": "operator.bootstrapServiceApiKey",
     "payload": {
       "name": "Demo integration service",
-      "user_id": "service:demo",
+      "user_id": "service:integration",
       "source_app": "headsupp-demo",
       "permissions": [
         "workspace:create",
         "channel:create",
+        "channel:read",
+        "channel:update",
         "connector:create",
         "subscriber:create",
         "signal:create",
         "watch:create",
-        "channel_contract:create",
-        "channel_contract:update",
-        "channel_contract:read",
         "alert:read",
-        "watch:read",
-        "watch:control"
+        "watch:read"
       ]
     }
   }'
 ```
 
-Response:
+Save `data.api_key` as `HEADSUPP_API_KEY`.
 
-```json
-{
-  "success": true,
-  "data": {
-    "api_key": "hu_api_returned_once",
-    "key": {
-      "key_id": "key_123",
-      "status": "active"
-    }
-  }
-}
-```
+## 2) Create Workspace + Channel (With Metadata)
 
-Save `data.api_key` as `HEADSUPP_API_KEY`. It is shown once.
-
-## 2. Create A Workspace
-
-The workspace is the top-level tenant container.
+Create a workspace:
 
 ```bash
 curl -X POST "$HEADSUPP_BASE_URL/api/function" \
@@ -94,32 +70,13 @@ curl -X POST "$HEADSUPP_BASE_URL/api/function" \
     "payload": {
       "name": "Demo Workspace",
       "source_app": "headsupp-demo",
-      "external_tenant_id": "demo-tenant",
-      "external_user_id": "demo-user"
+      "external_tenant_id": "tenant_demo",
+      "external_user_id": "user_demo"
     }
   }'
 ```
 
-Response:
-
-```json
-{
-  "success": true,
-  "data": {
-    "workspace": {
-      "workspace_id": "ws_demo",
-      "name": "Demo Workspace",
-      "status": "active"
-    }
-  }
-}
-```
-
-Save `data.workspace.workspace_id`.
-
-## 3. Create A Channel
-
-A channel is a business context, such as finance, renewals, operations, or one customer forecast.
+Create a channel and attach metadata you want echoed in callbacks:
 
 ```bash
 curl -X POST "$HEADSUPP_BASE_URL/api/function" \
@@ -129,38 +86,20 @@ curl -X POST "$HEADSUPP_BASE_URL/api/function" \
     "action": "admin.createChannel",
     "payload": {
       "workspace_id": "ws_demo",
-      "name": "Demo Metrics",
-      "purpose": "Attention-worthy metric changes"
+      "name": "Coffee Spend",
+      "purpose": "Spend anomaly monitoring",
+      "metadata": {
+        "user_id": "user_demo",
+        "forecast_id": "forecast_coffee_2026",
+        "budget_id": "budget_coffee_primary"
+      }
     }
   }'
 ```
 
-Save `data.channel.channel_id`.
+Save `workspace_id` and `channel_id`.
 
-## 4. Subscribe Slack Or A Webhook
-
-Subscribers receive output when watches create alerts or aggregate-forward deliveries.
-
-### Slack Alert Subscriber
-
-```bash
-curl -X POST "$HEADSUPP_BASE_URL/api/function" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $HEADSUPP_API_KEY" \
-  -d '{
-    "action": "admin.createSubscriber",
-    "payload": {
-      "workspace_id": "ws_demo",
-      "channel_id": "ch_demo",
-      "subscriber_type": "slack_webhook",
-      "destination_url": "https://hooks.slack.com/services/T_TEST/B_TEST/SECRET",
-      "display_name": "#ops-alerts",
-      "mode": "alert"
-    }
-  }'
-```
-
-### Generic Alert Callback Subscriber
+## 3) Subscribe An Alert Webhook
 
 ```bash
 curl -X POST "$HEADSUPP_BASE_URL/api/function" \
@@ -172,8 +111,8 @@ curl -X POST "$HEADSUPP_BASE_URL/api/function" \
       "workspace_id": "ws_demo",
       "channel_id": "ch_demo",
       "subscriber_type": "webhook",
-      "destination_url": "https://example.com/headsupp/alerts",
-      "display_name": "Demo alert callback",
+      "destination_url": "https://example.com/headsup-alerts",
+      "display_name": "Demo alert receiver",
       "mode": "alert",
       "config": {
         "signing_secret": "receiver_shared_secret"
@@ -182,27 +121,9 @@ curl -X POST "$HEADSUPP_BASE_URL/api/function" \
   }'
 ```
 
-Response:
+## 4) Create Connector + Signal + Coffee Watch
 
-```json
-{
-  "success": true,
-  "data": {
-    "subscriber": {
-      "subscriber_id": "sub_demo",
-      "subscriber_type": "webhook",
-      "mode": "alert",
-      "destination_url_redacted": "https://example.com/..."
-    }
-  }
-}
-```
-
-When a watch fires, all enabled `mode: "alert"` subscribers on the channel receive an alert delivery.
-
-## 5. Create A Connector
-
-The connector gives event producers a `connector_key` and one-time `connector_secret`.
+Create connector:
 
 ```bash
 curl -X POST "$HEADSUPP_BASE_URL/api/function" \
@@ -218,26 +139,7 @@ curl -X POST "$HEADSUPP_BASE_URL/api/function" \
   }'
 ```
 
-Response:
-
-```json
-{
-  "success": true,
-  "data": {
-    "connector": {
-      "connector_id": "conn_demo",
-      "connector_key": "ck_demo",
-      "connector_secret": "hu_sec_returned_once"
-    }
-  }
-}
-```
-
-Save `connector_key` and `connector_secret`. The secret signs future events and is returned once.
-
-## 6. Create A Signal
-
-The signal tells Heads Up what metric or state you are sending.
+Create signal:
 
 ```bash
 curl -X POST "$HEADSUPP_BASE_URL/api/function" \
@@ -248,22 +150,14 @@ curl -X POST "$HEADSUPP_BASE_URL/api/function" \
     "payload": {
       "workspace_id": "ws_demo",
       "channel_id": "ch_demo",
-      "signal_key": "demo.metric",
+      "signal_key": "spend.coffee.usd",
       "signal_type": "metric",
-      "value_mode": "last",
-      "contract": {
-        "default_bucket_types": ["minute", "hour", "day", "week"],
-        "dimensions": ["source"]
-      }
+      "value_mode": "last"
     }
   }'
 ```
 
-Save `data.signal.signal_id`.
-
-## 7. Create A Watch
-
-This watch alerts when the latest value is greater than 10.
+Create watch (weekly total coffee spend > 50):
 
 ```bash
 curl -X POST "$HEADSUPP_BASE_URL/api/function" \
@@ -275,63 +169,55 @@ curl -X POST "$HEADSUPP_BASE_URL/api/function" \
       "workspace_id": "ws_demo",
       "channel_id": "ch_demo",
       "signal_id": "sig_demo",
-      "name": "Demo metric high",
-      "watch_type": "LAST_VALUE_GT",
+      "name": "Coffee weekly spend high",
+      "watch_type": "WINDOW_SUM_GT",
       "config": {
-        "threshold": 10,
+        "threshold": 50,
         "severity": "warning",
-        "bucket_type": "minute"
-      },
-      "cooldown_seconds": 3600,
-      "recovery": {
-        "enabled": true,
-        "condition": "value <= 10",
-        "severity": "recovery"
+        "bucket_type": "week",
+        "window": { "size": 1 }
       }
     }
   }'
 ```
 
-Save `data.watch.watch_id`.
+Save `connector_key` and `connector_secret` from the connector response (secret is shown once).
 
-More examples are in `watch-types.md`.
+## 5) Send Event, Then Receive Callback
 
-## 8. Send A Signed Event
-
-Event ingest is not authenticated with the service API key. It uses connector HMAC.
-
-Node signing example:
+Send an event (Node example for HMAC signing):
 
 ```js
 import crypto from 'node:crypto';
 
-const body = JSON.stringify({
-  idempotency_key: 'evt_demo_001',
-  signal_key: 'demo.metric',
+const payload = {
+  idempotency_key: `coffee_${Date.now()}`,
+  signal_key: 'spend.coffee.usd',
   occurred_at: new Date().toISOString(),
-  value: { num: 15 },
-  fields: { source: 'demo' },
-  cta: {
-    label: 'View metric',
-    url: 'https://example.com/metrics/demo',
-  },
-});
+  value: { num: 56.75 },
+  fields: { vendor: 'local_shop', currency: 'USD' },
+  cta: { label: 'Open coffee ledger', url: 'https://example.com/coffee' },
+};
 
+const rawBody = JSON.stringify(payload);
 const timestamp = new Date().toISOString();
 const signature = crypto
   .createHmac('sha256', process.env.HEADSUPP_CONNECTOR_SECRET)
-  .update(`${timestamp}.${body}`)
+  .update(`${timestamp}.${rawBody}`)
   .digest('hex');
 
-const response = await fetch(`${process.env.HEADSUPP_BASE_URL}/v1/events/${process.env.HEADSUPP_CONNECTOR_KEY}`, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'X-HeadsUp-Timestamp': timestamp,
-    'X-HeadsUp-Signature': `sha256=${signature}`,
+const response = await fetch(
+  `${process.env.HEADSUPP_BASE_URL}/v1/events/${process.env.HEADSUPP_CONNECTOR_KEY}`,
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-HeadsUp-Timestamp': timestamp,
+      'X-HeadsUp-Signature': `sha256=${signature}`,
+    },
+    body: rawBody,
   },
-  body,
-});
+);
 
 console.log(await response.json());
 ```
@@ -348,17 +234,7 @@ Expected ingest response:
 }
 ```
 
-The response means the event was accepted and queued. Aggregation, watch evaluation, and delivery happen asynchronously.
-
-## 9. Receive The Alert Callback
-
-If you subscribed Slack, Slack receives text similar to:
-
-```text
-Demo metric high is warning at 15. View metric: https://example.com/metrics/demo
-```
-
-If you subscribed a generic webhook, your receiver gets:
+When the watch fires, your webhook gets:
 
 ```json
 {
@@ -366,148 +242,50 @@ If you subscribed a generic webhook, your receiver gets:
   "alert_id": "alert_123",
   "workspace_id": "ws_demo",
   "channel_id": "ch_demo",
+  "signal_id": "sig_demo",
+  "watch_id": "watch_demo",
   "severity": "warning",
-  "summary": "Demo metric high is warning at 15.",
+  "summary": "Coffee weekly spend high is warning at 56.75.",
+  "current_value": 56.75,
+  "threshold_value": 50,
+  "triggered_at": "2026-05-25T18:00:00.000Z",
+  "channel_metadata": {
+    "user_id": "user_demo",
+    "forecast_id": "forecast_coffee_2026",
+    "budget_id": "budget_coffee_primary"
+  },
   "fields": {
-    "source": "demo"
+    "vendor": "local_shop",
+    "currency": "USD"
   },
   "cta": {
-    "label": "View metric",
-    "url": "https://example.com/metrics/demo"
+    "label": "Open coffee ledger",
+    "url": "https://example.com/coffee"
   }
 }
 ```
 
-Return a `2xx` response after storing or safely ignoring the payload. `429`, `5xx`, and network errors are retried.
+Machine-routing keys are `type`, `watch_id`, `signal_id`, and `channel_metadata`.
 
-If outbound signing is configured, verify:
-
-```text
-X-HeadsUp-Timestamp
-X-HeadsUp-Signature
-X-HeadsUp-Delivery-Id
-```
-
-See `webhook-receivers.md` for receiver code and retry rules.
-
-## 10. Read Back Alerts And Watch State
-
-List recent alerts:
-
-```bash
-curl -X POST "$HEADSUPP_BASE_URL/api/function" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $HEADSUPP_API_KEY" \
-  -d '{
-    "action": "admin.listChannelAlerts",
-    "payload": {
-      "workspace_id": "ws_demo",
-      "channel_id": "ch_demo",
-      "limit": 10
-    }
-  }'
-```
-
-Get watch state:
-
-```bash
-curl -X POST "$HEADSUPP_BASE_URL/api/function" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $HEADSUPP_API_KEY" \
-  -d '{
-    "action": "admin.getWatchState",
-    "payload": {
-      "workspace_id": "ws_demo",
-      "channel_id": "ch_demo",
-      "watch_id": "watch_demo"
-    }
-  }'
-```
-
-## Common Watch Examples
-
-Total weekly spend greater than 500:
+## Optional: Update Channel Metadata Later
 
 ```json
 {
-  "watch_type": "WINDOW_SUM_GT",
-  "config": {
-    "threshold": 500,
-    "severity": "warning",
-    "bucket_type": "week",
-    "window": { "size": 1 }
-  }
-}
-```
-
-Average latency over 3 minutes greater than 250:
-
-```json
-{
-  "watch_type": "WINDOW_AVG_GT",
-  "config": {
-    "threshold": 250,
-    "severity": "warning",
-    "bucket_type": "minute",
-    "window": { "size": 3 }
-  }
-}
-```
-
-Usage doubled compared with the previous hour:
-
-```json
-{
-  "watch_type": "PREVIOUS_PERIOD_RATIO_GT",
-  "config": {
-    "threshold": 2,
-    "severity": "warning",
-    "bucket_type": "hour"
-  }
-}
-```
-
-No event arrived in 3 hours:
-
-```json
-{
-  "watch_type": "MISSING_EXPECTED",
-  "config": {
-    "expected_every": { "unit": "hour", "count": 3 },
-    "minimum_count": 1,
-    "grace_seconds": 900,
-    "bucket_type": "hour",
-    "severity": "warning"
-  }
-}
-```
-
-Renewal due in 7 days:
-
-```json
-{
-  "watch_type": "REMINDER_DUE",
-  "config": {
-    "due_at": "2026-06-01T00:00:00.000Z",
-    "lead": { "unit": "day", "count": 7 },
-    "severity": "warning",
-    "label": "OpenAI renewal",
-    "cta": {
-      "label": "Review renewal",
-      "url": "https://example.com/renewals/openai"
+  "action": "admin.updateChannel",
+  "payload": {
+    "workspace_id": "ws_demo",
+    "channel_id": "ch_demo",
+    "metadata": {
+      "user_id": "user_demo",
+      "forecast_id": "forecast_coffee_2026_v2",
+      "budget_id": "budget_coffee_primary"
     }
   }
 }
 ```
 
-See `watch-types.md` for the full feature catalog.
+## Next Docs
 
-## What To Read Next
-
-```text
-getting-started-api-keys.md  first-run key setup
-webhook-receivers.md         Slack and generic callback handling
-watch-types.md               choose the right feature/watch
-node-cloudflare-client.md    same flow through the SDK
-reference.md                 full endpoint/action reference
-```
+- `reference.md` for all request/response properties.
+- `node-cloudflare-client.md` for the SDK flow.
+- `webhook-receivers.md` for signature verification and retry behavior.

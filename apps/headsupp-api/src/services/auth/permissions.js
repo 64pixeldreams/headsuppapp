@@ -2,6 +2,8 @@ export const FORETIC_SERVICE_PERMISSIONS = Object.freeze([
   'foretic:provision',
   'workspace:create',
   'channel:create',
+  'channel:read',
+  'channel:update',
   'connector:create',
   'subscriber:create',
   'signal:create',

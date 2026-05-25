@@ -51,6 +51,7 @@ export function buildChannelRow(input, now = new Date().toISOString()) {
     external_tenant_id: input.external_tenant_id || null,
     external_user_id: input.external_user_id || null,
     external_resource_id: input.external_resource_id || null,
+    metadata_json: JSON.stringify(input.metadata || {}),
     created_at: now,
     updated_at: now,
   };
@@ -183,6 +184,19 @@ function normalizeObjectField(value, fieldName) {
   return { ok: true, value };
 }
 
+function normalizeChannelMetadata(value) {
+  if (value === undefined || value === null) return { ok: true, value: {} };
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    return {
+      ok: false,
+      status: 400,
+      code: 'INVALID_CHANNEL_METADATA',
+      message: 'metadata must be an object.',
+    };
+  }
+  return { ok: true, value };
+}
+
 export function normalizeChannelContractInput(input = {}) {
   const expectedSignalTypes = normalizeArrayField(input.expected_signal_types, 'expected_signal_types');
   if (!expectedSignalTypes.ok) return expectedSignalTypes;
@@ -257,6 +271,14 @@ function publicChannelContract(row) {
     external_user_id: row.external_user_id || null,
     created_at: row.created_at,
     updated_at: row.updated_at,
+  };
+}
+
+function publicChannel(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    metadata: parseJsonField(row.metadata_json, {}),
   };
 }
 
@@ -402,11 +424,63 @@ export async function createAdminWorkspace({ auth, db, input, now }) {
 export async function createAdminChannel({ auth, db, input, now }) {
   const denied = denyIfNeeded(auth, 'channel:create');
   if (denied) return denied;
+  const normalizedMetadata = normalizeChannelMetadata(input.metadata);
+  if (!normalizedMetadata.ok) return normalizedMetadata;
   const scopeDenied = await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id });
   if (scopeDenied) return scopeDenied;
   const workspace = await loadWorkspace(db, input.workspace_id);
-  const row = buildChannelRow(inheritOwnership(input, workspace), now);
-  return { ok: true, channel: await insertRow(db, 'channels', row) };
+  const row = buildChannelRow(inheritOwnership({ ...input, metadata: normalizedMetadata.value }, workspace), now);
+  return { ok: true, channel: publicChannel(await insertRow(db, 'channels', row)) };
+}
+
+export async function getAdminChannel({ auth, db, input }) {
+  const denied = denyIfNeeded(auth, 'channel:read');
+  if (denied) return denied;
+  const scopeDenied =
+    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
+  if (scopeDenied) return scopeDenied;
+  const channel = await loadChannel(db, input.channel_id);
+  if (!channel) return { ok: false, status: 404, code: 'CHANNEL_NOT_FOUND', message: 'Channel was not found.' };
+  return { ok: true, channel: publicChannel(channel) };
+}
+
+export async function updateAdminChannel({ auth, db, input, now }) {
+  const denied = denyIfNeeded(auth, 'channel:update');
+  if (denied) return denied;
+  const scopeDenied =
+    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
+  if (scopeDenied) return scopeDenied;
+  const channel = await loadChannel(db, input.channel_id);
+  if (!channel) return { ok: false, status: 404, code: 'CHANNEL_NOT_FOUND', message: 'Channel was not found.' };
+  const normalizedMetadata = normalizeChannelMetadata(input.metadata);
+  if (!normalizedMetadata.ok) return normalizedMetadata;
+  const next = {
+    name: input.name ?? channel.name,
+    purpose: input.purpose ?? channel.purpose,
+    metadata_json: input.metadata === undefined ? channel.metadata_json || '{}' : JSON.stringify(normalizedMetadata.value),
+    updated_at: now,
+    id: channel.id || channel.channel_id,
+  };
+  await db
+    .prepare(
+      `UPDATE channels
+       SET name = ?, purpose = ?, metadata_json = ?, updated_at = ?
+       WHERE id = ? OR channel_id = ?`,
+    )
+    .bind(next.name, next.purpose, next.metadata_json, next.updated_at, next.id, input.channel_id)
+    .run();
+  return {
+    ok: true,
+    channel: publicChannel({
+      ...channel,
+      name: next.name,
+      purpose: next.purpose,
+      metadata_json: next.metadata_json,
+      updated_at: next.updated_at,
+    }),
+  };
 }
 
 export async function createAdminConnector({ auth, db, input, now, secretFactory, store }) {

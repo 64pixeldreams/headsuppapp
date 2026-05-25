@@ -1,5 +1,7 @@
 # Connectors And Event Ingest
 
+Primary docs: use `quickstart.md` for setup flow and `reference.md` for canonical ingest props. This file keeps connector-specific implementation context.
+
 Connectors authenticate event producers and map incoming events to the correct Heads Up tenant, workspace, and channel.
 
 ## Ingest Endpoint

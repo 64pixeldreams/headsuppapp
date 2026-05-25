@@ -2,21 +2,25 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  buildChannelRow,
   buildChannelContractRow,
   buildConnectorRow,
   buildSubscriberRow,
   buildWatchRow,
+  createAdminChannel,
   createAdminChannelContract,
   createAdminConnector,
   createAdminSignal,
   createAdminSubscriber,
   createAdminWatch,
   createAdminWorkspace,
+  getAdminChannel,
   getAdminChannelContract,
   ignoreAdminAlert,
   muteAdminWatch,
   resumeAdminWatch,
   snoozeAdminWatch,
+  updateAdminChannel,
   updateAdminChannelContract,
 } from '../../src/services/admin/control-plane.js';
 
@@ -91,6 +95,93 @@ test('admin workspace creation rejects missing permission', async () => {
 
   assert.equal(result.ok, false);
   assert.equal(result.code, 'PERMISSION_DENIED');
+});
+
+test('channel row serializes metadata JSON', () => {
+  const row = buildChannelRow({
+    workspace_id: 'ws_123',
+    name: 'Demo Channel',
+    metadata: { forecast_id: 'fc_123', user_id: 'user_123' },
+  });
+
+  assert.deepEqual(JSON.parse(row.metadata_json), { forecast_id: 'fc_123', user_id: 'user_123' });
+});
+
+test('admin channel create stores metadata object', async () => {
+  const calls = [];
+  const result = await createAdminChannel({
+    auth: { user_id: 'user_admin', permissions: ['channel:create'] },
+    db: scopedDb(
+      {
+        workspace: { id: 'ws_123', workspace_id: 'ws_123', source_app: 'demo', external_tenant_id: 'tenant_1' },
+      },
+      calls,
+    ),
+    input: {
+      workspace_id: 'ws_123',
+      name: 'Demo Channel',
+      metadata: { forecast_id: 'fc_123' },
+    },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.channel.metadata, { forecast_id: 'fc_123' });
+  const insert = calls.find((call) => /INSERT OR IGNORE INTO channels/.test(call.sql));
+  assert.equal(typeof insert.params.find((value) => typeof value === 'string' && value.includes('forecast_id')), 'string');
+});
+
+test('admin channel read returns metadata', async () => {
+  const result = await getAdminChannel({
+    auth: { user_id: 'user_admin', permissions: ['channel:read'] },
+    db: scopedDb({
+      workspace: { id: 'ws_123', workspace_id: 'ws_123' },
+      channel: {
+        id: 'ch_123',
+        channel_id: 'ch_123',
+        workspace_id: 'ws_123',
+        name: 'Demo Channel',
+        purpose: null,
+        metadata_json: '{"forecast_id":"fc_123"}',
+      },
+    }),
+    input: { workspace_id: 'ws_123', channel_id: 'ch_123' },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.channel.channel_id, 'ch_123');
+  assert.deepEqual(result.channel.metadata, { forecast_id: 'fc_123' });
+});
+
+test('admin channel update patches metadata', async () => {
+  const calls = [];
+  const result = await updateAdminChannel({
+    auth: { user_id: 'user_admin', permissions: ['channel:update'] },
+    db: scopedDb(
+      {
+        workspace: { id: 'ws_123', workspace_id: 'ws_123' },
+        channel: {
+          id: 'ch_123',
+          channel_id: 'ch_123',
+          workspace_id: 'ws_123',
+          name: 'Demo Channel',
+          purpose: 'initial',
+          metadata_json: '{"forecast_id":"fc_123"}',
+        },
+      },
+      calls,
+    ),
+    input: {
+      workspace_id: 'ws_123',
+      channel_id: 'ch_123',
+      metadata: { forecast_id: 'fc_456', user_id: 'user_2' },
+    },
+    now: '2026-05-24T10:05:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.channel.metadata, { forecast_id: 'fc_456', user_id: 'user_2' });
+  assert.equal(calls.some((call) => /UPDATE channels/.test(call.sql)), true);
 });
 
 test('admin signal creation can persist a contract', async () => {

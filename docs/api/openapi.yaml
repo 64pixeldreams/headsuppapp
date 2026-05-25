@@ -87,6 +87,8 @@ paths:
                     permissions:
                       - workspace:create
                       - channel:create
+                      - channel:read
+                      - channel:update
                       - connector:create
                       - subscriber:create
                       - signal:create
@@ -104,6 +106,33 @@ paths:
                     destination_url: https://hooks.slack.com/services/T_TEST/B_TEST/SECRET
                     display_name: "#ops-alerts"
                     mode: alert
+              createChannelWithMetadata:
+                value:
+                  action: admin.createChannel
+                  payload:
+                    workspace_id: ws_demo
+                    name: Coffee Spend
+                    purpose: Spend anomaly monitoring
+                    metadata:
+                      user_id: user_demo
+                      forecast_id: forecast_coffee_2026
+                      budget_id: budget_coffee_primary
+              getChannel:
+                value:
+                  action: admin.getChannel
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+              updateChannelMetadata:
+                value:
+                  action: admin.updateChannel
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+                    metadata:
+                      user_id: user_demo
+                      forecast_id: forecast_coffee_2026_v2
+                      budget_id: budget_coffee_primary
               createWebhookSubscriber:
                 value:
                   action: admin.createSubscriber

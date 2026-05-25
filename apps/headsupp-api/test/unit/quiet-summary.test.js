@@ -22,7 +22,13 @@ function quietDb({ latest = null } = {}, batches = [], runs = []) {
             async first() {
               if (sql.includes('FROM quiet_summary_deliveries')) return latest;
               if (sql.includes('FROM channels')) {
-                return { id: 'ch_123', channel_id: 'ch_123', workspace_id: 'ws_123', name: 'Forecasts' };
+                return {
+                  id: 'ch_123',
+                  channel_id: 'ch_123',
+                  workspace_id: 'ws_123',
+                  name: 'Forecasts',
+                  metadata_json: '{"forecast_id":"fc_123"}',
+                };
               }
               return null;
             },
@@ -105,6 +111,7 @@ test('builds quiet summary payload with last-evaluated metadata', () => {
 
   assert.equal(payload.type, 'heads_up.quiet_summary');
   assert.equal(payload.status, 'quiet');
+  assert.deepEqual(payload.channel_metadata, {});
   assert.equal(payload.watches[0].last_evaluated_at, '2026-05-24T09:45:00.000Z');
 });
 
@@ -125,6 +132,7 @@ test('quiet summary channel emits delivery without creating alerts', async () =>
 
   assert.equal(result.emitted, true);
   assert.equal(result.deliveries, 1);
+  assert.equal(result.payload.channel_metadata.forecast_id, 'fc_123');
   assert.equal(batches.length, 1);
   assert.equal(fetchCalls.length, 1);
   assert.equal(runs.some((run) => /UPDATE quiet_summary_deliveries/.test(run.sql)), true);

@@ -28,6 +28,12 @@ export function buildAggregateForwardPayload({ aggregate, signal, channel, inclu
   } catch {
     dimensions = {};
   }
+  let channelMetadata = {};
+  try {
+    channelMetadata = channel?.metadata_json ? JSON.parse(channel.metadata_json) : {};
+  } catch {
+    channelMetadata = {};
+  }
 
   return {
     source: 'heads_up',
@@ -42,6 +48,7 @@ export function buildAggregateForwardPayload({ aggregate, signal, channel, inclu
     },
     dimensions_hash: aggregate.dimensions_hash || 'd0',
     dimensions,
+    channel_metadata: channelMetadata,
     values,
     fields: context.fields || {},
     cta: context.cta || (channel?.channel_id

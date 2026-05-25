@@ -9,11 +9,16 @@ export async function loadAlertDeliveryBundle(db, deliveryId) {
     delivery.subscriber_id,
     delivery.subscriber_id,
   ).first();
+  const channel = await db
+    .prepare('SELECT * FROM channels WHERE id = ? OR channel_id = ? LIMIT 1')
+    .bind(alert?.channel_id, alert?.channel_id)
+    .first();
 
   return {
     delivery,
     alert,
     subscriber,
+    channel,
   };
 }
 
@@ -32,6 +37,7 @@ export async function processAlertDeliveryMessage(message, env, options = {}) {
     delivery: bundle.delivery,
     alert: bundle.alert,
     subscriber: bundle.subscriber,
+    channel: bundle.channel,
     env,
     fetchFn: options.fetchFn,
     now: options.now,

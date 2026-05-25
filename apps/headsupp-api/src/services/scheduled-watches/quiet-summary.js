@@ -16,11 +16,18 @@ function parseConfig(value) {
 }
 
 export function buildQuietSummaryPayload({ channel, watches, statesByWatchId, now = new Date().toISOString() }) {
+  let channelMetadata = {};
+  try {
+    channelMetadata = channel?.metadata_json ? JSON.parse(channel.metadata_json) : {};
+  } catch {
+    channelMetadata = {};
+  }
   return {
     type: 'heads_up.quiet_summary',
     workspace_id: channel.workspace_id,
     channel_id: channel.channel_id || channel.id,
     channel_name: channel.name || null,
+    channel_metadata: channelMetadata,
     status: 'quiet',
     generated_at: now,
     watches: watches.map((watch) => {

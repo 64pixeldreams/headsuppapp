@@ -2,7 +2,7 @@
 
 Use the private Heads Up client when you do not want to hand-write `POST /api/function` requests or connector HMAC signing.
 
-For the raw API learning path, see `quickstart.md`. For first-run keys, see `getting-started-api-keys.md`. For callback receiver behavior, see `webhook-receivers.md`. For feature choices, see `watch-types.md`.
+For the raw API learning path, use `quickstart.md` first and `reference.md` second. Use this file for SDK equivalents.
 
 Package:
 
@@ -162,12 +162,14 @@ const operator = createHeadsUpClient({
 });
 
 const result = await operator.bootstrapServiceApiKey({
-  name: 'Foretic provisioning service',
-  user_id: 'service:foretic',
-  source_app: 'foretic',
+  name: 'Demo integration service',
+  user_id: 'service:demo',
+  source_app: 'headsupp-demo',
   permissions: [
     'workspace:create',
     'channel:create',
+    'channel:read',
+    'channel:update',
     'connector:create',
     'subscriber:create',
     'signal:create',
@@ -200,6 +202,24 @@ const channel = await headsup.createChannel({
   workspace_id: workspace.workspace_id,
   name: 'Demo Channel',
   purpose: 'Demo attention stream',
+  metadata: {
+    user_id: 'user_demo',
+    forecast_id: 'forecast_coffee_2026',
+  },
+});
+
+const currentChannel = await headsup.getChannel({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+});
+
+await headsup.updateChannel({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  metadata: {
+    ...currentChannel.metadata,
+    budget_id: 'budget_coffee_primary',
+  },
 });
 
 const connector = await headsup.createConnector({

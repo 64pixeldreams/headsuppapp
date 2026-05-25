@@ -1,5 +1,7 @@
 # Authentication
 
+Primary docs: use `quickstart.md` for setup flow and `reference.md` for canonical auth headers and action permissions. This file keeps auth-specific detail.
+
 Heads Up uses two authentication layers.
 
 ## Control Plane Auth
@@ -22,14 +24,15 @@ creating watches
 reading configuration
 ```
 
-For the first Foretic integration, Foretic uses one Heads Up service API key.
+A service API key should have only the permissions needed by the integration.
 
-That API key must have service permissions such as:
+Example permission set:
 
 ```text
-foretic:provision
 workspace:create
 channel:create
+channel:read
+channel:update
 connector:create
 subscriber:create
 signal:create
@@ -38,23 +41,6 @@ alert:read
 watch:read
 watch:control
 ```
-
-The canonical Foretic service permission set is:
-
-```text
-foretic:provision
-workspace:create
-channel:create
-connector:create
-subscriber:create
-signal:create
-watch:create
-alert:read
-watch:read
-watch:control
-```
-
-Any endpoint that provisions Foretic-owned resources must require `foretic:provision`.
 
 Debugging authenticated requests can use the CFKit function:
 
@@ -73,10 +59,10 @@ Response shape:
   "data": {
     "auth": {
       "type": "api",
-      "user_id": "user:foretic-service",
-      "email": "foretic-integration@headsupp.internal",
-      "permissions": ["foretic:provision"],
-      "has_foretic_provision": true
+      "user_id": "user:integration-service",
+      "email": "integration@headsupp.internal",
+      "permissions": ["workspace:create"],
+      "has_foretic_provision": false
     }
   }
 }
@@ -136,7 +122,7 @@ Lifecycle responses return safe metadata only, except that key creation and rota
 
 ## Event Ingest Auth
 
-Event ingest does not use the Foretic service API key.
+Event ingest does not use a service API key.
 
 Event ingest uses connector-level HMAC:
 
@@ -205,12 +191,12 @@ tenant A trigger creates one alert and one delivery
 tenant B normal event creates no alert or delivery
 ```
 
-For Foretic:
+Example ownership mapping:
 
 ```text
-source_app = "foretic"
-external_tenant_id = Foretic customer/account/org id
-external_user_id = Foretic user id
+source_app = producer app id
+external_tenant_id = producer tenant/account/org id
+external_user_id = producer user id
 ```
 
 ## Related Stories

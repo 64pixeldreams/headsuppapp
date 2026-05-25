@@ -9,20 +9,24 @@ Use these documents for current API behavior:
 ```text
 README.md
 docs/api/README.md
-docs/api/cursor-api-instructions.md
 docs/api/quickstart.md
-docs/api/getting-started-api-keys.md
-docs/api/webhook-receivers.md
-docs/api/watch-types.md
-docs/api/node-cloudflare-client.md
-docs/api/foretic-wrapper-guide.md
 docs/api/reference.md
+docs/api/node-cloudflare-client.md
 docs/api/openapi.yaml
 docs/api/spec-alignment-audit.md
 docs/api/smoke-test-suite.md
 docs/final-smoke-runbook.md
 docs/operations-runbook.md
 ```
+
+Primary onboarding path is now:
+
+```text
+docs/api/quickstart.md
+docs/api/reference.md
+```
+
+Other API docs should stay trimmed and link back to those two files.
 
 Use `SPEC_BREIF.md` and `Curosr_headsupp_product_brief.md` as product/spec sources. Those files preserve original product language and may include historical milestone terminology.
 

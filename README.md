@@ -58,15 +58,11 @@ https://headsupp_app.martin-598.workers.dev
 - Product brief: `Curosr_headsupp_product_brief.md`
 - Documentation map and policy: `docs/README.md`
 - Cursor project rules: `cursor.js`
+- API start here (primary): `docs/api/quickstart.md`
+- API props reference (primary): `docs/api/reference.md`
 - API docs index: `docs/api/README.md`
-- API quickstart: `docs/api/quickstart.md`
-- First-run API key guide: `docs/api/getting-started-api-keys.md`
-- Webhook receiver guide: `docs/api/webhook-receivers.md`
-- Watch type feature guide: `docs/api/watch-types.md`
 - Node/Cloudflare client wrapper: `docs/api/node-cloudflare-client.md`
-- Foretic wrapper guide: `docs/api/foretic-wrapper-guide.md`
 - Cursor API instruction sheet: `docs/api/cursor-api-instructions.md`
-- API reference: `docs/api/reference.md`
 - OpenAPI endpoint surface: `docs/api/openapi.yaml`
 - Spec alignment audit: `docs/api/spec-alignment-audit.md`
 - Authentication and tenant rules: `docs/api/authentication.md`
@@ -195,6 +191,7 @@ npx wrangler d1 execute headsup_db --remote --file "migrations/0002_correctness_
 npx wrangler d1 execute headsup_db --remote --file "migrations/0003_channel_contracts_and_read_apis.sql"
 npx wrangler d1 execute headsup_db --remote --file "migrations/0004_watch_actions_and_quiet_summaries.sql"
 npx wrangler d1 execute headsup_db --remote --file "migrations/0005_correctness_closure_runtime.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/0006_channel_metadata.sql"
 ```
 
 ## Tests And Proofs
@@ -259,7 +256,7 @@ This repository is not open source. See `LICENSE` for usage restrictions.
 - Delivery services: `apps/headsupp-api/src/services/delivery/`
 - Scheduled tasks: `apps/headsupp-api/src/services/scheduler/scheduled-tasks.js`
 - Observability: `apps/headsupp-api/src/services/observability/overview.js`
-- D1 schema: `apps/headsupp-api/migrations/0001_headsupp_core.sql`, `apps/headsupp-api/migrations/0002_correctness_closure.sql`, `apps/headsupp-api/migrations/0003_channel_contracts_and_read_apis.sql`, `apps/headsupp-api/migrations/0004_watch_actions_and_quiet_summaries.sql`, `apps/headsupp-api/migrations/0005_correctness_closure_runtime.sql`
+- D1 schema: `apps/headsupp-api/migrations/0001_headsupp_core.sql`, `apps/headsupp-api/migrations/0002_correctness_closure.sql`, `apps/headsupp-api/migrations/0003_channel_contracts_and_read_apis.sql`, `apps/headsupp-api/migrations/0004_watch_actions_and_quiet_summaries.sql`, `apps/headsupp-api/migrations/0005_correctness_closure_runtime.sql`, `apps/headsupp-api/migrations/0006_channel_metadata.sql`
 
 ## CI And Release
 

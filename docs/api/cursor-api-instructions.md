@@ -2,7 +2,7 @@
 
 This is the short copy-paste guide for using Heads Up from Cursor or a script. For the full learning path, use `quickstart.md`. For first-run keys, use `getting-started-api-keys.md`. For Slack/generic callbacks, use `webhook-receivers.md`. For feature choices, use `watch-types.md`. For full schemas, use `reference.md`.
 
-For Node or Cloudflare Workers, prefer the wrapper in `node-cloudflare-client.md`. For Foretic, use `foretic-wrapper-guide.md`.
+For Node or Cloudflare Workers, prefer the wrapper in `node-cloudflare-client.md`.
 
 All examples use fake IDs and fake secrets. Never commit real API keys, connector secrets, Cloudflare tokens, or Slack webhook URLs.
 
@@ -458,7 +458,7 @@ $env:HEADSUPP_SMOKE_SLACK_WEBHOOK_URL = "<runtime Slack webhook URL>"
 $env:HEADSUPP_SMOKE_DISPATCH_SLACK = "true"
 npm run smoke:generic-slack
 npm run smoke:alert-decisions
-npm run smoke:foretic
+npm run smoke:generic-slack
 ```
 
 Deployed non-Slack:

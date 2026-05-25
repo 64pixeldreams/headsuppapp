@@ -40,11 +40,12 @@ function fakeDb(calls = []) {
 }
 
 test('builds generic alert webhook payload', () => {
-  const payload = genericAlertPayload(alert);
+  const payload = genericAlertPayload(alert, { metadata_json: '{"forecast_id":"fc_123"}' });
 
   assert.equal(payload.type, 'heads_up.alert');
   assert.equal(payload.alert_id, 'alert_123');
   assert.equal(payload.severity, 'critical');
+  assert.deepEqual(payload.channel_metadata, { forecast_id: 'fc_123' });
   assert.equal(payload.cta.url, 'https://foretic.test/forecasts/fc_123');
 });
 
@@ -69,6 +70,9 @@ test('dispatches webhook and marks delivery sent on 2xx', async () => {
     subscriber: {
       subscriber_type: 'webhook',
     },
+    channel: {
+      metadata_json: '{"forecast_id":"fc_123"}',
+    },
     now: '2026-05-24T10:00:00.000Z',
     async fetchFn(url, init) {
       requests.push({ url, init });
@@ -79,6 +83,7 @@ test('dispatches webhook and marks delivery sent on 2xx', async () => {
   assert.equal(result.status, 'sent');
   assert.equal(requests[0].url, 'https://example.com/webhook');
   assert.equal(JSON.parse(requests[0].init.body).type, 'heads_up.alert');
+  assert.equal(JSON.parse(requests[0].init.body).channel_metadata.forecast_id, 'fc_123');
   assert.equal(calls[0].params[0], 'sent');
 });
 

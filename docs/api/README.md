@@ -2,20 +2,23 @@
 
 This folder documents the operational Heads Up API and the integration wrapper.
 
-If you are new to the API, start with `quickstart.md`. If you only need a first service key, start with `getting-started-api-keys.md`. If you are integrating from Node or Cloudflare Workers, use `node-cloudflare-client.md`.
+Primary path:
+
+1. `quickstart.md` (start here)
+2. `reference.md` (all props)
+
+Everything else in this folder is supporting context and should link back to those two files.
 
 ## Start Here
 
 ```text
 quickstart.md                 beginner tutorial with request and response examples
-getting-started-api-keys.md   first-run bootstrap and service API keys
+reference.md                  canonical action/property reference
+node-cloudflare-client.md     wrapper install and usage guide
 webhook-receivers.md          Slack and generic callback receiver guide
 watch-types.md                plain-English feature and watch catalog
-node-cloudflare-client.md     wrapper install and usage guide
-foretic-wrapper-guide.md      Foretic provisioning and event-sending flow
-foretic-provisioning.md       Foretic CFKit provisioning reference
+getting-started-api-keys.md   first-run bootstrap and service API keys
 cursor-api-instructions.md    copy-paste PowerShell API sheet
-reference.md                  full endpoint and action reference
 openapi.yaml                  machine-readable deployed endpoint surface
 ```
 

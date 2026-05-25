@@ -1,5 +1,7 @@
 # Watch Types And Features
 
+Primary docs: use `quickstart.md` for setup flow and `reference.md` for canonical action/callback props. This file helps choose the right watch behavior.
+
 This guide explains what Heads Up can do after events are aggregated.
 
 Heads Up watches evaluate aggregate rows, not individual raw events. Most watch configs use:

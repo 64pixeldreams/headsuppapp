@@ -1,5 +1,7 @@
 # Admin API
 
+Primary docs: use `quickstart.md` for setup flow and `reference.md` for canonical request/response props. This file is a focused companion for admin behavior notes.
+
 Admin operations use CFKit CloudFunctions through:
 
 ```text
@@ -23,6 +25,8 @@ These functions are control-plane APIs. They are not used by the hot ingest path
 ```text
 admin.createWorkspace
 admin.createChannel
+admin.getChannel
+admin.updateChannel
 admin.createConnector
 admin.createSubscriber
 admin.createSignal
@@ -45,6 +49,8 @@ admin.ignoreAlert
 ```text
 workspace:create
 channel:create
+channel:read
+channel:update
 connector:create
 subscriber:create
 signal:create
@@ -57,7 +63,7 @@ watch:read
 watch:control
 ```
 
-The Foretic service permission set already includes these permissions plus `foretic:provision`.
+Integration service keys should include only the permissions required by the actions they call.
 
 ## Operator Functions
 
@@ -79,10 +85,10 @@ operator.listAuditLogs
 {
   "action": "admin.createWorkspace",
   "payload": {
-    "name": "Foretic Demo",
-    "source_app": "foretic",
-    "external_tenant_id": "user:mkfoxvxgoyfbtd",
-    "external_user_id": "user:mkfoxvxgoyfbtd"
+    "name": "Demo Workspace",
+    "source_app": "headsupp-demo",
+    "external_tenant_id": "demo-tenant",
+    "external_user_id": "demo-user"
   }
 }
 ```
@@ -94,8 +100,8 @@ operator.listAuditLogs
   "action": "admin.createChannel",
   "payload": {
     "workspace_id": "ws_123",
-    "name": "RB sales history (stripe)",
-    "channel_key": "foretic:user:mkfoxvxgoyfbtd:forecast:oracle_forecast:mlfl1bfqrxnbk1"
+    "name": "Demo Spend Channel",
+    "channel_key": "headsupp-demo:tenant:demo:channel:spend"
   }
 }
 ```

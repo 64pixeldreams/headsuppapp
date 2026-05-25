@@ -6,12 +6,14 @@ import {
   createAdminSubscriber,
   createAdminWatch,
   createAdminWorkspace,
+  getAdminChannel,
   getAdminChannelContract,
   ignoreAdminAlert,
   listAdminChannelContractVersions,
   muteAdminWatch,
   resumeAdminWatch,
   snoozeAdminWatch,
+  updateAdminChannel,
   updateAdminChannelContract,
 } from '../services/admin/control-plane.js';
 import { getAdminWatchState, listAdminAlertTimeline, listAdminChannelAlerts } from '../services/admin/read-models.js';
@@ -88,6 +90,8 @@ export async function registerAdminFunctions(cloudFunction) {
 
   defineAdmin('admin.createWorkspace', createAdminWorkspace);
   defineAdmin('admin.createChannel', createAdminChannel);
+  defineAdmin('admin.getChannel', getAdminChannel);
+  defineAdmin('admin.updateChannel', updateAdminChannel);
   defineAdmin('admin.createConnector', createAdminConnector);
   defineAdmin('admin.createSubscriber', createAdminSubscriber);
   defineAdmin('admin.createSignal', createAdminSignal);

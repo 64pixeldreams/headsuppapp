@@ -1,5 +1,7 @@
 # Webhook Receivers And Subscriptions
 
+Primary docs: use `quickstart.md` for setup flow and `reference.md` for canonical props. This file focuses on receiver implementation, signature verification, and retry behavior.
+
 This guide explains how to subscribe Slack or your own webhook to a channel and what happens when a watch fires.
 
 ## What A Subscriber Does
@@ -99,8 +101,17 @@ When an alert watch fires, a generic webhook subscriber receives:
   "alert_id": "alert_123",
   "workspace_id": "ws_demo",
   "channel_id": "ch_demo",
+  "signal_id": "sig_demo",
+  "watch_id": "watch_demo",
   "severity": "warning",
   "summary": "Demo metric high is warning at 15.",
+  "current_value": 15,
+  "threshold_value": 10,
+  "triggered_at": "2026-05-25T16:00:00.000Z",
+  "channel_metadata": {
+    "user_id": "user_demo",
+    "forecast_id": "forecast_coffee_2026"
+  },
   "fields": {
     "source": "demo"
   },
@@ -137,6 +148,10 @@ Aggregate forwarding is not an alert. It sends one closed bucket to subscribers 
   "signal_key": "demo.spend",
   "workspace_id": "ws_demo",
   "channel_id": "ch_demo",
+  "channel_metadata": {
+    "user_id": "user_demo",
+    "forecast_id": "forecast_coffee_2026"
+  },
   "dimensions_hash": "dce0e204e",
   "dimensions": {
     "vendor": "openai"
@@ -175,6 +190,10 @@ Quiet summaries prove a channel was evaluated and nothing needed attention. They
   "workspace_id": "ws_demo",
   "channel_id": "ch_demo",
   "channel_name": "Demo Channel",
+  "channel_metadata": {
+    "user_id": "user_demo",
+    "forecast_id": "forecast_coffee_2026"
+  },
   "status": "quiet",
   "generated_at": "2026-05-25T16:00:00.000Z",
   "watches": [
