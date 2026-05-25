@@ -1,41 +1,47 @@
 # Heads Up API Docs
 
-This folder documents how to use the Heads Up service.
+This folder documents the operational Heads Up API and the integration wrapper.
 
-Every story that creates or changes public API behavior must update this folder in the same change.
+If you are new to the API, start with `quickstart.md`. If you are integrating from Node or Cloudflare Workers, use `node-cloudflare-client.md`. If you are wiring Foretic, use `foretic-wrapper-guide.md`.
 
-## Required For Each API Document
-
-Each API document should include:
+## Start Here
 
 ```text
-purpose
-authentication
-request examples
-response examples
-error cases
-ownership/tenant rules
-related stories
+quickstart.md                 beginner tutorial with request and response examples
+node-cloudflare-client.md     wrapper install and usage guide
+foretic-wrapper-guide.md      Foretic provisioning and event-sending flow
+cursor-api-instructions.md    copy-paste PowerShell API sheet
+reference.md                  full endpoint and action reference
 ```
 
-## Initial API Areas
+## Current API Truth
 
 ```text
-quickstart.md
-cursor-api-instructions.md
-reference.md
 authentication.md
 admin.md
-schema-and-migrations.md
-foretic-provisioning.md
-subscribers.md
 connectors-and-ingest.md
+subscribers.md
 alerts-and-deliveries.md
 aggregate-forwarding.md
 observability.md
+schema-and-migrations.md
+smoke-test-suite.md
 spec-alignment-audit.md
 spec-fit-and-proof-tests.md
-smoke-test-suite.md
+```
+
+## Documentation Standard
+
+Every public behavior change should update this folder with:
+
+```text
+plain-English purpose
+required auth or permission
+request example
+success response example
+common error response example
+which value to save for the next step
+secret-safety notes
 ```
 
 ## Operational API

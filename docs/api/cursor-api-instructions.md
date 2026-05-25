@@ -2,6 +2,8 @@
 
 This is the short copy-paste guide for using Heads Up from Cursor or a script. For full schemas, use `reference.md`.
 
+For Node or Cloudflare Workers, prefer the wrapper in `node-cloudflare-client.md`. For Foretic, use `foretic-wrapper-guide.md`.
+
 All examples use fake IDs and fake secrets. Never commit real API keys, connector secrets, Cloudflare tokens, or Slack webhook URLs.
 
 ## Environment

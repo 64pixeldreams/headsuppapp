@@ -1,0 +1,21 @@
+{
+  "name": "@64pixelholdings/headsupp-client",
+  "version": "0.1.0",
+  "description": "Private Node and Cloudflare Workers client for the Heads Up API",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "keywords": [
+    "heads-up",
+    "cloudflare",
+    "foretic",
+    "attention-processing"
+  ],
+  "license": "UNLICENSED"
+}

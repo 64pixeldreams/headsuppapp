@@ -59,6 +59,8 @@ https://headsupp_app.martin-598.workers.dev
 - Cursor project rules: `cursor.js`
 - API docs index: `docs/api/README.md`
 - API quickstart: `docs/api/quickstart.md`
+- Node/Cloudflare client wrapper: `docs/api/node-cloudflare-client.md`
+- Foretic wrapper guide: `docs/api/foretic-wrapper-guide.md`
 - Cursor API instruction sheet: `docs/api/cursor-api-instructions.md`
 - API reference: `docs/api/reference.md`
 - Spec alignment audit: `docs/api/spec-alignment-audit.md`
@@ -165,6 +167,7 @@ This repository is not open source. See `LICENSE` for usage restrictions.
 ## Main Code Paths
 
 - Worker entrypoint: `apps/headsupp-api/src/index.js`
+- Node/Cloudflare client wrapper: `packages/headsupp-client`
 - CFKit function registration: `apps/headsupp-api/src/functions/register-headsupp-functions.js`
 - Admin functions: `apps/headsupp-api/src/functions/admin-functions.js`
 - Operator functions: `apps/headsupp-api/src/functions/operator-functions.js`
