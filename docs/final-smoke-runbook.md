@@ -37,6 +37,7 @@ npx wrangler d1 execute headsup_db --local --file "migrations/0001_headsupp_core
 npx wrangler d1 execute headsup_db --local --file "migrations/0002_correctness_closure.sql"
 npx wrangler d1 execute headsup_db --local --file "migrations/0003_channel_contracts_and_read_apis.sql"
 npx wrangler d1 execute headsup_db --local --file "migrations/0004_watch_actions_and_quiet_summaries.sql"
+npx wrangler d1 execute headsup_db --local --file "migrations/0005_correctness_closure_runtime.sql"
 ```
 
 Remote, only when the Cloudflare token has D1 import permissions:
@@ -47,9 +48,10 @@ npx wrangler d1 execute headsup_db --remote --file "migrations/0001_headsupp_cor
 npx wrangler d1 execute headsup_db --remote --file "migrations/0002_correctness_closure.sql"
 npx wrangler d1 execute headsup_db --remote --file "migrations/0003_channel_contracts_and_read_apis.sql"
 npx wrangler d1 execute headsup_db --remote --file "migrations/0004_watch_actions_and_quiet_summaries.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/0005_correctness_closure_runtime.sql"
 ```
 
-The migration uses `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`.
+Table/index migrations use `CREATE ... IF NOT EXISTS` where possible. Incremental `ALTER TABLE` migrations should be applied once per D1 database before deployed smokes.
 
 After schema-changing stories, apply the remote migration before running deployed operator/admin features or deployed smokes.
 

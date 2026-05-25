@@ -33,7 +33,7 @@ export async function beginRawEventProcessing(db, message, receivedAt = message.
     .run();
 
   const state = await db
-    .prepare('SELECT processed_at, status FROM raw_event_dedupe WHERE idempotency_key = ? LIMIT 1')
+    .prepare('SELECT processed_at, aggregate_applied_at, status FROM raw_event_dedupe WHERE idempotency_key = ? LIMIT 1')
     .bind(idempotencyKey)
     .first();
   if (state && !state.processed_at) {
@@ -51,6 +51,26 @@ export async function beginRawEventProcessing(db, message, receivedAt = message.
     idempotency_key: idempotencyKey,
     duplicate: Boolean(state?.processed_at),
     status: state?.status || 'processing',
+    aggregate_applied: Boolean(state?.aggregate_applied_at),
+  };
+}
+
+export function markRawEventAggregatedStatement(db, idempotencyKey, now = new Date().toISOString()) {
+  return db
+    .prepare(
+      `UPDATE raw_event_dedupe
+       SET aggregate_applied_at = COALESCE(aggregate_applied_at, ?), updated_at = ?
+       WHERE idempotency_key = ?`,
+    )
+    .bind(now, now, idempotencyKey);
+}
+
+export async function markRawEventAggregated(db, idempotencyKey, now = new Date().toISOString()) {
+  await markRawEventAggregatedStatement(db, idempotencyKey, now).run();
+
+  return {
+    ok: true,
+    idempotency_key: idempotencyKey,
   };
 }
 
@@ -58,10 +78,10 @@ export async function markRawEventProcessed(db, idempotencyKey, now = new Date()
   await db
     .prepare(
       `UPDATE raw_event_dedupe
-       SET status = 'processed', processed_at = ?, updated_at = ?
+       SET status = 'processed', aggregate_applied_at = COALESCE(aggregate_applied_at, ?), processed_at = ?, updated_at = ?
        WHERE idempotency_key = ?`,
     )
-    .bind(now, now, idempotencyKey)
+    .bind(now, now, now, idempotencyKey)
     .run();
 
   return {

@@ -1,7 +1,9 @@
 import { parseWatchJson } from '../watches/evaluate-watch.js';
 import { decideAlertAction } from '../watches/alert-decision.js';
 import { loadActiveWatchActionControls } from '../watches/action-controls.js';
+import { recordWatchEvaluationState } from '../watches/state.js';
 import { persistAlertWithDeliveries } from '../alerts/persistence.js';
+import { dimensionsHash } from '../aggregation/buckets.js';
 
 function windowStart(now, expectedEvery = {}) {
   const date = new Date(now);
@@ -26,13 +28,16 @@ export async function evaluateMissingExpectedWatch({ db, watch, now = new Date()
   const checkNow = new Date(Date.parse(now) - graceMs).toISOString();
   const startAt = windowStart(checkNow, config.expected_every);
   const minimumCount = Number(config.minimum_count || 1);
+  const bucketType = config.bucket_type || 'day';
+  const configuredDimensionsHash = config.dimensions ? dimensionsHash(config.dimensions) : null;
   const row = await db
     .prepare(
       `SELECT COALESCE(SUM(count_value), 0) AS count_value
        FROM aggregates
-       WHERE signal_id = ? AND bucket_start_at >= ? AND bucket_start_at <= ?`,
+       WHERE signal_id = ? AND bucket_type = ? AND bucket_start_at >= ? AND bucket_start_at <= ?
+         AND (? IS NULL OR dimensions_hash = ?)`,
     )
-    .bind(watch.signal_id, startAt, checkNow)
+    .bind(watch.signal_id, bucketType, startAt, checkNow, configuredDimensionsHash, configuredDimensionsHash)
     .first();
   const currentValue = Number(row?.count_value || 0);
   const evaluation = {
@@ -48,6 +53,7 @@ export async function evaluateMissingExpectedWatch({ db, watch, now = new Date()
   ]);
   const decision = decideAlertAction({ watch, evaluation, state, actionControls, now });
   if (!['alert', 'escalation', 'recovery'].includes(decision.action)) {
+    await recordWatchEvaluationState({ db, watch, evaluation, decision, now });
     return { triggered: false, action: decision.action, reason: decision.reason };
   }
 
@@ -58,7 +64,7 @@ export async function evaluateMissingExpectedWatch({ db, watch, now = new Date()
     decision,
     input: {
       signalId: watch.signal_id,
-      bucketType: config.bucket_type || 'day',
+      bucketType,
       bucketStartAt: startAt,
     },
     now,

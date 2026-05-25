@@ -93,12 +93,13 @@ function watchStateStatement(db, { watch, decision, now }) {
   return db
     .prepare(
       `INSERT INTO watch_states (
-        watch_id, last_status, last_alert_at, last_alert_value, last_alert_severity, cooldown_until,
+        watch_id, last_status, last_evaluated_at, last_alert_at, last_alert_value, last_alert_severity, cooldown_until,
         last_recovery_at, state_json, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(watch_id)
       DO UPDATE SET
         last_status = excluded.last_status,
+        last_evaluated_at = excluded.last_evaluated_at,
         last_alert_at = excluded.last_alert_at,
         last_alert_value = excluded.last_alert_value,
         last_alert_severity = excluded.last_alert_severity,
@@ -110,6 +111,7 @@ function watchStateStatement(db, { watch, decision, now }) {
     .bind(
       watch.id || watch.watch_id,
       decision.action === 'recovery' ? 'recovered' : 'triggered',
+      now,
       now,
       decision.current_value,
       decision.severity,

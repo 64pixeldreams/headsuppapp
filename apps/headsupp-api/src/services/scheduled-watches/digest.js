@@ -1,6 +1,7 @@
 import { parseWatchJson } from '../watches/evaluate-watch.js';
 import { persistAlertWithDeliveries } from '../alerts/persistence.js';
 import { actionControlGate, loadActiveWatchActionControls } from '../watches/action-controls.js';
+import { recordWatchEvaluationState } from '../watches/state.js';
 
 function digestDue(config, state, now) {
   if (!state?.last_digest_at) return true;
@@ -21,8 +22,26 @@ export async function evaluateDigestWatch({ db, watch, now = new Date().toISOStr
     loadActiveWatchActionControls(db, watch, now),
   ]);
   const gate = actionControlGate(actionControls, now);
-  if (gate.blocked) return { triggered: false, reason: gate.reason };
-  if (!digestDue(config, state, now)) return { triggered: false, reason: 'DIGEST_NOT_DUE' };
+  if (gate.blocked) {
+    await recordWatchEvaluationState({
+      db,
+      watch,
+      evaluation: { supported: true, triggered: false, current_value: null },
+      decision: { action: 'none', reason: gate.reason },
+      now,
+    });
+    return { triggered: false, reason: gate.reason };
+  }
+  if (!digestDue(config, state, now)) {
+    await recordWatchEvaluationState({
+      db,
+      watch,
+      evaluation: { supported: true, triggered: false, current_value: null },
+      decision: { action: 'none', reason: 'DIGEST_NOT_DUE' },
+      now,
+    });
+    return { triggered: false, reason: 'DIGEST_NOT_DUE' };
+  }
 
   const aggregate = await db
     .prepare('SELECT * FROM aggregates WHERE signal_id = ? ORDER BY bucket_start_at DESC LIMIT 1')
@@ -52,14 +71,16 @@ export async function evaluateDigestWatch({ db, watch, now = new Date().toISOStr
 
   await db
     .prepare(
-      `INSERT INTO watch_states (watch_id, last_status, last_digest_at, state_json, updated_at)
-       VALUES (?, ?, ?, ?, ?)
+      `INSERT INTO watch_states (watch_id, last_status, last_evaluated_at, last_digest_at, state_json, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(watch_id)
-       DO UPDATE SET last_digest_at = excluded.last_digest_at,
+       DO UPDATE SET last_status = excluded.last_status,
+         last_evaluated_at = excluded.last_evaluated_at,
+         last_digest_at = excluded.last_digest_at,
          state_json = excluded.state_json,
          updated_at = excluded.updated_at`,
     )
-    .bind(watch.id, 'digest', now, JSON.stringify({ include: config.include || [] }), now)
+    .bind(watch.id, 'digest', now, now, JSON.stringify({ include: config.include || [] }), now)
     .run();
 
   return { triggered: true, alert: persisted.alert, deliveries: persisted.deliveries };

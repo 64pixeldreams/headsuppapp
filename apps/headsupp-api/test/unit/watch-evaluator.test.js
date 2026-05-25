@@ -44,6 +44,9 @@ function createEvaluatorDb(batchItems = []) {
               }
               return { results: [] };
             },
+            async run() {
+              return { meta: { changes: 1 } };
+            },
           };
         },
       };

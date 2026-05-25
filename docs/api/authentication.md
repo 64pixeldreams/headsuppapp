@@ -34,6 +34,9 @@ connector:create
 subscriber:create
 signal:create
 watch:create
+alert:read
+watch:read
+watch:control
 ```
 
 The canonical Foretic service permission set is:
@@ -46,6 +49,9 @@ connector:create
 subscriber:create
 signal:create
 watch:create
+alert:read
+watch:read
+watch:control
 ```
 
 Any endpoint that provisions Foretic-owned resources must require `foretic:provision`.
@@ -94,7 +100,10 @@ Initial service API keys can be created through the operator bootstrap CloudFunc
       "connector:create",
       "subscriber:create",
       "signal:create",
-      "watch:create"
+      "watch:create",
+      "alert:read",
+      "watch:read",
+      "watch:control"
     ]
   }
 }

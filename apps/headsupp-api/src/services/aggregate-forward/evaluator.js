@@ -1,5 +1,6 @@
 import { parseWatchJson } from '../watches/evaluate-watch.js';
 import { createAggregateDelivery, enqueueAggregateDeliveries } from './delivery.js';
+import { dimensionsHash } from '../aggregation/buckets.js';
 
 function closedBefore(now, bucketType, graceSeconds = 60) {
   const date = new Date(now);
@@ -24,16 +25,18 @@ export async function loadAggregateForwardWatches(db) {
 export async function evaluateAggregateForwardWatch({ db, queue, watch, now = new Date().toISOString() }) {
   const config = parseWatchJson(watch.config_json);
   const bucketType = config.bucket_type || 'hour';
+  const configuredDimensionsHash = config.dimensions ? dimensionsHash(config.dimensions) : null;
   const cutoff = closedBefore(now, bucketType, config.emit_after_grace_seconds ?? 60);
   const aggregateResult = await db
     .prepare(
       `SELECT *
        FROM aggregates
        WHERE signal_id = ? AND bucket_type = ? AND bucket_start_at < ?
+         AND (? IS NULL OR dimensions_hash = ?)
        ORDER BY bucket_start_at ASC
        LIMIT 100`,
     )
-    .bind(watch.signal_id, bucketType, cutoff)
+    .bind(watch.signal_id, bucketType, cutoff, configuredDimensionsHash, configuredDimensionsHash)
     .all();
   const aggregates = aggregateResult?.results || [];
   const subscriber = await db

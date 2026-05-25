@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { beginRawEventProcessing, markRawEventProcessed, rawEventIdempotencyKey } from '../../src/services/aggregation/idempotency.js';
+import {
+  beginRawEventProcessing,
+  markRawEventAggregated,
+  markRawEventProcessed,
+  rawEventIdempotencyKey,
+} from '../../src/services/aggregation/idempotency.js';
 
-function fakeDb(changes = 1, calls = []) {
+function fakeDb(changes = 1, calls = [], state = null) {
   return {
     prepare(sql) {
       return {
@@ -12,7 +17,12 @@ function fakeDb(changes = 1, calls = []) {
           return {
             async first() {
               if (sql.includes('SELECT processed_at')) {
-                return changes === 0 ? { processed_at: '2026-05-24T10:00:01.000Z', status: 'processed' } : { processed_at: null, status: 'processing' };
+                return (
+                  state ||
+                  (changes === 0
+                    ? { processed_at: '2026-05-24T10:00:01.000Z', aggregate_applied_at: '2026-05-24T10:00:01.000Z', status: 'processed' }
+                    : { processed_at: null, aggregate_applied_at: null, status: 'processing' })
+                );
               }
               return null;
             },
@@ -73,9 +83,26 @@ test('marks duplicate when D1 insert is ignored', async () => {
   assert.equal(result.duplicate, true);
 });
 
+test('detects aggregate-applied event that still needs completion', async () => {
+  const result = await beginRawEventProcessing(
+    fakeDb(0, [], { processed_at: null, aggregate_applied_at: '2026-05-24T10:00:03.000Z', status: 'processing' }),
+    message,
+  );
+
+  assert.equal(result.duplicate, false);
+  assert.equal(result.aggregate_applied, true);
+});
+
+test('marks processing key as aggregated', async () => {
+  const calls = [];
+  const result = await markRawEventAggregated(fakeDb(1, calls), 'evt_123', '2026-05-24T10:00:04.000Z');
+  assert.equal(result.ok, true);
+  assert.equal(calls[calls.length - 1].params[2], 'evt_123');
+});
+
 test('marks processing key as processed', async () => {
   const calls = [];
   const result = await markRawEventProcessed(fakeDb(1, calls), 'evt_123', '2026-05-24T10:00:05.000Z');
   assert.equal(result.ok, true);
-  assert.equal(calls[calls.length - 1].params[2], 'evt_123');
+  assert.equal(calls[calls.length - 1].params[3], 'evt_123');
 });

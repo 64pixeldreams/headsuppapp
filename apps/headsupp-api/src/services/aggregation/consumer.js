@@ -1,18 +1,18 @@
 import { normalizeIncomingPayload } from '../ingest/event-validation.js';
 import { normalizeEventByContract } from './contract-extraction.js';
-import { beginRawEventProcessing, markRawEventProcessed } from './idempotency.js';
+import { beginRawEventProcessing, markRawEventAggregatedStatement, markRawEventProcessed } from './idempotency.js';
 import { resolveSignalAndContract } from './signal-resolution.js';
 import { eventToAggregateDeltas } from './buckets.js';
 import { foldAggregateDeltas } from './fold-deltas.js';
-import { upsertAggregateDeltas } from './aggregate-upsert.js';
+import { aggregateDeltaStatement } from './aggregate-upsert.js';
 import { invokeAffectedWatchEvaluators } from './watch-invocation.js';
 
 export async function processRawEventMessages(messages, env, now = new Date().toISOString()) {
-  const aggregateDeltas = [];
+  const aggregateDeltasToInvoke = [];
   let processed = 0;
   let duplicates = 0;
   const seenInBatch = new Set();
-  const processingKeys = [];
+  const completionKeys = [];
 
   for (const message of messages) {
     const validation = normalizeIncomingPayload(message.event);
@@ -40,30 +40,35 @@ export async function processRawEventMessages(messages, env, now = new Date().to
     if (!normalizedByContract.ok) {
       throw new Error(`Invalid raw queue event: ${normalizedByContract.code}`);
     }
-    aggregateDeltas.push(
-      ...eventToAggregateDeltas({
-        message: {
-          ...normalizedMessage,
-          event: normalizedByContract.event,
-        },
-        signal,
-        contract,
-        now,
-      }),
-    );
-    processingKeys.push(idempotency.idempotency_key);
+    const deltas = eventToAggregateDeltas({
+      message: {
+        ...normalizedMessage,
+        event: normalizedByContract.event,
+      },
+      signal,
+      contract,
+      now,
+    });
+    aggregateDeltasToInvoke.push(...deltas);
+    if (!idempotency.aggregate_applied) {
+      const foldedEventDeltas = foldAggregateDeltas(deltas);
+      await env.DB.batch([
+        ...foldedEventDeltas.map((delta) => aggregateDeltaStatement(env.DB, delta)),
+        markRawEventAggregatedStatement(env.DB, idempotency.idempotency_key, now),
+      ]);
+    }
+    completionKeys.push(idempotency.idempotency_key);
     processed += 1;
   }
 
-  const foldedDeltas = foldAggregateDeltas(aggregateDeltas);
-  await upsertAggregateDeltas(env.DB, foldedDeltas);
+  const foldedDeltas = foldAggregateDeltas(aggregateDeltasToInvoke);
   const watchInvocations = await invokeAffectedWatchEvaluators({
     db: env.DB,
     env,
     aggregateDeltas: foldedDeltas,
     now,
   });
-  for (const idempotencyKey of processingKeys) {
+  for (const idempotencyKey of completionKeys) {
     await markRawEventProcessed(env.DB, idempotencyKey, now);
   }
 

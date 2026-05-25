@@ -1,6 +1,7 @@
 import { evaluateWatchAgainstAggregates, watchConfig } from './evaluate-watch.js';
 import { decideAlertAction } from './alert-decision.js';
 import { loadActiveWatchActionControls } from './action-controls.js';
+import { recordWatchEvaluationState } from './state.js';
 import { persistAlertWithDeliveries } from '../alerts/persistence.js';
 
 export async function loadWatch(db, watchId) {
@@ -88,6 +89,7 @@ export async function evaluateWatchRequest({ db, env = {}, input, now = input.no
   const decision = decideAlertAction({ watch, evaluation, state, actionControls, now });
 
   if (!['alert', 'escalation', 'recovery'].includes(decision.action)) {
+    await recordWatchEvaluationState({ db, watch, evaluation, decision, now });
     return {
       evaluated: true,
       action: decision.action,

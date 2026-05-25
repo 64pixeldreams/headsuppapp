@@ -73,7 +73,7 @@ test('Foretic can classify aggregate-forward callbacks with stable dedupe id', a
   assert.equal(classified.ok, true);
   assert.equal(classified.kind, 'aggregate_forward');
   assert.equal(classified.id, delivery.id);
-  assert.equal(classified.dedupe_key, 'sub_foretic:sig_123:hour:2026-05-24T10:00:00.000Z');
+  assert.equal(classified.dedupe_key, 'sub_foretic:sig_123:hour:2026-05-24T10:00:00.000Z:d0');
   assert.equal(classified.values.avg, 14);
   assert.equal(payload.raw_events, undefined);
 });

@@ -112,6 +112,7 @@ npx wrangler d1 execute headsup_db --remote --file "migrations/0001_headsupp_cor
 npx wrangler d1 execute headsup_db --remote --file "migrations/0002_correctness_closure.sql"
 npx wrangler d1 execute headsup_db --remote --file "migrations/0003_channel_contracts_and_read_apis.sql"
 npx wrangler d1 execute headsup_db --remote --file "migrations/0004_watch_actions_and_quiet_summaries.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/0005_correctness_closure_runtime.sql"
 ```
 
 ## Tests And Proofs
@@ -160,7 +161,7 @@ Runtime secrets such as Cloudflare API tokens and Slack webhook URLs must be pas
 - Delivery services: `apps/headsupp-api/src/services/delivery/`
 - Scheduled tasks: `apps/headsupp-api/src/services/scheduler/scheduled-tasks.js`
 - Observability: `apps/headsupp-api/src/services/observability/overview.js`
-- D1 schema: `apps/headsupp-api/migrations/0001_headsupp_core.sql`, `apps/headsupp-api/migrations/0002_correctness_closure.sql`, `apps/headsupp-api/migrations/0003_channel_contracts_and_read_apis.sql`, `apps/headsupp-api/migrations/0004_watch_actions_and_quiet_summaries.sql`
+- D1 schema: `apps/headsupp-api/migrations/0001_headsupp_core.sql`, `apps/headsupp-api/migrations/0002_correctness_closure.sql`, `apps/headsupp-api/migrations/0003_channel_contracts_and_read_apis.sql`, `apps/headsupp-api/migrations/0004_watch_actions_and_quiet_summaries.sql`, `apps/headsupp-api/migrations/0005_correctness_closure_runtime.sql`
 
 ## CI And Release
 

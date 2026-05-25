@@ -16,6 +16,19 @@ export function buildAggregateForwardPayload({ aggregate, signal, channel, inclu
   if (include.max !== false) values.max = aggregate.max_value;
   if (include.last !== false) values.last = aggregate.last_value;
 
+  let context = {};
+  try {
+    context = aggregate.last_event_context_json ? JSON.parse(aggregate.last_event_context_json) : {};
+  } catch {
+    context = {};
+  }
+  let dimensions = {};
+  try {
+    dimensions = aggregate.dimensions_json ? JSON.parse(aggregate.dimensions_json) : {};
+  } catch {
+    dimensions = {};
+  }
+
   return {
     source: 'heads_up',
     event_type: 'aggregate_bucket_closed',
@@ -27,12 +40,15 @@ export function buildAggregateForwardPayload({ aggregate, signal, channel, inclu
       start_at: aggregate.bucket_start_at,
       end_at: bucketEndAt(aggregate.bucket_start_at, aggregate.bucket_type),
     },
+    dimensions_hash: aggregate.dimensions_hash || 'd0',
+    dimensions,
     values,
-    cta: channel?.channel_id
+    fields: context.fields || {},
+    cta: context.cta || (channel?.channel_id
       ? {
           label: 'View channel',
           url: `https://headsupp_app.example.workers.dev/channels/${channel.channel_id}`,
         }
-      : null,
+      : null),
   };
 }

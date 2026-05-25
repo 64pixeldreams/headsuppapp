@@ -191,6 +191,7 @@ CREATE TABLE IF NOT EXISTS aggregates (
   bucket_start_at TEXT NOT NULL,
   dimensions_hash TEXT NOT NULL DEFAULT 'd0',
   dimensions_json TEXT,
+  last_event_context_json TEXT,
   sum_value REAL NOT NULL DEFAULT 0,
   count_value INTEGER NOT NULL DEFAULT 0,
   min_value REAL,
@@ -213,6 +214,7 @@ CREATE TABLE IF NOT EXISTS raw_event_dedupe (
   received_at TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'processing',
   processing_started_at TEXT,
+  aggregate_applied_at TEXT,
   processed_at TEXT,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -282,6 +284,8 @@ CREATE TABLE IF NOT EXISTS aggregate_deliveries (
   signal_id TEXT NOT NULL,
   bucket_type TEXT NOT NULL,
   bucket_start_at TEXT NOT NULL,
+  dimensions_hash TEXT NOT NULL DEFAULT 'd0',
+  dimensions_json TEXT,
   status TEXT NOT NULL,
   attempt_count INTEGER NOT NULL DEFAULT 0,
   payload_json TEXT NOT NULL,
@@ -294,7 +298,7 @@ CREATE TABLE IF NOT EXISTS aggregate_deliveries (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_aggregate_delivery_once
-ON aggregate_deliveries(subscriber_id, signal_id, bucket_type, bucket_start_at);
+ON aggregate_deliveries(subscriber_id, signal_id, bucket_type, bucket_start_at, dimensions_hash);
 
 CREATE TABLE IF NOT EXISTS control_plane_audit_logs (
   id TEXT PRIMARY KEY,

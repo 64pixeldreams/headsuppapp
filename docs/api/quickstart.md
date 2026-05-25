@@ -83,6 +83,9 @@ connector:create
 subscriber:create
 signal:create
 watch:create
+alert:read
+watch:read
+watch:control
 ```
 
 If no service key exists yet, create one through the operator bootstrap action with a runtime-only `X-HeadsUp-Bootstrap-Token` header. The returned `api_key` is shown once and must be stored outside the repo.
