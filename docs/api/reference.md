@@ -105,10 +105,34 @@ Payload props:
 - `destination_url` (string, required): https URL for webhook/slack, email address for `email`.
 - `display_name` (string, optional).
 - `mode` (string, optional): `alert`, `aggregate_forward`, `quiet_summary`. Defaults to `alert`.
-- `config` (object, optional): receiver settings (`signing_secret` for webhook, `template_id`/`value_format`/`locale` for email).
+- `config` (object, optional): receiver settings (`signing_secret` for webhook, `template_id`/`value_format`/`locale`/template labels for email).
 - `enabled` (boolean, optional): defaults to true.
 
 Returns `data.subscriber` (redacted destination only).
+
+Email `config` supports formatted notification templates:
+
+```json
+{
+  "template_id": "base_alert_v1",
+  "value_format": "money_usd_2",
+  "locale": "en-US",
+  "labels": {
+    "title_template": "Highest coffee purchase: {value}",
+    "summary_template": "Your highest coffee purchase reached {value}; threshold is {threshold}.",
+    "current_label": "Highest purchase",
+    "threshold_label": "Alert threshold"
+  }
+}
+```
+
+Placeholders are rendered by the mailer at delivery time:
+
+```text
+{value}, {current_value}, {threshold}, {threshold_value}, {severity}, {title}
+```
+
+`{value}` and `{threshold}` use `value_format`, so `9.5` with `money_usd_2` renders as `$9.50`.
 
 ### `admin.disableSubscriber`
 

@@ -214,9 +214,18 @@ const emailSubscriber = await headsup.createSubscriber({
     value_format: 'money_usd_2',
     locale: 'en-US',
     timezone: 'UTC',
+    labels: {
+      title_template: 'Highest coffee purchase: {value}',
+      summary_template: 'Your highest coffee purchase reached {value}; threshold is {threshold}.',
+      current_label: 'Highest purchase',
+      threshold_label: 'Alert threshold',
+    },
   },
 });
 ```
+
+`{value}` and `{threshold}` are rendered by Heads Up at delivery time using `value_format`.
+With `money_usd_2`, a raw value of `9.5` renders as `$9.50`.
 
 Aggregate-forward callback:
 

@@ -79,7 +79,7 @@ smoke:channel-contracts  API/D1 + deployed channel contracts, inherited signal d
 smoke:aggregate-forward-dimensions D1 + deployed dimension-filtered aggregate forwarding and no duplicate second pass
 smoke:advanced-watches   D1 + deployed     WINDOW, DELTA, relative change, reminders, recurring expectations, rich digest
 smoke:operator-observability API + deployed key lifecycle, audit read, observability overview, redaction
-smoke:email-subscriber  Email + deployed  provisions email subscriber, triggers coffee highest-purchase alert, verifies sent delivery
+smoke:email-subscriber  Email + deployed  provisions email subscriber, renders {value} title template, triggers coffee highest-purchase alert, verifies sent delivery
 load:smoke               local             10000 synthetic events fold into fewer aggregate deltas
 load:high-volume         local             configurable high-volume synthetic proof, default 100000 events
 soak:release             local             bounded throughput and fold-compression release proof

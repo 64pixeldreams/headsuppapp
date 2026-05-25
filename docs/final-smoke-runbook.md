@@ -244,6 +244,7 @@ Expected:
 normal value events create zero alerts
 trigger event (> threshold) creates one warning alert
 latest alert delivery status becomes sent for subscriber_type email
+email subject/heading uses the configured title template: Highest coffee purchase: $9.50
 ```
 
 ## Tenant Isolation Smoke

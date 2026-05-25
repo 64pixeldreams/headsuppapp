@@ -61,7 +61,9 @@ Use one subscriber row per recipient (best for per-user pause/remove control).
       "reply_to": "alerts@headsupp.io",
       "labels": {
         "signal_label": "Coffee spend",
-        "threshold_label": "Weekly budget"
+        "threshold_label": "Weekly budget",
+        "title_template": "Highest coffee purchase: {value}",
+        "summary_template": "Your highest coffee purchase reached {value}; threshold is {threshold}."
       },
       "template_by_severity": {
         "critical": "base_alert_v1",
@@ -74,6 +76,50 @@ Use one subscriber row per recipient (best for per-user pause/remove control).
 ```
 
 Response includes canonical `subscriber_id` for disable/delete and unsubscribe lifecycle.
+
+## Notification Templates
+
+Email subscribers can define lightweight text templates once in `config.labels` or directly on `config`.
+Heads Up renders these templates at delivery time using formatted values. This keeps events small while still producing useful subject lines and headings.
+
+Supported placeholders:
+
+```text
+{title}            base alert title
+{value}            formatted current value
+{current_value}    same as {value}
+{threshold}        formatted threshold value
+{threshold_value}  same as {threshold}
+{severity}         alert severity
+```
+
+Example:
+
+```json
+{
+  "config": {
+    "value_format": "money_usd_2",
+    "locale": "en-US",
+    "labels": {
+      "title_template": "Highest coffee purchase: {value}",
+      "summary_template": "Your highest coffee purchase reached {value}; threshold is {threshold}.",
+      "current_label": "Highest purchase",
+      "threshold_label": "Alert threshold"
+    }
+  }
+}
+```
+
+If the current value is `9.5` and `value_format` is `money_usd_2`, `{value}` renders as `$9.50`.
+
+Template lookup order:
+
+```text
+title: fields.notification.title_template -> config.labels.title_template -> config.title_template -> generated fallback
+summary: fields.notification.summary -> config.labels.summary_template -> config.summary_template -> generated fallback
+```
+
+Use `fields.notification.title` or `fields.notification.summary` only when a specific event needs a one-off override.
 
 ## 2) Send Events
 
