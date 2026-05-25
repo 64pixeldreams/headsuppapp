@@ -1,6 +1,6 @@
 # Load And Stress Testing
 
-The MVP stress harness is local and synthetic. It does not call real Cloudflare queues, Foretic, Slack, or external webhooks.
+The stress harness is local and synthetic. It does not call real Cloudflare queues, Foretic, Slack, or external webhooks.
 
 Run:
 

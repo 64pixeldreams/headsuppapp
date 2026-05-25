@@ -2,7 +2,7 @@
 
 ## Spec Check
 
-`SPEC_BREIF.md` says raw dedupe should be retained for 24-72 hours in the MVP and old rows should be deleted by scheduled cleanup.
+`SPEC_BREIF.md` says raw dedupe should be retained for 24-72 hours in the initial API scope and old rows should be deleted by scheduled cleanup.
 
 ## Scope
 

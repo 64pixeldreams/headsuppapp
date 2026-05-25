@@ -8,7 +8,7 @@ Each story should be expanded just before implementation. Keep stories small eno
 
 Build in numeric order unless there is a clear dependency reason not to.
 
-The intended phases are:
+The current story phases are:
 
 ```text
 01-03: project foundation
@@ -22,6 +22,12 @@ The intended phases are:
 37-38: observability and stress tests
 39-41: Foretic integration
 42-49: Foretic auth, tenant isolation, subscribers, and connector auth
+50-57: deployed smoke and documentation proof
+58-65: production auth, audit, CI, and operations
+66-76: correctness closure
+77-81: website alignment features now implemented
+82-88: future advanced trend/recurring/email/AI setup stories
+89-95: platform audit follow-up proof and hardening
 ```
 
 ## Story Template
@@ -54,7 +60,7 @@ As a <user/system>, I want <capability>, so that <outcome>.
 
 - Unit test ...
 - Integration test ...
-- Run `npm test`
+- Run `npm run check`
 
 ## API Documentation
 
@@ -75,7 +81,7 @@ As a <user/system>, I want <capability>, so that <outcome>.
 - Code implemented
 - Tests added
 - API docs updated if behavior is public or integration-facing
-- `npm test` passes
+- `npm run check` passes
 - No unrelated changes
 ```
 
@@ -90,7 +96,7 @@ For each story, Cursor should:
 5. Add focused tests.
 6. Implement only that story's scope.
 7. Update `docs/api/` if the story creates or changes public API behavior.
-8. Run `npm test`.
+8. Run `npm run check`.
 9. Fix and retest until green.
 10. Stop and report what passed.
 

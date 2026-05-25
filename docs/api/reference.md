@@ -219,7 +219,20 @@ Bootstrap request:
   "payload": {
     "name": "Heads Up provisioning service",
     "user_id": "service:headsupp-operator",
-    "permissions": ["workspace:create", "channel:create", "connector:create"]
+    "permissions": [
+      "workspace:create",
+      "channel:create",
+      "connector:create",
+      "subscriber:create",
+      "signal:create",
+      "watch:create",
+      "channel_contract:create",
+      "channel_contract:update",
+      "channel_contract:read",
+      "alert:read",
+      "watch:read",
+      "watch:control"
+    ]
   }
 }
 ```
@@ -404,8 +417,11 @@ Supported watch families in the current API:
 LAST_VALUE_GT
 LAST_VALUE_LT
 WINDOW_AVG_GT
+WINDOW_AVG_LT
 WINDOW_SUM_GT
 WINDOW_COUNT_GT
+DELTA_GT
+DELTA_LT
 MISSING_EXPECTED
 DIGEST
 AGGREGATE_FORWARD
@@ -452,7 +468,7 @@ Rules:
 ```text
 destination_url must be https
 slack_webhook destinations must be Slack incoming webhook URLs
-mode must be alert or aggregate_forward
+mode must be alert, aggregate_forward, or quiet_summary
 responses return destination_url_redacted, not full destination_url
 ```
 
@@ -693,10 +709,14 @@ Aggregate-forward webhook payload:
   "source": "heads_up",
   "event_type": "aggregate_bucket_closed",
   "delivery_id": "aggdel_demo",
-  "dedupe_key": "sub_demo:sig_demo:hour:2026-05-24T17:00:00.000Z",
+  "dedupe_key": "sub_demo:sig_demo:hour:2026-05-24T17:00:00.000Z:d7a4bf91",
   "signal_key": "demo.metric",
   "workspace_id": "ws_demo",
   "channel_id": "ch_demo",
+  "dimensions_hash": "d7a4bf91",
+  "dimensions": {
+    "source": "demo"
+  },
   "bucket": {
     "type": "hour",
     "start_at": "2026-05-24T17:00:00.000Z",
@@ -709,6 +729,13 @@ Aggregate-forward webhook payload:
     "min": 10,
     "max": 17,
     "last": 15
+  },
+  "fields": {
+    "source": "demo"
+  },
+  "cta": {
+    "label": "View",
+    "url": "https://example.com/demo"
   }
 }
 ```
@@ -753,6 +780,8 @@ npm run smoke:alert-decisions
 npm run smoke:scheduled
 npm run smoke:delivery-retry
 npm run smoke:tenant-isolation
+npm run smoke:foretic
+npm run soak:release
 ```
 
 See `docs/api/smoke-test-suite.md` for required runtime environment variables and pass/fail signals.

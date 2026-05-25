@@ -72,6 +72,17 @@ admin.createConnector
 admin.createSubscriber
 admin.createSignal
 admin.createWatch
+admin.createChannelContract
+admin.updateChannelContract
+admin.getChannelContract
+admin.listChannelContractVersions
+admin.listChannelAlerts
+admin.getWatchState
+admin.listAlertTimeline
+admin.snoozeWatch
+admin.muteWatch
+admin.resumeWatch
+admin.ignoreAlert
 ```
 
 Required permissions:
@@ -86,6 +97,14 @@ watch:create
 alert:read
 watch:read
 watch:control
+```
+
+Optional channel-contract permissions:
+
+```text
+channel_contract:create
+channel_contract:update
+channel_contract:read
 ```
 
 If no service key exists yet, create one through the operator bootstrap action with a runtime-only `X-HeadsUp-Bootstrap-Token` header. The returned `api_key` is shown once and must be stored outside the repo.
@@ -155,6 +174,36 @@ Create a signal:
 }
 ```
 
+Create a channel contract when you want channel-level defaults and template watches:
+
+```json
+{
+  "action": "admin.createChannelContract",
+  "payload": {
+    "workspace_id": "ws_...",
+    "channel_id": "ch_...",
+    "purpose": "Forecast attention monitoring",
+    "expected_signal_types": ["forecast_state"],
+    "default_dimensions": ["forecast_id", "status"],
+    "default_watch_templates": [
+      {
+        "name": "Pace below warning",
+        "watch_type": "LAST_VALUE_LT",
+        "config": {
+          "threshold": 85,
+          "severity": "warning"
+        },
+        "cooldown_seconds": 86400
+      }
+    ],
+    "cta_policy": {
+      "required": true,
+      "kind": "review"
+    }
+  }
+}
+```
+
 Create a watch:
 
 ```json
@@ -192,6 +241,24 @@ Create a Slack subscriber:
 ```
 
 Do not commit real Slack webhook URLs.
+
+Create a quiet summary subscriber when you want scheduled proof-of-silence messages:
+
+```json
+{
+  "action": "admin.createSubscriber",
+  "payload": {
+    "workspace_id": "ws_...",
+    "channel_id": "ch_...",
+    "subscriber_type": "webhook",
+    "destination_url": "https://example.com/heads-up/quiet",
+    "mode": "quiet_summary",
+    "config": {
+      "schedule": "hourly"
+    }
+  }
+}
+```
 
 ## Event Ingest
 
@@ -266,6 +333,51 @@ curl -H "Authorization: Bearer <operator token>" https://headsupp_app.martin-598
 ```
 
 This returns operational counts for active watches, aggregate rows, alerts, and delivery states. It does not return raw event payloads or subscriber secrets.
+
+## Read Alerts And Quiet State
+
+```json
+{
+  "action": "admin.getWatchState",
+  "payload": {
+    "workspace_id": "ws_...",
+    "channel_id": "ch_...",
+    "watch_id": "watch_..."
+  }
+}
+```
+
+```json
+{
+  "action": "admin.listChannelAlerts",
+  "payload": {
+    "workspace_id": "ws_...",
+    "channel_id": "ch_...",
+    "limit": 25
+  }
+}
+```
+
+These reads return safe alert and watch-state metadata. They do not return webhook destinations, connector secrets, or raw event bodies.
+
+## Control Attention
+
+Snooze a watch:
+
+```json
+{
+  "action": "admin.snoozeWatch",
+  "payload": {
+    "workspace_id": "ws_...",
+    "channel_id": "ch_...",
+    "watch_id": "watch_...",
+    "snooze_until": "2026-05-24T12:00:00.000Z",
+    "reason": "Maintenance window"
+  }
+}
+```
+
+Mute/resume use `admin.muteWatch` and `admin.resumeWatch`. Ignore an alert with `admin.ignoreAlert`.
 
 ## Smoke Test
 

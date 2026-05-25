@@ -9,7 +9,7 @@ slack_webhook
 webhook
 ```
 
-Slack OAuth is not part of the MVP.
+Slack OAuth is not part of the current API. Slack delivery uses incoming webhooks.
 
 ## Slack Webhook Subscriber
 
@@ -35,11 +35,11 @@ Response shape:
   "success": true,
   "data": {
     "subscriber": {
-      "subscriber_id": "sub_ws_123_ch_123_webhook",
-      "subscriber_type": "webhook",
-      "display_name": "Foretic callback",
+      "subscriber_id": "sub_ws_123_ch_123_slack",
+      "subscriber_type": "slack_webhook",
+      "display_name": "#forecast-alerts",
       "mode": "alert",
-      "destination_url_redacted": "https://api.foretic.io/heads-up/callback/...",
+      "destination_url_redacted": "https://hooks.slack.com/services/T_TEST/...",
       "workspace_id": "ws_123",
       "channel_id": "ch_123"
     }
@@ -51,15 +51,7 @@ Rules:
 
 ```text
 destination_url must be https
-mode must be alert or aggregate_forward
-workspace/channel ownership is checked before storing
-full destination_url is not returned from API responses
-```
-
-Rules:
-
-```text
-destination_url must be https
+mode must be alert, aggregate_forward, or quiet_summary
 destination_url must look like a Slack incoming webhook for slack_webhook
 workspace_id must belong to the authenticated user or service tenant context
 channel_id must belong to workspace_id

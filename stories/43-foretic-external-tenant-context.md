@@ -7,7 +7,7 @@ As the Heads Up API, I want to normalize Foretic external ownership context, so 
 ## Scope
 
 - Add a pure Foretic tenant-context normalization module.
-- For MVP, derive `external_tenant_id` from Foretic `user_id` when no tenant exists.
+- For the current Foretic integration, derive `external_tenant_id` from Foretic `user_id` when no tenant exists.
 - Preserve explicit `external_user_id`.
 - Produce stable workspace and forecast channel keys.
 - Add tests using the real Foretic fixture.

@@ -24,13 +24,13 @@ Do not skip the test loop. Do not move to a later story while the current story 
 
 ## Default Command
 
-Once the project scaffold exists, the default verification command should be:
+The default local verification command is:
 
 ```bash
-npm test
+npm run check
 ```
 
-Add these scripts to `package.json` when the Worker project is created:
+The API package already exposes:
 
 ```json
 {
@@ -43,7 +43,7 @@ Add these scripts to `package.json` when the Worker project is created:
 }
 ```
 
-If TypeScript is used, update the scripts to match the selected runner, but preserve the same behavior:
+Preserve this behavior if the test runner changes:
 
 ```text
 npm test must run the full local test suite.

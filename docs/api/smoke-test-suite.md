@@ -34,12 +34,13 @@ npm run smoke:alert-decisions
 npm run smoke:scheduled
 npm run smoke:delivery-retry
 npm run smoke:tenant-isolation
+npm run smoke:foretic
 npm run soak:release
 ```
 
 If Slack is unavailable, do not claim human notification proof. You can still run the non-Slack deployed smokes to prove scheduler, retry, and tenant isolation behavior in D1.
 
-GitHub Actions runs `npm run check` and `npm run load:smoke` on PRs and pushes to `main`. Deployed smokes are opt-in through the `workflow_dispatch` input `run_deployed_smokes=true` and require repository secrets.
+GitHub Actions runs `npm run check` and `npm run load:smoke` on PRs and pushes to `main`. The deployed smoke matrix runs on schedule and can also be run manually through the `workflow_dispatch` input `run_deployed_smokes=true`. Deployed smokes require repository secrets.
 
 ## CI Secrets
 
@@ -51,6 +52,21 @@ HEADSUPP_SMOKE_SLACK_WEBHOOK_URL
 ```
 
 The CI workflow verifies these variables exist before running deployed smokes. It does not print their values.
+
+## Coverage Matrix
+
+```text
+smoke:generic-slack      Slack + deployed  silence on normal events, one alert on trigger, sent Slack delivery
+smoke:alert-decisions    Slack + deployed  warning, cooldown suppression, critical escalation, recovery
+smoke:foretic            Slack + local     Foretic-shaped provision/event/Slack payload loop
+smoke:scheduled          D1 + deployed     MISSING_EXPECTED, DIGEST, AGGREGATE_FORWARD delivery rows
+smoke:delivery-retry     HTTP + deployed   retrying, sent, failed delivery states and no duplicate alerts
+smoke:tenant-isolation   D1 + deployed     same signal_key across tenants without alert/aggregate leakage
+load:smoke               local             10000 synthetic events fold into fewer aggregate deltas
+soak:release             local             bounded throughput and fold-compression release proof
+```
+
+Use Slack-backed smokes only for features where a human notification is meaningful. D1/API assertions are the right proof for tenant isolation, retry state, scheduler state, and aggregate-forward rows.
 
 ## Local Quality Gates
 
@@ -422,8 +438,13 @@ Known gaps:
 
 ```text
 deployed generic smokes still use some operator D1 cleanup/setup for deterministic proof data
-no CI job runs the deployed smoke suite automatically
-no long-running soak test
+quiet-summary delivery has unit coverage but no deployed smoke
+watch action controls have unit coverage but no deployed smoke
+channel contract inheritance/read APIs have unit coverage but no deployed smoke
+dimensioned aggregate-forward payloads have unit coverage but no deployed dimensioned smoke
+WINDOW_* and DELTA_* watches have unit coverage but no deployed smoke
+Foretic smoke is fixture/local-runtime oriented, not a live Worker smoke
+operator key lifecycle and observability are unit/manual proven, not deployed-smoke proven
 no first-class OpenAPI YAML generator
 no email connector, Slack OAuth, dashboard, billing, or BI proof because they are out of v1 scope
 ```
@@ -442,6 +463,8 @@ Run this checklist before calling a deployment proven:
 5. npm run smoke:scheduled passes
 6. npm run smoke:delivery-retry passes
 7. npm run smoke:tenant-isolation passes
-8. docs mention any intentionally skipped smoke and why
-9. secret scan finds no real Slack webhook URLs, API tokens, or connector secrets
+8. npm run smoke:foretic passes when Foretic-shaped proof is in scope
+9. npm run soak:release passes
+10. docs mention any intentionally skipped smoke and why
+11. secret scan finds no real Slack webhook URLs, API tokens, or connector secrets
 ```

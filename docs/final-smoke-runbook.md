@@ -1,6 +1,6 @@
 # Final Smoke Runbook
 
-This runbook verifies the Heads Up MVP loop without committing secrets.
+This runbook verifies the operational Heads Up API loop without committing secrets.
 
 For the full smoke matrix, expected D1 evidence, and release checklist, see `docs/api/smoke-test-suite.md`. For production incident diagnosis, see `docs/operations-runbook.md`.
 

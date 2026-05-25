@@ -6,7 +6,7 @@ As an operator or integrating engineer, I want to provision generic Heads Up wor
 
 ## Scope
 
-- Define a clean bootstrap path for the current API-only MVP.
+- Define a clean bootstrap path for the current operational API.
 - Support provisioning generic resources without Foretic-specific assumptions.
 - Ensure connector lookup state is written consistently to D1 and KV.
 - Ensure connector secrets are returned only at creation time.

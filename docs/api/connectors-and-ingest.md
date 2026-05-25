@@ -164,6 +164,7 @@ The queue consumer processes raw messages in this order:
 validate event shape again
 mark raw_event_dedupe status as processing
 skip aggregate/watch work for already-processed idempotency keys
+skip aggregate mutation but retry watch invocation when aggregate_applied_at exists without processed_at
 resolve or lazily create signal and signal_contract
 inherit active channel contract default dimensions and CTA policy when a signal_contract is created
 extract value/time/cta from contract paths with value.num fallback
@@ -171,6 +172,7 @@ create aggregate deltas for configured bucket types
 fold deltas by workspace/channel/signal/bucket/dimensions_hash
 upsert aggregates with SQL ON CONFLICT and timestamp-safe last_value update
 invoke WATCH_EVALUATOR for affected active watches
+mark aggregate_applied_at in the same D1 batch as the aggregate mutation
 mark dedupe status as processed only after successful aggregate and watch steps
 ```
 
@@ -193,7 +195,7 @@ Watch evaluation is invoked through `WATCH_EVALUATOR.idFromName(watchId)` with:
 }
 ```
 
-`WatchEvaluatorDO` now loads the watch and aggregate rows, evaluates supported last-value/window watches, applies cooldown/escalation/recovery decisions, persists alerts with delivery rows, and enqueues alert delivery messages. Digest, missing-expected, and aggregate-forward evaluation remain separate scheduled stories.
+`WatchEvaluatorDO` loads the watch and aggregate rows, evaluates supported last-value/window/delta watches, applies cooldown/escalation/recovery decisions, persists alerts with delivery rows, and enqueues alert delivery messages. Digest, missing-expected, quiet summary, delivery retry, dedupe cleanup, and aggregate-forward evaluation run from scheduled work.
 
 ## Related Stories
 

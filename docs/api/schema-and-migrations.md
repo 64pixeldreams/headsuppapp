@@ -10,7 +10,7 @@ apps/headsupp-api/migrations/0004_watch_actions_and_quiet_summaries.sql
 apps/headsupp-api/migrations/0005_correctness_closure_runtime.sql
 ```
 
-It creates the MVP tables required by the product spec:
+It creates the operational core API tables required by the product spec:
 
 ```text
 workspaces

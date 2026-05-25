@@ -23,7 +23,7 @@ If a story creates or changes an endpoint, auth rule, event payload, delivery pa
 
 ## Current Story Count
 
-There are 88 story files.
+There are 95 story files.
 
 Stories marked `_done` are complete. Pending stories should be built one at a time or in an agreed batch, with tests and docs updated before marking `_done`.
 
@@ -95,4 +95,18 @@ Prioritize non-email architecture first, then email/AI stubs:
 86 AI classification interface (email)
 87 Email subscriber delivery
 88 Setup assistant contract-draft stub
+```
+
+## Platform Audit Follow-Up Batch
+
+Non-AI/non-email proof and hardening gaps found during the platform alignment audit:
+
+```text
+89 Deployed quiet summary smoke
+90 Deployed watch action controls smoke
+91 Deployed channel contract/read API smoke
+92 Dimensioned aggregate-forward smoke
+93 Scheduled delivery and aggregate-forward cursor hardening
+94 Deployed advanced watch smoke
+95 Deployed operator observability smoke
 ```

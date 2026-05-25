@@ -13,6 +13,9 @@ Example config:
   "bucket_type": "hour",
   "emit_after_grace_seconds": 60,
   "subscriber_id": "sub_foretic",
+  "dimensions": {
+    "forecast_id": "fc_123"
+  },
   "include": {
     "sum": true,
     "count": true,
@@ -26,7 +29,9 @@ Example config:
 
 ## Delivery
 
-Closed buckets create `aggregate_deliveries` rows with stable ids and `INSERT OR IGNORE` semantics. Queue messages use:
+Closed buckets create `aggregate_deliveries` rows with stable ids and `INSERT OR IGNORE` semantics. Delivery identity includes `subscriber_id`, `signal_id`, `bucket_type`, `bucket_start_at`, and `dimensions_hash`, so multiple forecasts, merchants, vendors, or machines can share a bucket without colliding.
+
+Queue messages use:
 
 ```json
 {
@@ -53,17 +58,21 @@ running across a later cron pass does not duplicate the same closed bucket
 
 ## Foretic Callback Payload
 
-Aggregate-forward webhook bodies include stable ids so Foretic can safely dedupe retries.
+Aggregate-forward webhook bodies include stable ids so Foretic can safely dedupe retries. Payloads also include dimensions and safe latest event context when present.
 
 ```json
 {
   "source": "heads_up",
   "event_type": "aggregate_bucket_closed",
   "delivery_id": "aggdel_example",
-  "dedupe_key": "sub_foretic:sig_123:hour:2026-05-24T10:00:00.000Z",
+  "dedupe_key": "sub_foretic:sig_123:hour:2026-05-24T10:00:00.000Z:d7a4bf91",
   "signal_key": "oxygen.percent",
   "workspace_id": "ws_123",
   "channel_id": "ch_123",
+  "dimensions_hash": "d7a4bf91",
+  "dimensions": {
+    "forecast_id": "fc_123"
+  },
   "bucket": {
     "type": "hour",
     "start_at": "2026-05-24T10:00:00.000Z",
@@ -76,6 +85,18 @@ Aggregate-forward webhook bodies include stable ids so Foretic can safely dedupe
     "min": 4,
     "max": 21,
     "last": 4
+  },
+  "fields": {
+    "forecast_id": "fc_123",
+    "status": "warning"
+  },
+  "cta": {
+    "label": "View forecast",
+    "url": "https://foretic.io/forecasts/fc_123"
   }
 }
 ```
+
+## Known Hardening Gap
+
+`aggregate_deliveries` prevents duplicate delivery rows for the same dimensioned bucket. A follow-up runtime story should add an emitted cursor or queue-send guard so cron does not repeatedly enqueue an already-created delivery ID.

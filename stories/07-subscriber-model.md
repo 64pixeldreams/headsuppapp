@@ -2,12 +2,12 @@
 
 ## Spec Check
 
-Subscribers receive alerts or aggregate-forward payloads. MVP subscriber types are Slack webhook and generic webhook; email is out of scope.
+Subscribers receive alerts, quiet summaries, or aggregate-forward payloads. Current subscriber types are Slack webhook and generic webhook; email is future scope.
 
 ## Scope
 
 - Represent subscribers in D1 schema.
-- Preserve mode: `alert` or `aggregate_forward`.
+- Preserve mode: `alert`, `aggregate_forward`, or `quiet_summary`.
 - Validate and redact destination URLs.
 
 ## Acceptance Criteria

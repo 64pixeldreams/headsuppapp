@@ -1,3 +1,5 @@
+> Historical document. This file is preserved for context and may not describe the current operational API. Use `README.md`, `docs/README.md`, and `docs/api/README.md` for current documentation.
+
 # First Milestone Test Plan
 
 The first milestone is a thin but correct alert path.

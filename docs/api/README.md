@@ -22,6 +22,7 @@ related stories
 
 ```text
 quickstart.md
+cursor-api-instructions.md
 reference.md
 authentication.md
 admin.md
@@ -32,11 +33,12 @@ connectors-and-ingest.md
 alerts-and-deliveries.md
 aggregate-forwarding.md
 observability.md
+spec-alignment-audit.md
 spec-fit-and-proof-tests.md
 smoke-test-suite.md
 ```
 
-## Current App
+## Operational API
 
 Worker app:
 
@@ -50,7 +52,7 @@ Local app folder:
 apps/headsupp-api
 ```
 
-Base endpoints currently scaffolded:
+Base endpoints:
 
 ```text
 GET /health
@@ -62,4 +64,4 @@ POST /v1/events/{connector_key}
 
 The ingest route validates connector HMAC, queues raw events, and returns `202 Accepted`. Processing happens asynchronously through Cloudflare Queues.
 
-Use `reference.md` for endpoint/action schemas and `smoke-test-suite.md` for release proof commands.
+Use `cursor-api-instructions.md` for the shortest copy-paste API path, `reference.md` for endpoint/action schemas, `spec-alignment-audit.md` for product alignment, and `smoke-test-suite.md` for release proof commands.

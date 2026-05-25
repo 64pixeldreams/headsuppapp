@@ -1,3 +1,5 @@
+> Historical document. This file is preserved for context and may not describe the current operational API. Use `README.md`, `docs/README.md`, and `docs/api/README.md` for current documentation.
+
 # Heads Up Architecture Gap Audit (2026-05-24)
 
 This audit checks the current repository against `headsupp.io` messaging and current product specs.

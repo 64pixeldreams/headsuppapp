@@ -1,8 +1,10 @@
 # Heads Up API
 
-Heads Up Core API is a Cloudflare Worker app.
+Heads Up Core API is an operational Cloudflare Worker app.
 
 It uses the vendored CFKit framework for the control plane and direct Cloudflare primitives for the event engine.
+
+Heads Up is proprietary software. The intellectual property is owned by 64 Pixel Holdings LLC and operated by Inc64 LLC. See `../../LICENSE`.
 
 ## Local Structure
 

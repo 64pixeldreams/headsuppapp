@@ -16,7 +16,7 @@ Use it because it is simple, fast, and does not require extra setup.
 
 ## Test Folder Shape
 
-Create this structure when the Worker project is scaffolded:
+The operational API uses this structure:
 
 ```text
 test/
@@ -72,7 +72,7 @@ day = 2026-05-23T00:00:00.000Z
 month = 2026-05-01T00:00:00.000Z
 ```
 
-If weekly buckets are included in v1, add week tests before implementing spend watches.
+If weekly buckets are added later, add week tests before implementing spend watches that depend on them.
 
 ### Batch Folding
 

@@ -2,6 +2,8 @@
 
 [Heads Up](https://headsupp.io) is an API-first attention-processing engine.
 
+Heads Up is proprietary software. The intellectual property is owned by 64 Pixel Holdings LLC and operated by Inc64 LLC. See `LICENSE`.
+
 It receives noisy events from other systems, aggregates them into useful signal buckets, evaluates watches against those aggregates, and notifies people or systems only when something meaningful changes.
 
 ```text
@@ -25,9 +27,9 @@ Heads Up is not a dashboard, BI tool, or per-event alerting system. The core pro
 - Exposes safe alert and watch-state reads so quiet channels remain auditable.
 - Supports explicit watch action controls and quiet-summary delivery.
 
-## Current App
+## Operational App
 
-The current implementation is the Heads Up Core API:
+The current implementation is the operational Heads Up Core API:
 
 ```text
 apps/headsupp-api
@@ -53,10 +55,13 @@ https://headsupp_app.martin-598.workers.dev
 
 - Product/spec source: `SPEC_BREIF.md`
 - Product brief: `Curosr_headsupp_product_brief.md`
+- Documentation map and policy: `docs/README.md`
 - Cursor project rules: `cursor.js`
 - API docs index: `docs/api/README.md`
 - API quickstart: `docs/api/quickstart.md`
+- Cursor API instruction sheet: `docs/api/cursor-api-instructions.md`
 - API reference: `docs/api/reference.md`
+- Spec alignment audit: `docs/api/spec-alignment-audit.md`
 - Authentication and tenant rules: `docs/api/authentication.md`
 - Admin/control-plane API: `docs/api/admin.md`
 - Event ingest and connectors: `docs/api/connectors-and-ingest.md`
@@ -67,6 +72,7 @@ https://headsupp_app.martin-598.workers.dev
 - Smoke test matrix: `docs/api/smoke-test-suite.md`
 - Final smoke runbook: `docs/final-smoke-runbook.md`
 - Operations runbook: `docs/operations-runbook.md`
+- Historical docs archive: `docs/archive/README.md`
 - Story index: `stories/README.md`
 
 ## Key API Endpoints
@@ -148,6 +154,12 @@ These prove:
 
 Runtime secrets such as Cloudflare API tokens and Slack webhook URLs must be passed through environment variables only. Do not commit them.
 
+## Ownership And License
+
+Heads Up, including the code, documentation, designs, specifications, workflows, and related materials in this repository, is proprietary intellectual property owned by 64 Pixel Holdings LLC and operated by Inc64 LLC.
+
+This repository is not open source. See `LICENSE` for usage restrictions.
+
 ## Main Code Paths
 
 - Worker entrypoint: `apps/headsupp-api/src/index.js`
@@ -182,6 +194,6 @@ Deployed release smokes are opt-in and require repository secrets. See `docs/api
 
 ## Status
 
-The core API MVP is built and deployed with local tests, load smoke, deployed smokes, operator bootstrap/auth hardening, audit logging, CI gates, operational health, and runbooks.
+The core API is built, deployed, and operational with local tests, load smoke, deployed smokes, operator bootstrap/auth hardening, audit logging, CI gates, operational health, and runbooks.
 
 Remaining product work should stay story-driven through `stories/README.md`.

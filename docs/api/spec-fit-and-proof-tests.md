@@ -40,7 +40,7 @@ npm run load:smoke
 Current result:
 
 ```text
-151 tests passing
+178 tests passing
 load smoke accepts 10000 synthetic events
 ```
 
@@ -104,7 +104,7 @@ Expected proof:
 missing-expected creates one absence alert
 digest creates one digest alert and updates watch state
 aggregate-forward creates one closed-bucket delivery
-aggregate-forward payload includes delivery_id and dedupe_key
+aggregate-forward payload includes delivery_id, dimension-safe dedupe_key, dimensions, and safe context when present
 later cron pass does not duplicate the same closed-bucket delivery
 ```
 
@@ -146,6 +146,7 @@ Additional correctness proofs now covered in code/runtime:
 
 ```text
 dedupe keys move through processing -> processed state before final duplicate suppression
+aggregate-applied idempotency staging prevents retry data loss and double-counted aggregates
 late events cannot overwrite aggregate last_value unless last_event_at is newer/equal
 contract extraction supports value_path/time_path/cta_path with value.num fallback
 dimensioned aggregates isolate fold and watch evaluation by dimensions_hash
@@ -156,4 +157,6 @@ observability endpoint requires operator auth token
 
 ## Remaining Risk
 
-The current generic provisioning command is an operator smoke utility backed by Cloudflare API credentials. A future hardening pass should add a first-class admin API-key bootstrap flow for production operators.
+The current generic provisioning command is an operator smoke utility backed by Cloudflare API credentials. A future hardening pass should add deployed smoke coverage that provisions through `/api/function` using an API key.
+
+Other non-AI/non-email proof gaps are tracked in `spec-alignment-audit.md`: quiet-summary deployed proof, action-control deployed proof, dimensioned aggregate-forward deployed proof, live Foretic Worker proof, scheduled alert delivery enqueue proof, and aggregate-forward cursor/requeue hardening.
