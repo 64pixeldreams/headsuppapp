@@ -1,4 +1,4 @@
-> Historical document. This file is preserved for context and may not describe the current operational API. Use `README.md`, `docs/README.md`, and `docs/api/README.md` for current documentation.
+> Historical document. This file is preserved for context and may not describe the current operational API. Use [README.md](../../README.md), [docs/README.md](../README.md), and [docs/api/README.md](../api/README.md) for current documentation.
 
 # First Milestone Test Plan
 
