@@ -1,0 +1,89 @@
+name: Sync Public SDK Docs
+
+on:
+  workflow_dispatch:
+    inputs:
+      sdk_repo:
+        description: Target SDK repository slug
+        required: true
+        default: 64pixeldreams/headsuppclientsdk
+      sdk_base_branch:
+        description: Base branch in SDK repository
+        required: true
+        default: main
+      dry_run:
+        description: Run sync and validation without opening PR
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  sync-public-docs:
+    name: Sync Public Docs To SDK Repo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Export docs/public-sdk from source docs
+        run: node scripts/sync-sdk-docs.mjs --export-only
+
+      - name: Validate public docs
+        run: node scripts/validate-public-docs.mjs
+
+      - name: Show dry run summary
+        if: ${{ inputs.dry_run == 'true' }}
+        run: |
+          git status --short
+          echo "Dry run complete."
+
+      - name: Clone target SDK repository
+        if: ${{ inputs.dry_run != 'true' }}
+        env:
+          SDK_REPO_PAT: ${{ secrets.SDK_REPO_PAT }}
+        run: |
+          if [ -z "$SDK_REPO_PAT" ]; then
+            echo "SDK_REPO_PAT is required."
+            exit 1
+          fi
+          git clone "https://x-access-token:${SDK_REPO_PAT}@github.com/${{ inputs.sdk_repo }}.git" "$RUNNER_TEMP/sdk-repo"
+
+      - name: Sync docs into SDK repository clone
+        if: ${{ inputs.dry_run != 'true' }}
+        run: node scripts/sync-sdk-docs.mjs --sdk-repo-path "$RUNNER_TEMP/sdk-repo"
+
+      - name: Create or update sync branch and PR
+        if: ${{ inputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.SDK_REPO_PAT }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/sdk-repo"
+          branch_name="docs-sync-${{ github.run_id }}"
+          git checkout -b "$branch_name"
+
+          if git diff --quiet; then
+            echo "No SDK doc changes detected."
+            exit 0
+          fi
+
+          git config user.name "headsupp-doc-sync"
+          git config user.email "headsupp-doc-sync@users.noreply.github.com"
+          git add docs
+          git commit -m "Sync public SDK docs from headsuppapp"
+          git push origin "$branch_name"
+
+          gh pr create \
+            --repo "${{ inputs.sdk_repo }}" \
+            --base "${{ inputs.sdk_base_branch }}" \
+            --head "$branch_name" \
+            --title "Sync public SDK docs from headsuppapp" \
+            --body "Automated docs sync from private source repository curated public docs set."

@@ -39,6 +39,28 @@ Heads Up is not a dashboard, BI tool, or per-event alerting system. The core pro
 
 Use the full use-case guide: [docs/api/use-cases.md](docs/api/use-cases.md).
 
+## Supported Watch Types
+
+Master explainer: [docs/api/watch-types.md](docs/api/watch-types.md#watch-type-index)
+
+- [`LAST_VALUE_GT`](docs/api/watch-types.md#last_value_gt)
+- [`LAST_VALUE_LT`](docs/api/watch-types.md#last_value_lt)
+- [`WINDOW_SUM_GT`](docs/api/watch-types.md#window_sum_gt)
+- [`WINDOW_AVG_GT`](docs/api/watch-types.md#window_avg_gt)
+- [`WINDOW_AVG_LT`](docs/api/watch-types.md#window_avg_lt)
+- [`WINDOW_COUNT_GT`](docs/api/watch-types.md#window_count_gt)
+- [`DELTA_GT`](docs/api/watch-types.md#delta_gt)
+- [`DELTA_LT`](docs/api/watch-types.md#delta_lt)
+- [`PERCENT_CHANGE_GT`](docs/api/watch-types.md#percent_change_gt)
+- [`PERCENT_CHANGE_LT`](docs/api/watch-types.md#percent_change_lt)
+- [`PREVIOUS_PERIOD_RATIO_GT`](docs/api/watch-types.md#previous_period_ratio_gt)
+- [`PREVIOUS_PERIOD_RATIO_LT`](docs/api/watch-types.md#previous_period_ratio_lt)
+- [`SPIKE_GT`](docs/api/watch-types.md#spike_gt)
+- [`MISSING_EXPECTED`](docs/api/watch-types.md#missing_expected)
+- [`REMINDER_DUE`](docs/api/watch-types.md#reminder_due)
+- [`DIGEST`](docs/api/watch-types.md#digest)
+- [`AGGREGATE_FORWARD`](docs/api/watch-types.md#aggregate_forward)
+
 ## Operational App
 
 The current implementation is the operational Heads Up Core API:
@@ -72,6 +94,7 @@ https://headsupp_app.martin-598.workers.dev
 - API start here (primary): [docs/api/quickstart.md](docs/api/quickstart.md)
 - API props reference (primary): [docs/api/reference.md](docs/api/reference.md)
 - API use-case guide: [docs/api/use-cases.md](docs/api/use-cases.md)
+- Watch types catalog: [docs/api/watch-types.md](docs/api/watch-types.md)
 - API docs index: [docs/api/README.md](docs/api/README.md)
 - Node/Cloudflare client wrapper: [docs/api/node-cloudflare-client.md](docs/api/node-cloudflare-client.md)
 - Cursor API instruction sheet: [docs/api/cursor-api-instructions.md](docs/api/cursor-api-instructions.md)

@@ -1,0 +1,452 @@
+openapi: 3.1.0
+info:
+  title: Heads Up Core API
+  version: 0.1.0
+  description: >
+    API-first attention-processing engine. Control-plane operations use CFKit
+    actions through POST /api/function. Event ingest uses connector HMAC and
+    returns 202 after validation and queueing.
+servers:
+  - url: https://headsupp_app.martin-598.workers.dev
+    description: Deployed development Worker
+  - url: http://localhost:8787
+    description: Local Wrangler dev
+security: []
+paths:
+  /health:
+    get:
+      summary: Lightweight health check
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service is reachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /api/v1/health:
+    get:
+      summary: Versioned health check
+      operationId: getVersionedHealth
+      responses:
+        "200":
+          description: Service is reachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /api/v1/observability/overview:
+    get:
+      summary: Operator-safe observability overview
+      operationId: getObservabilityOverview
+      security:
+        - operatorBearer: []
+        - operatorHeader: []
+        - bootstrapHeader: []
+      responses:
+        "200":
+          description: Read-only operational counts with no secrets or raw payload bodies
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObservabilityOverviewResponse"
+        "401":
+          description: Operator authentication is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/function:
+    post:
+      summary: Execute a CFKit control-plane action
+      operationId: executeFunction
+      security:
+        - apiKeyBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FunctionRequest"
+            examples:
+              createWorkspace:
+                value:
+                  action: admin.createWorkspace
+                  payload:
+                    name: Demo Workspace
+                    source_app: headsupp-demo
+                    external_tenant_id: demo-tenant
+                    external_user_id: demo-user
+              bootstrapServiceApiKey:
+                value:
+                  action: operator.bootstrapServiceApiKey
+                  payload:
+                    name: Demo integration service
+                    user_id: service:demo
+                    source_app: headsupp-demo
+                    permissions:
+                      - workspace:create
+                      - channel:create
+                      - channel:read
+                      - channel:update
+                      - connector:create
+                      - subscriber:create
+                      - signal:create
+                      - watch:create
+                      - alert:read
+                      - watch:read
+                      - watch:control
+              createSlackSubscriber:
+                value:
+                  action: admin.createSubscriber
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+                    subscriber_type: slack_webhook
+                    destination_url: https://hooks.slack.com/services/T_TEST/B_TEST/SECRET
+                    display_name: "#ops-alerts"
+                    mode: alert
+              createChannelWithMetadata:
+                value:
+                  action: admin.createChannel
+                  payload:
+                    workspace_id: ws_demo
+                    name: Coffee Spend
+                    purpose: Spend anomaly monitoring
+                    metadata:
+                      user_id: user_demo
+                      forecast_id: forecast_coffee_2026
+                      budget_id: budget_coffee_primary
+              getChannel:
+                value:
+                  action: admin.getChannel
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+              updateChannelMetadata:
+                value:
+                  action: admin.updateChannel
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+                    metadata:
+                      user_id: user_demo
+                      forecast_id: forecast_coffee_2026_v2
+                      budget_id: budget_coffee_primary
+              createWebhookSubscriber:
+                value:
+                  action: admin.createSubscriber
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+                    subscriber_type: webhook
+                    destination_url: https://example.com/headsupp/alerts
+                    display_name: Alert callback
+                    mode: alert
+                    config:
+                      signing_secret: receiver_shared_secret
+              createThresholdWatch:
+                value:
+                  action: admin.createWatch
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+                    signal_id: sig_demo
+                    name: Demo metric high
+                    watch_type: LAST_VALUE_GT
+                    config:
+                      threshold: 10
+                      severity: warning
+                      bucket_type: minute
+                    cooldown_seconds: 3600
+              createWeeklyTotalWatch:
+                value:
+                  action: admin.createWatch
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+                    signal_id: sig_demo
+                    name: Weekly spend high
+                    watch_type: WINDOW_SUM_GT
+                    config:
+                      threshold: 500
+                      severity: warning
+                      bucket_type: week
+                      window:
+                        size: 1
+              createAggregateForwardWatch:
+                value:
+                  action: admin.createWatch
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+                    signal_id: sig_demo
+                    name: Forward hourly aggregate
+                    watch_type: AGGREGATE_FORWARD
+                    config:
+                      bucket_type: hour
+                      emit_after_grace_seconds: 60
+                      subscriber_id: sub_forward
+                      include:
+                        sum: true
+                        count: true
+                        avg: true
+                        min: true
+                        max: true
+                        last: true
+      responses:
+        "200":
+          description: Action-specific success response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FunctionSuccessResponse"
+        "400":
+          description: Missing or invalid action request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: API key or operator authorization failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/events/{connector_key}:
+    post:
+      summary: Ingest one or more signed connector events
+      operationId: ingestConnectorEvents
+      security:
+        - connectorTimestamp: []
+          connectorSignature: []
+      parameters:
+        - name: connector_key
+          in: path
+          required: true
+          schema:
+            type: string
+          example: ck_demo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/EventIngestPayload"
+                - $ref: "#/components/schemas/EventBatchIngestPayload"
+            examples:
+              single:
+                value:
+                  idempotency_key: evt_demo_001
+                  signal_key: demo.metric
+                  occurred_at: "2026-05-24T18:00:00.000Z"
+                  value:
+                    num: 15
+                  fields:
+                    source: demo
+                  cta:
+                    label: View metric
+                    url: https://example.com/metrics/demo
+      responses:
+        "202":
+          description: Event payload accepted and queued for asynchronous processing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventAcceptedResponse"
+        "400":
+          description: Event payload is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventRejectedResponse"
+        "401":
+          description: Connector HMAC authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventRejectedResponse"
+        "405":
+          description: Event ingest requires POST
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventRejectedResponse"
+components:
+  securitySchemes:
+    apiKeyBearer:
+      type: http
+      scheme: bearer
+      description: Service API key for CFKit admin/operator actions.
+    operatorBearer:
+      type: http
+      scheme: bearer
+      description: Runtime operator token for observability.
+    operatorHeader:
+      type: apiKey
+      in: header
+      name: X-HeadsUp-Operator-Token
+    bootstrapHeader:
+      type: apiKey
+      in: header
+      name: X-HeadsUp-Bootstrap-Token
+    connectorTimestamp:
+      type: apiKey
+      in: header
+      name: X-HeadsUp-Timestamp
+    connectorSignature:
+      type: apiKey
+      in: header
+      name: X-HeadsUp-Signature
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, app, framework, role, timestamp]
+      properties:
+        status:
+          type: string
+          const: ok
+        app:
+          type: string
+          example: headsupp_app
+        framework:
+          type: string
+          example: CFKit
+        role:
+          type: string
+          example: attention-processing-api
+        timestamp:
+          type: string
+          format: date-time
+    FunctionRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          description: CFKit action such as admin.createWorkspace or operator.rotateServiceApiKey.
+        payload:
+          type: object
+          additionalProperties: true
+    FunctionSuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          additionalProperties: true
+      additionalProperties: true
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          const: false
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+    ErrorDetail:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    EventIngestPayload:
+      type: object
+      required: [idempotency_key, signal_key, occurred_at, value]
+      properties:
+        idempotency_key:
+          type: string
+        signal_key:
+          type: string
+        occurred_at:
+          type: string
+          format: date-time
+        value:
+          type: object
+          additionalProperties: true
+          properties:
+            num:
+              type: number
+        fields:
+          type: object
+          additionalProperties: true
+        dimensions:
+          type: object
+          additionalProperties: true
+        cta:
+          type: object
+          additionalProperties: true
+          properties:
+            label:
+              type: string
+            url:
+              type: string
+              format: uri
+            kind:
+              type: string
+    EventBatchIngestPayload:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/EventIngestPayload"
+    EventAcceptedResponse:
+      type: object
+      required: [accepted, authenticated, queued, rejected, connector_key]
+      properties:
+        accepted:
+          type: boolean
+          const: true
+        authenticated:
+          type: boolean
+          const: true
+        queued:
+          type: integer
+          minimum: 0
+        rejected:
+          type: integer
+          minimum: 0
+        connector_key:
+          type: string
+    EventRejectedResponse:
+      type: object
+      required: [accepted, error]
+      properties:
+        accepted:
+          type: boolean
+          const: false
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+    ObservabilityOverviewResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          type: object
+          additionalProperties: true
+          properties:
+            status:
+              type: string
+              example: ok
+            active_watches:
+              type: integer
+            aggregate_rows:
+              type: integer
+            deliveries:
+              type: object
+              additionalProperties: true
+            operator_health:
+              type: object
+              additionalProperties: true

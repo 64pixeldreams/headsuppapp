@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "exports": [
+    {
+      "source": "docs/api/quickstart.md",
+      "publicTarget": "quickstart.md",
+      "sdkTarget": "docs/quickstart.md",
+      "publicReplacements": [
+        {
+          "from": "node-cloudflare-client.md",
+          "to": "sdk-readme.md"
+        }
+      ]
+    },
+    {
+      "source": "docs/api/reference.md",
+      "publicTarget": "reference.md",
+      "sdkTarget": "docs/reference.md",
+      "publicReplacements": [
+        {
+          "from": "node-cloudflare-client.md",
+          "to": "sdk-readme.md"
+        }
+      ]
+    },
+    {
+      "source": "docs/api/watch-types.md",
+      "publicTarget": "watch-types.md",
+      "sdkTarget": "docs/watch-types.md"
+    },
+    {
+      "source": "docs/api/use-cases.md",
+      "publicTarget": "use-cases.md",
+      "sdkTarget": "docs/use-cases.md"
+    },
+    {
+      "source": "docs/api/webhook-receivers.md",
+      "publicTarget": "webhook-receivers.md",
+      "sdkTarget": "docs/webhook-receivers.md"
+    },
+    {
+      "source": "docs/api/openapi.yaml",
+      "publicTarget": "openapi.yaml",
+      "sdkTarget": "docs/openapi.yaml"
+    },
+    {
+      "source": "packages/headsupp-client/README.md",
+      "publicTarget": "sdk-readme.md",
+      "sdkTarget": "docs/sdk-readme.md",
+      "publicReplacements": [
+        {
+          "from": "../../docs/api/",
+          "to": "./"
+        }
+      ],
+      "sdkReplacements": [
+        {
+          "from": "../../docs/api/",
+          "to": "./"
+        }
+      ]
+    }
+  ]
+}

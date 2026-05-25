@@ -2,7 +2,7 @@
 
 Private Node and Cloudflare Workers client for the Heads Up API.
 
-For API onboarding, start with [quickstart.md](../../docs/api/quickstart.md) in the main repo, then use [reference.md](../../docs/api/reference.md) for all props and [use-cases.md](../../docs/api/use-cases.md) for scenario guidance.
+For API onboarding, start with [quickstart.md](./quickstart.md) in the main repo, then use [reference.md](./reference.md) for all props and [use-cases.md](./use-cases.md) for scenario guidance.
 
 This package is proprietary software owned by 64 Pixel Holdings LLC and operated by Inc64 LLC.
 
@@ -266,7 +266,7 @@ await headsup.createWatch({
 });
 ```
 
-See [watch-types.md](../../docs/api/watch-types.md) in the main repo for all supported watch types.
+See [watch-types.md](./watch-types.md) in the main repo for all supported watch types.
 
 ## Send Events
 

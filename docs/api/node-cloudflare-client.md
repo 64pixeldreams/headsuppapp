@@ -89,6 +89,39 @@ After the publish workflow succeeds, verify with an authenticated npm token:
 npm view @64pixeldreams/headsupp-client version --registry=https://npm.pkg.github.com
 ```
 
+### Public SDK Docs Sync
+
+This repository is private and includes internal docs that must not be mirrored into a public repository.
+
+Public-safe SDK docs are curated under:
+
+```text
+docs/public-sdk
+```
+
+Sync workflow (PR-based, no direct push):
+
+```text
+.github/workflows/sync-sdk-docs.yml
+```
+
+Supporting scripts:
+
+```text
+scripts/sdk-doc-sync-manifest.json
+scripts/sync-sdk-docs.mjs
+scripts/validate-public-docs.mjs
+```
+
+Run locally before dispatching workflow:
+
+```bash
+node scripts/sync-sdk-docs.mjs --export-only
+node scripts/validate-public-docs.mjs
+```
+
+Then run the workflow with `workflow_dispatch` to open a PR in the SDK repo.
+
 ### Clone Only The Wrapper From This Repo
 
 Git can sparse-checkout only the wrapper folder:

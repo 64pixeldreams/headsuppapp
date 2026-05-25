@@ -361,6 +361,6 @@ INVALID_EVENT_PAYLOAD
 - [quickstart.md](quickstart.md) for the fastest path.
 - [use-cases.md](use-cases.md) for scenario selection and product value mapping.
 - [watch-types.md](watch-types.md) for watch behavior and config examples.
-- [node-cloudflare-client.md](node-cloudflare-client.md) for SDK usage.
+- [sdk-readme.md](sdk-readme.md) for SDK usage.
 - [webhook-receivers.md](webhook-receivers.md) for receiver implementation.
 - [openapi.yaml](openapi.yaml) for machine-readable endpoint schema.
