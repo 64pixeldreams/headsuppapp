@@ -2,7 +2,7 @@
 
 This note maps the current API to the product spec and lists the tests that prove it.
 
-For endpoint/action schemas, see `reference.md` and `openapi.yaml`. For the release smoke matrix, see `smoke-test-suite.md`.
+For endpoint/action schemas, see [reference.md](reference.md) and [openapi.yaml](openapi.yaml). For the release smoke matrix, see [smoke-test-suite.md](smoke-test-suite.md).
 
 ## Current Spec Fit
 
@@ -186,4 +186,4 @@ observability endpoint requires operator auth token
 
 The current generic provisioning command is an operator smoke utility backed by Cloudflare API credentials. A future hardening pass should add deployed smoke coverage that provisions through `/api/function` using an API key.
 
-Other non-AI/non-email proof gaps are tracked in `spec-alignment-audit.md`: live Foretic Worker proof and migration of some deterministic smoke setup from D1/KV harness operations to `/api/function` provisioning.
+Other non-AI/non-email proof gaps are tracked in [spec-alignment-audit.md](spec-alignment-audit.md): live Foretic Worker proof and migration of some deterministic smoke setup from D1/KV harness operations to `/api/function` provisioning.

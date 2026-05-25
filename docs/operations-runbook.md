@@ -31,7 +31,7 @@ The observability response is safe for operators. It must not include raw event 
 
 ## First API Key Or Key Rotation
 
-The first service API key is created with `operator.bootstrapServiceApiKey` and the runtime Worker secret `HEADSUPP_BOOTSTRAP_TOKEN`. See `docs/api/getting-started-api-keys.md` for the exact request.
+The first service API key is created with `operator.bootstrapServiceApiKey` and the runtime Worker secret `HEADSUPP_BOOTSTRAP_TOKEN`. See [docs/api/getting-started-api-keys.md](api/getting-started-api-keys.md) for the exact request.
 
 If bootstrap fails:
 

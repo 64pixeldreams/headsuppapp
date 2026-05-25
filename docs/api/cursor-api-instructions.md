@@ -1,8 +1,8 @@
 # Cursor API Instructions
 
-This is the short copy-paste guide for using Heads Up from Cursor or a script. For the full learning path, use `quickstart.md`. For first-run keys, use `getting-started-api-keys.md`. For Slack/generic callbacks, use `webhook-receivers.md`. For feature choices, use `watch-types.md`. For full schemas, use `reference.md`.
+This is the short copy-paste guide for using Heads Up from Cursor or a script. For the full learning path, use [quickstart.md](quickstart.md). For first-run keys, use [getting-started-api-keys.md](getting-started-api-keys.md). For Slack/generic callbacks, use [webhook-receivers.md](webhook-receivers.md). For feature choices, use [watch-types.md](watch-types.md). For value-based patterns, use [use-cases.md](use-cases.md). For full schemas, use [reference.md](reference.md).
 
-For Node or Cloudflare Workers, prefer the wrapper in `node-cloudflare-client.md`.
+For Node or Cloudflare Workers, prefer the wrapper in [node-cloudflare-client.md](node-cloudflare-client.md).
 
 All examples use fake IDs and fake secrets. Never commit real API keys, connector secrets, Cloudflare tokens, or Slack webhook URLs.
 

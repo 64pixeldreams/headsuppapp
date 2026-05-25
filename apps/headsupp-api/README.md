@@ -60,7 +60,7 @@ Remove-Item Env:HEADSUPP_SMOKE_SLACK_WEBHOOK_URL
 Remove-Item Env:HEADSUPP_SMOKE_DISPATCH_SLACK
 ```
 
-See `../../docs/final-smoke-runbook.md` for the full closure runbook.
+See [../../docs/final-smoke-runbook.md](../../docs/final-smoke-runbook.md) for the full closure runbook.
 
 ## Generic Slack Smoke
 

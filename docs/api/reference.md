@@ -1,6 +1,6 @@
 # Heads Up API Reference (Props)
 
-Use this after `quickstart.md`.
+Use this after [quickstart.md](quickstart.md).
 
 This file is the canonical property reference for integration work. It covers:
 
@@ -360,7 +360,8 @@ INVALID_EVENT_PAYLOAD
 
 ## Related Docs
 
-- `quickstart.md` for the fastest path.
-- `node-cloudflare-client.md` for SDK usage.
-- `webhook-receivers.md` for receiver implementation.
-- `openapi.yaml` for machine-readable endpoint schema.
+- [quickstart.md](quickstart.md) for the fastest path.
+- [use-cases.md](use-cases.md) for scenario selection and product value mapping.
+- [node-cloudflare-client.md](node-cloudflare-client.md) for SDK usage.
+- [webhook-receivers.md](webhook-receivers.md) for receiver implementation.
+- [openapi.yaml](openapi.yaml) for machine-readable endpoint schema.

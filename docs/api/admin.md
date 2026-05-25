@@ -1,6 +1,6 @@
 # Admin API
 
-Primary docs: use `quickstart.md` for setup flow and `reference.md` for canonical request/response props. This file is a focused companion for admin behavior notes.
+Primary docs: use [quickstart.md](quickstart.md) for setup flow and [reference.md](reference.md) for canonical request/response props. This file is a focused companion for admin behavior notes.
 
 Admin operations use CFKit CloudFunctions through:
 
@@ -174,7 +174,7 @@ Aggregate-forward callback:
 }
 ```
 
-Subscriber responses include redacted URL metadata. Do not expose real Slack webhook URLs in logs or docs. See `webhook-receivers.md` for callback payloads, retries, and signature verification.
+Subscriber responses include redacted URL metadata. Do not expose real Slack webhook URLs in logs or docs. See [webhook-receivers.md](webhook-receivers.md) for callback payloads, retries, and signature verification.
 
 ## Create Signal
 
@@ -242,7 +242,7 @@ Sensitive control-plane actions write safe audit rows to D1. Audit metadata reda
 }
 ```
 
-Use `watch-types.md` for plain-English examples of thresholds, totals, averages, counts, deltas, percent changes, missing expected events, reminders, digests, and aggregate forwarding.
+Use [watch-types.md](watch-types.md) for plain-English examples of thresholds, totals, averages, counts, deltas, percent changes, missing expected events, reminders, digests, and aggregate forwarding.
 
 ## Channel Contracts
 

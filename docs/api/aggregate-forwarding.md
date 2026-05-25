@@ -1,6 +1,6 @@
 # Aggregate Forwarding
 
-Primary docs: use `quickstart.md` for setup flow and `reference.md` for callback contract props. This file stays focused on aggregate-forward behavior.
+Primary docs: use [quickstart.md](quickstart.md) for setup flow and [reference.md](reference.md) for callback contract props. This file stays focused on aggregate-forward behavior.
 
 Aggregate forwarding is the high-volume compression path. It sends one aggregate payload when a configured bucket closes, rather than forwarding raw events.
 

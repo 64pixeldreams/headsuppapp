@@ -21,18 +21,17 @@ docs/operations-runbook.md
 
 Primary onboarding path is now:
 
-```text
-docs/api/quickstart.md
-docs/api/reference.md
-```
+- [docs/api/quickstart.md](api/quickstart.md)
+- [docs/api/reference.md](api/reference.md)
+- [docs/api/use-cases.md](api/use-cases.md)
 
 Other API docs should stay trimmed and link back to those two files.
 
-Use `SPEC_BREIF.md` and `Curosr_headsupp_product_brief.md` as product/spec sources. Those files preserve original product language and may include historical milestone terminology.
+Use [SPEC_BREIF.md](../SPEC_BREIF.md) and [Curosr_headsupp_product_brief.md](../Curosr_headsupp_product_brief.md) as product/spec sources. Those files preserve original product language and may include historical milestone terminology.
 
 ## Current API Docs
 
-`docs/api/` contains current API documentation. Behavior-changing stories must update `docs/api/` in the same change when they affect:
+`docs/api/` contains current API documentation. Behavior-changing stories must update [docs/api/](api/README.md) in the same change when they affect:
 
 ```text
 public endpoints
@@ -47,9 +46,9 @@ smoke proof commands
 
 ## Historical Archive
 
-`docs/archive/` contains historical plans and audits. Archived docs are preserved for context and are not implementation truth unless explicitly revalidated.
+[`docs/archive/`](archive/README.md) contains historical plans and audits. Archived docs are preserved for context and are not implementation truth unless explicitly revalidated.
 
-Do not use archived docs to decide current runtime behavior. Start from `docs/api/README.md` and `docs/api/spec-alignment-audit.md` instead.
+Do not use archived docs to decide current runtime behavior. Start from [docs/api/README.md](api/README.md) and [docs/api/spec-alignment-audit.md](api/spec-alignment-audit.md) instead.
 
 ## Ownership
 

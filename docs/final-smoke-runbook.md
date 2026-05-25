@@ -2,7 +2,7 @@
 
 This runbook verifies the operational Heads Up API loop without committing secrets.
 
-For the full smoke matrix, expected D1 evidence, and release checklist, see `docs/api/smoke-test-suite.md`. For production incident diagnosis, see `docs/operations-runbook.md`.
+For the full smoke matrix, expected D1 evidence, and release checklist, see [docs/api/smoke-test-suite.md](api/smoke-test-suite.md). For production incident diagnosis, see [docs/operations-runbook.md](operations-runbook.md).
 
 ## Rules
 

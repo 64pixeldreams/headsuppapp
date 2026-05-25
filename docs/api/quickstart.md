@@ -10,7 +10,7 @@ This quickstart shows one complete path:
 4. Create a coffee-spend watch.
 5. Send an event and receive a callback.
 
-If you need full action-by-action property definitions, use `reference.md`.
+If you need full action-by-action property definitions, use [reference.md](reference.md).
 
 ## Prerequisites
 
@@ -286,6 +286,7 @@ Machine-routing keys are `type`, `watch_id`, `signal_id`, and `channel_metadata`
 
 ## Next Docs
 
-- `reference.md` for all request/response properties.
-- `node-cloudflare-client.md` for the SDK flow.
-- `webhook-receivers.md` for signature verification and retry behavior.
+- [use-cases.md](use-cases.md) for practical pattern selection and value mapping.
+- [reference.md](reference.md) for all request/response properties.
+- [node-cloudflare-client.md](node-cloudflare-client.md) for the SDK flow.
+- [webhook-receivers.md](webhook-receivers.md) for signature verification and retry behavior.

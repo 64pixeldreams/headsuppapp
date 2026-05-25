@@ -1,10 +1,10 @@
 # Subscribers API
 
-Primary docs: use `quickstart.md` for setup flow and `reference.md` for canonical payload props. Use this file for subscriber-specific context.
+Primary docs: use [quickstart.md](quickstart.md) for setup flow and [reference.md](reference.md) for canonical payload props. Use this file for subscriber-specific context.
 
 Subscribers receive alert or aggregate outputs.
 
-For a full receiver implementation guide, including signature verification and retry behavior, see `webhook-receivers.md`.
+For a full receiver implementation guide, including signature verification and retry behavior, see [webhook-receivers.md](webhook-receivers.md).
 
 ## Routing Rule
 
@@ -183,7 +183,7 @@ X-HeadsUp-Signature: v1=<hmac_sha256_hex(timestamp + "." + raw_body)>
 X-HeadsUp-Delivery-Id: <delivery id>
 ```
 
-Foretic should classify generic alert callbacks by `type = "heads_up.alert"` and dedupe retries by `alert_id`. CTA fields should point back to the source forecast or source system view.
+Integrations should classify generic alert callbacks by `type = "heads_up.alert"` and dedupe retries by `alert_id`. CTA fields should point back to the source system view.
 
 Receiver-side verification example:
 

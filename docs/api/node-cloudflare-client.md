@@ -2,7 +2,7 @@
 
 Use the private Heads Up client when you do not want to hand-write `POST /api/function` requests or connector HMAC signing.
 
-For the raw API learning path, use `quickstart.md` first and `reference.md` second. Use this file for SDK equivalents.
+For the raw API learning path, use [quickstart.md](quickstart.md) first and [reference.md](reference.md) second. For scenario selection, use [use-cases.md](use-cases.md). Use this file for SDK equivalents.
 
 Package:
 
@@ -361,7 +361,7 @@ await headsup.createWatch({
 });
 ```
 
-See `watch-types.md` for every supported feature family.
+See [watch-types.md](watch-types.md) for every supported feature family.
 
 ## Send A Signed Event
 

@@ -4,22 +4,24 @@ This folder documents the operational Heads Up API and the integration wrapper.
 
 Primary path:
 
-1. `quickstart.md` (start here)
-2. `reference.md` (all props)
+1. [quickstart.md](quickstart.md) (start here)
+2. [reference.md](reference.md) (all props)
+3. [use-cases.md](use-cases.md) (what to use when)
 
 Everything else in this folder is supporting context and should link back to those two files.
 
 ## Start Here
 
 ```text
-quickstart.md                 beginner tutorial with request and response examples
-reference.md                  canonical action/property reference
-node-cloudflare-client.md     wrapper install and usage guide
-webhook-receivers.md          Slack and generic callback receiver guide
-watch-types.md                plain-English feature and watch catalog
-getting-started-api-keys.md   first-run bootstrap and service API keys
-cursor-api-instructions.md    copy-paste PowerShell API sheet
-openapi.yaml                  machine-readable deployed endpoint surface
+[quickstart.md](quickstart.md)                 beginner tutorial with request and response examples
+[reference.md](reference.md)                  canonical action/property reference
+[use-cases.md](use-cases.md)                  practical value and pattern mapping
+[node-cloudflare-client.md](node-cloudflare-client.md)     wrapper install and usage guide
+[webhook-receivers.md](webhook-receivers.md)          Slack and generic callback receiver guide
+[watch-types.md](watch-types.md)                plain-English feature and watch catalog
+[getting-started-api-keys.md](getting-started-api-keys.md)   first-run bootstrap and service API keys
+[cursor-api-instructions.md](cursor-api-instructions.md)    copy-paste PowerShell API sheet
+[openapi.yaml](openapi.yaml)                  machine-readable deployed endpoint surface
 ```
 
 ## Current API Truth
@@ -81,4 +83,4 @@ POST /v1/events/{connector_key}
 
 The ingest route validates connector HMAC, queues raw events, and returns `202 Accepted`. Processing happens asynchronously through Cloudflare Queues.
 
-Use `cursor-api-instructions.md` for the shortest copy-paste API path, `reference.md` for endpoint/action schemas, `spec-alignment-audit.md` for product alignment, and `smoke-test-suite.md` for release proof commands.
+Use [cursor-api-instructions.md](cursor-api-instructions.md) for the shortest copy-paste API path, [reference.md](reference.md) for endpoint/action schemas, [use-cases.md](use-cases.md) for value-based pattern selection, [spec-alignment-audit.md](spec-alignment-audit.md) for product alignment, and [smoke-test-suite.md](smoke-test-suite.md) for release proof commands.

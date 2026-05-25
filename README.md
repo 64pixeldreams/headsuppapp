@@ -28,6 +28,17 @@ Heads Up is not a dashboard, BI tool, or per-event alerting system. The core pro
 - Exposes safe alert and watch-state reads so quiet channels remain auditable.
 - Supports explicit watch action controls and quiet-summary delivery.
 
+## Common API Use Cases
+
+- Weekly spend guardrails (for example, coffee or vendor spend).
+- Highest transaction in a period via aggregate-forward `values.max`.
+- Missing expected activity ("nothing happened this week/month").
+- Pace/health threshold changes with escalation and recovery.
+- Spike and relative-change detection.
+- High-volume event reduction into clean hourly/daily callback aggregates.
+
+Use the full use-case guide: [docs/api/use-cases.md](docs/api/use-cases.md).
+
 ## Operational App
 
 The current implementation is the operational Heads Up Core API:
@@ -54,29 +65,30 @@ https://headsupp_app.martin-598.workers.dev
 
 ## Important Docs
 
-- Product/spec source: `SPEC_BREIF.md`
-- Product brief: `Curosr_headsupp_product_brief.md`
-- Documentation map and policy: `docs/README.md`
-- Cursor project rules: `cursor.js`
-- API start here (primary): `docs/api/quickstart.md`
-- API props reference (primary): `docs/api/reference.md`
-- API docs index: `docs/api/README.md`
-- Node/Cloudflare client wrapper: `docs/api/node-cloudflare-client.md`
-- Cursor API instruction sheet: `docs/api/cursor-api-instructions.md`
-- OpenAPI endpoint surface: `docs/api/openapi.yaml`
-- Spec alignment audit: `docs/api/spec-alignment-audit.md`
-- Authentication and tenant rules: `docs/api/authentication.md`
-- Admin/control-plane API: `docs/api/admin.md`
-- Event ingest and connectors: `docs/api/connectors-and-ingest.md`
-- Subscribers and delivery retry: `docs/api/subscribers.md`
-- Aggregate forwarding: `docs/api/aggregate-forwarding.md`
-- Observability API: `docs/api/observability.md`
-- Schema and migrations: `docs/api/schema-and-migrations.md`
-- Smoke test matrix: `docs/api/smoke-test-suite.md`
-- Final smoke runbook: `docs/final-smoke-runbook.md`
-- Operations runbook: `docs/operations-runbook.md`
-- Historical docs archive: `docs/archive/README.md`
-- Story index: `stories/README.md`
+- Product/spec source: [SPEC_BREIF.md](SPEC_BREIF.md)
+- Product brief: [Curosr_headsupp_product_brief.md](Curosr_headsupp_product_brief.md)
+- Documentation map and policy: [docs/README.md](docs/README.md)
+- Cursor project rules: [cursor.js](cursor.js)
+- API start here (primary): [docs/api/quickstart.md](docs/api/quickstart.md)
+- API props reference (primary): [docs/api/reference.md](docs/api/reference.md)
+- API use-case guide: [docs/api/use-cases.md](docs/api/use-cases.md)
+- API docs index: [docs/api/README.md](docs/api/README.md)
+- Node/Cloudflare client wrapper: [docs/api/node-cloudflare-client.md](docs/api/node-cloudflare-client.md)
+- Cursor API instruction sheet: [docs/api/cursor-api-instructions.md](docs/api/cursor-api-instructions.md)
+- OpenAPI endpoint surface: [docs/api/openapi.yaml](docs/api/openapi.yaml)
+- Spec alignment audit: [docs/api/spec-alignment-audit.md](docs/api/spec-alignment-audit.md)
+- Authentication and tenant rules: [docs/api/authentication.md](docs/api/authentication.md)
+- Admin/control-plane API: [docs/api/admin.md](docs/api/admin.md)
+- Event ingest and connectors: [docs/api/connectors-and-ingest.md](docs/api/connectors-and-ingest.md)
+- Subscribers and delivery retry: [docs/api/subscribers.md](docs/api/subscribers.md)
+- Aggregate forwarding: [docs/api/aggregate-forwarding.md](docs/api/aggregate-forwarding.md)
+- Observability API: [docs/api/observability.md](docs/api/observability.md)
+- Schema and migrations: [docs/api/schema-and-migrations.md](docs/api/schema-and-migrations.md)
+- Smoke test matrix: [docs/api/smoke-test-suite.md](docs/api/smoke-test-suite.md)
+- Final smoke runbook: [docs/final-smoke-runbook.md](docs/final-smoke-runbook.md)
+- Operations runbook: [docs/operations-runbook.md](docs/operations-runbook.md)
+- Historical docs archive: [docs/archive/README.md](docs/archive/README.md)
+- Story index: [stories/README.md](stories/README.md)
 
 ## Key API Endpoints
 
@@ -157,7 +169,7 @@ await headsup.sendEvent({
 });
 ```
 
-Start with `docs/api/quickstart.md` for the full API journey, `docs/api/getting-started-api-keys.md` for first-run key setup, `docs/api/webhook-receivers.md` for Slack/generic callbacks, `docs/api/watch-types.md` for supported features, and `docs/api/node-cloudflare-client.md` for the SDK.
+Start with [docs/api/quickstart.md](docs/api/quickstart.md) for the full API journey, [docs/api/getting-started-api-keys.md](docs/api/getting-started-api-keys.md) for first-run key setup, [docs/api/use-cases.md](docs/api/use-cases.md) for value and pattern selection, [docs/api/webhook-receivers.md](docs/api/webhook-receivers.md) for Slack/generic callbacks, [docs/api/watch-types.md](docs/api/watch-types.md) for supported features, and [docs/api/node-cloudflare-client.md](docs/api/node-cloudflare-client.md) for the SDK.
 
 ## Development
 
@@ -273,10 +285,10 @@ npm run check
 npm run load:smoke
 ```
 
-Deployed release smokes are opt-in and require repository secrets. See `docs/api/smoke-test-suite.md`.
+Deployed release smokes are opt-in and require repository secrets. See [docs/api/smoke-test-suite.md](docs/api/smoke-test-suite.md).
 
 ## Status
 
 The core API is built, deployed, and operational with local tests, load smoke, deployed smokes, operator bootstrap/auth hardening, audit logging, CI gates, operational health, and runbooks.
 
-Remaining product work should stay story-driven through `stories/README.md`.
+Remaining product work should stay story-driven through [stories/README.md](stories/README.md).

@@ -201,4 +201,4 @@ Store the printed `api_key` outside the repository, then create your normal clie
 
 ## Next Step
 
-After you have `HEADSUPP_API_KEY`, follow `quickstart.md` to create a workspace, channel, subscriber, connector, signal, watch, and signed event.
+After you have `HEADSUPP_API_KEY`, follow [quickstart.md](quickstart.md) to create a workspace, channel, subscriber, connector, signal, watch, and signed event. Then use [use-cases.md](use-cases.md) to choose the right production pattern.

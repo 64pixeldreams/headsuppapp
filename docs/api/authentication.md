@@ -1,6 +1,6 @@
 # Authentication
 
-Primary docs: use `quickstart.md` for setup flow and `reference.md` for canonical auth headers and action permissions. This file keeps auth-specific detail.
+Primary docs: use [quickstart.md](quickstart.md) for setup flow and [reference.md](reference.md) for canonical auth headers and action permissions. This file keeps auth-specific detail.
 
 Heads Up uses two authentication layers.
 
@@ -74,7 +74,7 @@ The response must never include API keys, connector secrets, Slack webhook URLs,
 
 Initial service API keys can be created through the operator bootstrap CloudFunction:
 
-The bootstrap token comes from the runtime Worker secret `HEADSUPP_BOOTSTRAP_TOKEN`. Operators set it in Cloudflare and pass it at runtime only; it is not stored in the repository. For the full first-run flow, see `getting-started-api-keys.md`.
+The bootstrap token comes from the runtime Worker secret `HEADSUPP_BOOTSTRAP_TOKEN`. Operators set it in Cloudflare and pass it at runtime only; it is not stored in the repository. For the full first-run flow, see [getting-started-api-keys.md](getting-started-api-keys.md).
 
 ```json
 {

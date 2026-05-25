@@ -1,6 +1,8 @@
 # Watch Types And Features
 
-Primary docs: use `quickstart.md` for setup flow and `reference.md` for canonical action/callback props. This file helps choose the right watch behavior.
+Primary docs: use [quickstart.md](quickstart.md) for setup flow and [reference.md](reference.md) for canonical action/callback props. This file helps choose the right watch behavior.
+
+For scenario-first guidance, use [use-cases.md](use-cases.md).
 
 This guide explains what Heads Up can do after events are aggregated.
 

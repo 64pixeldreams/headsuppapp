@@ -1,6 +1,6 @@
 # Webhook Receivers And Subscriptions
 
-Primary docs: use `quickstart.md` for setup flow and `reference.md` for canonical props. This file focuses on receiver implementation, signature verification, and retry behavior.
+Primary docs: use [quickstart.md](quickstart.md) for setup flow and [reference.md](reference.md) for canonical props. This file focuses on receiver implementation, signature verification, and retry behavior.
 
 This guide explains how to subscribe Slack or your own webhook to a channel and what happens when a watch fires.
 
@@ -308,7 +308,7 @@ const aggregateSubscriber = await headsup.createSubscriber({
 
 ## Related Guides
 
-- `subscribers.md` for subscriber API reference.
-- `aggregate-forwarding.md` for closed-bucket forwarding.
-- `watch-types.md` for choosing the right watch.
-- `quickstart.md` for the full create-and-send flow.
+- [subscribers.md](subscribers.md) for subscriber API reference.
+- [aggregate-forwarding.md](aggregate-forwarding.md) for closed-bucket forwarding.
+- [watch-types.md](watch-types.md) for choosing the right watch.
+- [quickstart.md](quickstart.md) for the full create-and-send flow.

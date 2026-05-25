@@ -1,6 +1,6 @@
 # Spec Alignment Audit
 
-This audit compares the current Heads Up API with `SPEC_BREIF.md` and `Curosr_headsupp_product_brief.md`.
+This audit compares the current Heads Up API with [SPEC_BREIF.md](../../SPEC_BREIF.md) and [Curosr_headsupp_product_brief.md](../../Curosr_headsupp_product_brief.md).
 
 Status terms:
 
