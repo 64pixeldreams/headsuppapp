@@ -45,6 +45,8 @@ $body = @{
       "channel:create",
       "connector:create",
       "subscriber:create",
+      "subscriber:update",
+      "subscriber:delete",
       "signal:create",
       "watch:create",
       "channel_contract:create",

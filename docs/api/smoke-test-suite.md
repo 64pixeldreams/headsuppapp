@@ -17,6 +17,7 @@ HEADSUPP_SMOKE_RETRY_FAIL_URL
 HEADSUPP_SMOKE_RETRY_SUCCESS_URL
 HEADSUPP_SMOKE_PERMANENT_FAIL_URL
 HEADSUPP_OPERATOR_TOKEN
+HEADSUPP_SMOKE_EMAIL_DESTINATION
 ```
 
 Most deployed smokes require `CLOUDFLARE_API_TOKEN` because the operator harness provisions deterministic D1/KV test resources. Slack-specific smokes also require `HEADSUPP_SMOKE_SLACK_WEBHOOK_URL`.
@@ -42,6 +43,7 @@ npm run smoke:channel-contracts
 npm run smoke:aggregate-forward-dimensions
 npm run smoke:advanced-watches
 npm run smoke:operator-observability
+npm run smoke:email-subscriber
 npm run soak:release
 ```
 
@@ -77,6 +79,7 @@ smoke:channel-contracts  API/D1 + deployed channel contracts, inherited signal d
 smoke:aggregate-forward-dimensions D1 + deployed dimension-filtered aggregate forwarding and no duplicate second pass
 smoke:advanced-watches   D1 + deployed     WINDOW, DELTA, relative change, reminders, recurring expectations, rich digest
 smoke:operator-observability API + deployed key lifecycle, audit read, observability overview, redaction
+smoke:email-subscriber  Email + deployed  provisions email subscriber, triggers coffee highest-purchase alert, verifies sent delivery
 load:smoke               local             10000 synthetic events fold into fewer aggregate deltas
 load:high-volume         local             configurable high-volume synthetic proof, default 100000 events
 soak:release             local             bounded throughput and fold-compression release proof
@@ -505,7 +508,8 @@ Run this checklist before calling a deployment proven:
 12. npm run smoke:aggregate-forward-dimensions passes
 13. npm run smoke:advanced-watches passes
 14. npm run smoke:operator-observability passes when operator secrets are configured
-15. npm run soak:release passes
-16. docs mention any intentionally skipped smoke and why
-17. secret scan finds no real Slack webhook URLs, API tokens, or connector secrets
+15. npm run smoke:email-subscriber passes when SEND_EMAIL and recipient env are configured
+16. npm run soak:release passes
+17. docs mention any intentionally skipped smoke and why
+18. secret scan finds no real Slack webhook URLs, API tokens, or connector secrets
 ```

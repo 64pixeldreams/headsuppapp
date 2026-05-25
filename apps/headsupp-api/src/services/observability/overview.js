@@ -5,6 +5,13 @@ async function countFirst(db, sql, params = []) {
   return Number(row?.count || row?.count_value || 0);
 }
 
+async function groupedRows(db, sql, params = []) {
+  const prepared = db.prepare(sql).bind(...params);
+  if (typeof prepared.all !== 'function') return [];
+  const result = await prepared.all();
+  return result?.results || [];
+}
+
 function healthFromCounts({ alertRetrying, alertFailed, aggregateRetrying, aggregateFailed, quietSummaryRetrying, quietSummaryFailed, cronStatus }) {
   if (cronStatus?.status === 'error') return 'error';
   if (alertFailed > 0 || aggregateFailed > 0 || quietSummaryFailed > 0) return 'degraded';
@@ -48,6 +55,22 @@ export async function getObservabilityOverview(db, { now = new Date().toISOStrin
     countFirst(db, "SELECT COUNT(*) AS count FROM quiet_summary_deliveries WHERE status = 'failed'"),
   ]);
   const cronStatus = await loadOperationalStatus(db, 'scheduled_tasks');
+  const alertDeliveryBreakdown = await groupedRows(
+    db,
+    `SELECT
+       COALESCE(sub.subscriber_type, 'unknown') AS subscriber_type,
+       COALESCE(alert.severity, 'unknown') AS severity,
+       COALESCE(json_extract(delivery.response_body, '$.template_id'), 'unknown') AS template_id,
+       SUM(CASE WHEN delivery.status = 'sent' THEN 1 ELSE 0 END) AS sent_count,
+       SUM(CASE WHEN delivery.status = 'retrying' THEN 1 ELSE 0 END) AS retrying_count,
+       SUM(CASE WHEN delivery.status = 'failed' THEN 1 ELSE 0 END) AS failed_count
+     FROM alert_deliveries delivery
+     LEFT JOIN subscribers sub
+       ON sub.id = delivery.subscriber_id OR sub.subscriber_id = delivery.subscriber_id
+     LEFT JOIN alerts alert
+       ON alert.id = delivery.alert_id
+     GROUP BY subscriber_type, severity, template_id`,
+  );
   const health = healthFromCounts({
     alertRetrying,
     alertFailed,
@@ -78,6 +101,14 @@ export async function getObservabilityOverview(db, { now = new Date().toISOStrin
         retrying: quietSummaryRetrying,
         failed: quietSummaryFailed,
       },
+      alert_breakdown: alertDeliveryBreakdown.map((row) => ({
+        subscriber_type: row.subscriber_type,
+        severity: row.severity,
+        template_id: row.template_id,
+        sent: Number(row.sent_count || 0),
+        retrying: Number(row.retrying_count || 0),
+        failed: Number(row.failed_count || 0),
+      })),
     },
     operator_health: {
       retry_backlog: {

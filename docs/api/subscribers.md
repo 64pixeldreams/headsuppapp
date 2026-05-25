@@ -4,6 +4,8 @@ Primary docs: use [quickstart.md](quickstart.md) for setup flow and [reference.m
 
 Subscribers receive alert or aggregate outputs.
 
+For outbound email delivery setup, unsubscribe lifecycle, Cloudflare binding requirements, and troubleshooting, see [email-subscribers.md](email-subscribers.md).
+
 For a full receiver implementation guide, including signature verification and retry behavior, see [webhook-receivers.md](webhook-receivers.md).
 
 ## Routing Rule
@@ -19,11 +21,14 @@ quiet summary output     -> mode = quiet_summary
 ## First Subscriber Types
 
 ```text
+email
 slack_webhook
 webhook
 ```
 
 Slack OAuth is not part of the current API. Slack delivery uses incoming webhooks.
+
+Email subscribers use the same delivery queue/state pipeline and support `admin.disableSubscriber` / `admin.deleteSubscriber`.
 
 ## Slack Webhook Subscriber
 
@@ -236,6 +241,34 @@ Expected proof:
 same delivery becomes sent after the receiver is changed to a 200 endpoint
 404 response => failed
 retrying a delivery does not create duplicate alert rows
+```
+
+## Disable Or Delete Subscribers
+
+Disable (recommended, keeps audit trail):
+
+```json
+{
+  "action": "admin.disableSubscriber",
+  "payload": {
+    "workspace_id": "ws_123",
+    "channel_id": "ch_123",
+    "subscriber_id": "sub_123"
+  }
+}
+```
+
+Delete (hard remove):
+
+```json
+{
+  "action": "admin.deleteSubscriber",
+  "payload": {
+    "workspace_id": "ws_123",
+    "channel_id": "ch_123",
+    "subscriber_id": "sub_123"
+  }
+}
 ```
 
 ## Related Stories

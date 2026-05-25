@@ -10,6 +10,9 @@ ENVIRONMENT = "development"
 APP_NAME = "headsupp_app"
 DB_BOOTSTRAP_ENABLED = "true"
 DB_BOOTSTRAP_BLOCKING = "false"
+HEADSUPP_EMAIL_FROM = "alerts@headsupp.io"
+HEADSUPP_EMAIL_REPLY_TO = "alerts@headsupp.io"
+HEADSUPP_UNSUBSCRIBE_TTL_SECONDS = "604800"
 
 [triggers]
 crons = ["* * * * *"]
@@ -69,6 +72,9 @@ queue = "headsup-aggregate-delivery"
 queue = "headsup-aggregate-delivery"
 max_batch_size = 25
 max_batch_timeout = 5
+
+[[send_email]]
+name = "SEND_EMAIL"
 
 [[durable_objects.bindings]]
 name = "WATCH_EVALUATOR"

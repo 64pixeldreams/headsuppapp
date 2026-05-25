@@ -113,6 +113,46 @@ test('generic webhook subscriber is idempotent for same channel and URL', async 
   assert.equal(second.created, false);
 });
 
+test('creates email subscriber with normalized destination and config recipients', async () => {
+  const result = await createSubscriber({
+    input: {
+      subscriber_type: 'email',
+      destination_url: ' Martin@example.com ',
+      display_name: 'Martin',
+      mode: 'alert',
+      config: {
+        to: ['alerts@example.com'],
+      },
+    },
+    context,
+    workspace,
+    channel,
+    store: createMemoryControlPlaneStore(),
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.subscriber.subscriber_type, 'email');
+  assert.equal(result.subscriber.normalized_destination, 'martin@example.com');
+  assert.match(result.subscriber.destination_url_redacted, /^ma\*\*\*@example\.com$/);
+});
+
+test('rejects email subscriber without valid recipient', async () => {
+  const result = await createSubscriber({
+    input: {
+      subscriber_type: 'email',
+      destination_url: 'not-an-email',
+      mode: 'alert',
+    },
+    context,
+    workspace,
+    channel,
+    store: createMemoryControlPlaneStore(),
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'INVALID_EMAIL_RECIPIENT');
+});
+
 test('rejects generic webhook subscriber when workspace tenant mismatches', async () => {
   const result = await createSubscriber({
     input: {

@@ -52,6 +52,7 @@ npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0003_chann
 npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0004_watch_actions_and_quiet_summaries.sql"
 npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0005_correctness_closure_runtime.sql"
 npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0006_channel_metadata.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0007_email_subscribers.sql"
 ```
 
 Fresh installs should use only `migrations/fresh/schema.sql` to avoid duplicate-column errors from legacy `ALTER TABLE` patches.
@@ -222,6 +223,27 @@ transient 500 response stores delivery as retrying
 retrying delivery becomes sent after destination changes to 200
 permanent 404 response stores delivery as failed
 retry processing does not duplicate the alert
+```
+
+## Email Subscriber Smoke
+
+This deployed smoke provisions an email subscriber and triggers one simple coffee alert (`LAST_VALUE_GT` on `coffee.highest_purchase`).
+
+```powershell
+cd apps/headsupp-api
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+$env:HEADSUPP_SMOKE_EMAIL_DESTINATION='martin@inc64.com'
+npm run smoke:email-subscriber
+Remove-Item Env:CLOUDFLARE_API_TOKEN
+Remove-Item Env:HEADSUPP_SMOKE_EMAIL_DESTINATION
+```
+
+Expected:
+
+```text
+normal value events create zero alerts
+trigger event (> threshold) creates one warning alert
+latest alert delivery status becomes sent for subscriber_type email
 ```
 
 ## Tenant Isolation Smoke

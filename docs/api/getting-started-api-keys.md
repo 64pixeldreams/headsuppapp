@@ -48,6 +48,8 @@ curl -X POST "$HEADSUPP_BASE_URL/api/function" \
         "channel:create",
         "connector:create",
         "subscriber:create",
+        "subscriber:update",
+        "subscriber:delete",
         "signal:create",
         "watch:create",
         "channel_contract:create",
@@ -77,6 +79,8 @@ Response:
         "channel:create",
         "connector:create",
         "subscriber:create",
+        "subscriber:update",
+        "subscriber:delete",
         "signal:create",
         "watch:create",
         "alert:read",
@@ -131,6 +135,8 @@ workspace:create
 channel:create
 connector:create
 subscriber:create
+subscriber:update
+subscriber:delete
 signal:create
 watch:create
 channel_contract:create
@@ -195,6 +201,8 @@ const result = await operator.bootstrapServiceApiKey({
     'channel:create',
     'connector:create',
     'subscriber:create',
+    'subscriber:update',
+    'subscriber:delete',
     'signal:create',
     'watch:create',
     'alert:read',

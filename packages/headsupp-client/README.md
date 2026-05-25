@@ -76,6 +76,8 @@ const result = await operator.bootstrapServiceApiKey({
     'channel:update',
     'connector:create',
     'subscriber:create',
+    'subscriber:update',
+    'subscriber:delete',
     'signal:create',
     'watch:create',
     'channel_contract:create',
@@ -193,6 +195,25 @@ await headsup.createSubscriber({
   mode: 'alert',
   config: {
     signing_secret: process.env.HEADSUPP_RECEIVER_SIGNING_SECRET,
+  },
+});
+```
+
+Email alert subscriber:
+
+```js
+const emailSubscriber = await headsup.createSubscriber({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  subscriber_type: 'email',
+  name: 'Martin',
+  destination_url: 'martin@example.com',
+  mode: 'alert',
+  config: {
+    template_id: 'base_alert_v1',
+    value_format: 'money_usd_2',
+    locale: 'en-US',
+    timezone: 'UTC',
   },
 });
 ```
@@ -350,6 +371,29 @@ await headsup.resumeWatch({
 ```
 
 Also available: `muteWatch`, `ignoreAlert`.
+
+Subscriber lifecycle helpers:
+
+```js
+await headsup.disableSubscriber({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  subscriber_id: emailSubscriber.subscriber_id,
+});
+
+await headsup.disableSubscriberByEmail({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  email: 'martin@example.com',
+  mode: 'alert',
+});
+
+await headsup.deleteSubscriber({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  subscriber_id: emailSubscriber.subscriber_id,
+});
+```
 
 ## Error Handling
 

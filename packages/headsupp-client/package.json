@@ -1,6 +1,6 @@
 {
   "name": "@64pixeldreams/headsupp-client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Private Node and Cloudflare Workers client for the Heads Up API",
   "type": "module",
   "main": "src/index.js",
@@ -10,7 +10,8 @@
   "files": [
     "src",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "test": "node --test \"test/**/*.test.js\""

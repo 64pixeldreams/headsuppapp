@@ -18,4 +18,5 @@ migrations/legacy/0003_channel_contracts_and_read_apis.sql
 migrations/legacy/0004_watch_actions_and_quiet_summaries.sql
 migrations/legacy/0005_correctness_closure_runtime.sql
 migrations/legacy/0006_channel_metadata.sql
+migrations/legacy/0007_email_subscribers.sql
 ```

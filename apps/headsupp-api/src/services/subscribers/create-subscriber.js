@@ -1,6 +1,6 @@
 import { stableId } from '../ids/stable-id.js';
 import { ownershipFieldsFromContext, requireChannelInWorkspace } from '../ownership/tenant-scope.js';
-import { redactUrl, validateSubscriberUrl } from './urls.js';
+import { redactSubscriberDestination, validateSubscriberUrl } from './urls.js';
 
 const VALID_MODES = new Set(['alert', 'aggregate_forward', 'quiet_summary']);
 
@@ -8,7 +8,7 @@ export function publicSubscriber(subscriber) {
   return {
     ...subscriber,
     destination_url: undefined,
-    destination_url_redacted: redactUrl(subscriber.destination_url),
+    destination_url_redacted: redactSubscriberDestination(subscriber.subscriber_type, subscriber.destination_url),
   };
 }
 
@@ -27,10 +27,19 @@ export async function createSubscriber({ input, context, workspace, channel, sto
     };
   }
 
-  const url = validateSubscriberUrl(subscriberType, input.destination_url);
+  let config = input.config_json ?? input.config ?? {};
+  if (typeof config === 'string') {
+    try {
+      config = JSON.parse(config);
+    } catch {
+      config = {};
+    }
+  }
+  const url = validateSubscriberUrl(subscriberType, input.destination_url, config);
   if (!url.ok) return url;
 
-  const subscriberKey = `${workspace.workspace_id}:${channel.channel_id}:${subscriberType}:${mode}:${input.destination_url}`;
+  const normalizedDestination = url.normalized_destination || input.destination_url;
+  const subscriberKey = `${workspace.workspace_id}:${channel.channel_id}:${subscriberType}:${mode}:${normalizedDestination}`;
   const existing = await store.get('subscriber', subscriberKey);
   if (existing) {
     return {
@@ -47,8 +56,10 @@ export async function createSubscriber({ input, context, workspace, channel, sto
     channel_id: channel.channel_id,
     subscriber_type: subscriberType,
     destination_url: input.destination_url,
+    normalized_destination: normalizedDestination,
     display_name: input.display_name || subscriberType,
     mode,
+    config_json: JSON.stringify(config),
     enabled: true,
     created_at: now,
     updated_at: now,

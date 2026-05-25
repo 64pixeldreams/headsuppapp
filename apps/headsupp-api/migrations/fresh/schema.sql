@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS subscribers (
   subscriber_type TEXT NOT NULL,
   name TEXT NOT NULL,
   destination_url TEXT NOT NULL,
+  normalized_destination TEXT NOT NULL,
   destination_url_redacted TEXT,
   secret_hash TEXT,
   mode TEXT NOT NULL DEFAULT 'alert',
@@ -96,6 +97,7 @@ CREATE TABLE IF NOT EXISTS subscribers (
 );
 
 CREATE INDEX IF NOT EXISTS idx_subscribers_channel_id ON subscribers(channel_id);
+CREATE INDEX IF NOT EXISTS idx_subscribers_lookup ON subscribers(channel_id, mode, subscriber_type, normalized_destination);
 
 CREATE TABLE IF NOT EXISTS signals (
   id TEXT PRIMARY KEY,

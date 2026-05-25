@@ -10,6 +10,8 @@ import {
   createAdminChannel,
   createAdminChannelContract,
   createAdminConnector,
+  deleteAdminSubscriber,
+  disableAdminSubscriber,
   createAdminSignal,
   createAdminSubscriber,
   createAdminWatch,
@@ -54,11 +56,16 @@ function scopedDb(rows = {}, calls = []) {
             async first() {
               if (/FROM workspaces/.test(sql)) return rows.workspace || null;
               if (/FROM channels/.test(sql)) return rows.channel || null;
+              if (/FROM subscribers/.test(sql)) return rows.subscriber || null;
               if (/FROM signals/.test(sql)) return rows.signal || null;
               if (/FROM watches/.test(sql)) return rows.watch || null;
               if (/FROM alerts/.test(sql)) return rows.alert || null;
               if (/FROM channel_contracts/.test(sql)) return rows.channelContract || null;
               return null;
+            },
+            async all() {
+              if (/FROM subscribers/.test(sql)) return { results: rows.subscribers || [] };
+              return { results: [] };
             },
           };
         },
@@ -321,6 +328,21 @@ test('subscriber row validates and redacts destination URL', () => {
 
   assert.equal(built.ok, true);
   assert.equal(built.row.destination_url_redacted, 'https://api.example.com/hooks/abc123/...');
+  assert.equal(built.row.normalized_destination, 'https://api.example.com/hooks/abc123');
+});
+
+test('subscriber row validates email destination and normalizes recipient', () => {
+  const built = buildSubscriberRow({
+    workspace_id: 'ws_123',
+    channel_id: 'ch_123',
+    subscriber_type: 'email',
+    destination_url: 'Martin@example.com',
+    config: { to: ['ops@example.com'] },
+  });
+
+  assert.equal(built.ok, true);
+  assert.equal(built.row.normalized_destination, 'martin@example.com');
+  assert.match(built.row.destination_url_redacted, /^ma\*\*\*@example\.com$/);
 });
 
 test('watch row serializes config JSON', () => {
@@ -398,6 +420,67 @@ test('admin subscriber rejects channel from another workspace', async () => {
 
   assert.equal(result.ok, false);
   assert.equal(result.code, 'WORKSPACE_CHANNEL_MISMATCH');
+});
+
+test('admin disable subscriber supports lookup by email and mode', async () => {
+  const calls = [];
+  const result = await disableAdminSubscriber({
+    auth: { user_id: 'user_admin', permissions: ['subscriber:update'] },
+    db: scopedDb(
+      {
+        workspace: { id: 'ws_123', workspace_id: 'ws_123' },
+        channel: { id: 'ch_123', channel_id: 'ch_123', workspace_id: 'ws_123' },
+        subscribers: [
+          {
+            id: 'sub_123',
+            subscriber_id: 'sub_123',
+            workspace_id: 'ws_123',
+            channel_id: 'ch_123',
+            subscriber_type: 'email',
+            destination_url: 'martin@example.com',
+            normalized_destination: 'martin@example.com',
+            mode: 'alert',
+            enabled: 1,
+          },
+        ],
+      },
+      calls,
+    ),
+    input: { workspace_id: 'ws_123', channel_id: 'ch_123', email: 'MARTIN@example.com', mode: 'alert' },
+    now: '2026-05-24T10:10:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.subscriber.enabled, 0);
+  assert.ok(calls.some((call) => /UPDATE subscribers SET enabled = 0/.test(call.sql)));
+});
+
+test('admin delete subscriber supports lookup by subscriber_id', async () => {
+  const calls = [];
+  const result = await deleteAdminSubscriber({
+    auth: { user_id: 'user_admin', permissions: ['subscriber:delete'] },
+    db: scopedDb(
+      {
+        workspace: { id: 'ws_123', workspace_id: 'ws_123' },
+        channel: { id: 'ch_123', channel_id: 'ch_123', workspace_id: 'ws_123' },
+        subscriber: {
+          id: 'sub_123',
+          subscriber_id: 'sub_123',
+          workspace_id: 'ws_123',
+          channel_id: 'ch_123',
+          subscriber_type: 'email',
+          destination_url: 'martin@example.com',
+          mode: 'alert',
+        },
+      },
+      calls,
+    ),
+    input: { workspace_id: 'ws_123', channel_id: 'ch_123', subscriber_id: 'sub_123' },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.deleted, true);
+  assert.ok(calls.some((call) => /DELETE FROM subscribers/.test(call.sql)));
 });
 
 test('admin watch rejects signal outside channel scope', async () => {

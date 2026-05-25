@@ -42,6 +42,8 @@ headsupp:admin
   channel:update
   connector:create
   subscriber:create
+  subscriber:update
+  subscriber:delete
   signal:create
   watch:create
   channel_contract:create
@@ -61,6 +63,8 @@ foretic:runtime
   channel:update
   connector:create
   subscriber:create
+  subscriber:update
+  subscriber:delete
   signal:create
   watch:create
   alert:read
@@ -77,6 +81,8 @@ channel:read
 channel:update
 connector:create
 subscriber:create
+subscriber:update
+subscriber:delete
 signal:create
 watch:create
 alert:read
@@ -131,6 +137,8 @@ The bootstrap token comes from the runtime Worker secret `HEADSUPP_BOOTSTRAP_TOK
       "channel:create",
       "connector:create",
       "subscriber:create",
+      "subscriber:update",
+      "subscriber:delete",
       "signal:create",
       "watch:create",
       "channel_contract:create",

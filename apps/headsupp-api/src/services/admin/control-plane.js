@@ -1,7 +1,11 @@
 import { requirePermission } from '../auth/permissions.js';
 import { generateConnectorSecret, publicConnector } from '../connectors/secrets.js';
 import { stableId } from '../ids/stable-id.js';
-import { validateSubscriberUrl, redactUrl } from '../subscribers/urls.js';
+import {
+  normalizeEmailAddress,
+  redactSubscriberDestination,
+  validateSubscriberUrl,
+} from '../subscribers/urls.js';
 import { buildActionControlRow } from '../watches/action-controls.js';
 
 const VALID_SUBSCRIBER_MODES = new Set(['alert', 'aggregate_forward', 'quiet_summary']);
@@ -91,9 +95,15 @@ export function buildSubscriberRow(input, now = new Date().toISOString()) {
       message: `Subscriber mode must be one of: ${Array.from(VALID_SUBSCRIBER_MODES).join(', ')}.`,
     };
   }
-  const validation = validateSubscriberUrl(input.subscriber_type || 'webhook', input.destination_url);
+  const subscriberType = input.subscriber_type || 'webhook';
+  const config = parseJsonField(input.config_json ?? input.config, {});
+  const validation = validateSubscriberUrl(subscriberType, input.destination_url, config);
   if (!validation.ok) return validation;
-  const key = input.subscriber_key || `${input.channel_id}:${input.subscriber_type || 'webhook'}:${mode}:${input.destination_url}`;
+  const destinationUrl = input.destination_url || validation.normalized_destination;
+  const normalizedDestination =
+    input.normalized_destination ||
+    (subscriberType === 'email' ? normalizeEmailAddress(destinationUrl) : validation.normalized_destination || destinationUrl);
+  const key = input.subscriber_key || `${input.channel_id}:${subscriberType}:${mode}:${normalizedDestination}`;
   const id = input.subscriber_id || stableId('sub', key);
   return {
     ok: true,
@@ -102,13 +112,14 @@ export function buildSubscriberRow(input, now = new Date().toISOString()) {
       subscriber_id: id,
       workspace_id: input.workspace_id,
       channel_id: input.channel_id,
-      subscriber_type: input.subscriber_type || 'webhook',
+      subscriber_type: subscriberType,
       name: input.name || input.display_name || 'Webhook subscriber',
-      destination_url: input.destination_url,
-      destination_url_redacted: redactUrl(input.destination_url),
+      destination_url: destinationUrl,
+      normalized_destination: normalizedDestination,
+      destination_url_redacted: redactSubscriberDestination(subscriberType, destinationUrl),
       secret_hash: null,
       mode,
-      config_json: JSON.stringify(input.config || {}),
+      config_json: JSON.stringify(config),
       enabled: input.enabled === false ? 0 : 1,
       source_app: input.source_app || null,
       external_tenant_id: input.external_tenant_id || null,
@@ -282,6 +293,17 @@ function publicChannel(row) {
   };
 }
 
+function publicSubscriber(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    destination_url: undefined,
+    destination_url_redacted:
+      row.destination_url_redacted || redactSubscriberDestination(row.subscriber_type || 'webhook', row.destination_url),
+    config: parseJsonField(row.config_json, {}),
+  };
+}
+
 async function insertRow(db, table, row) {
   const columns = Object.keys(row);
   const placeholders = columns.map(() => '?').join(', ');
@@ -322,6 +344,10 @@ async function loadWorkspace(db, workspaceId) {
 
 async function loadChannel(db, channelId) {
   return firstRow(db, 'SELECT * FROM channels WHERE id = ? OR channel_id = ? LIMIT 1', [channelId, channelId]);
+}
+
+async function loadSubscriber(db, subscriberId) {
+  return firstRow(db, 'SELECT * FROM subscribers WHERE id = ? OR subscriber_id = ? LIMIT 1', [subscriberId, subscriberId]);
 }
 
 async function loadSignal(db, signalId) {
@@ -508,7 +534,113 @@ export async function createAdminSubscriber({ auth, db, input, now }) {
   const built = buildSubscriberRow(inheritOwnership(input, channel), now);
   if (!built.ok) return built;
   const subscriber = await insertRow(db, 'subscribers', built.row);
-  return { ok: true, subscriber: { ...subscriber, destination_url: undefined } };
+  return { ok: true, subscriber: publicSubscriber(subscriber) };
+}
+
+async function resolveAdminSubscriber({ db, workspaceId, channelId, subscriberId, email, mode }) {
+  if (subscriberId) {
+    const subscriber = await loadSubscriber(db, subscriberId);
+    if (!subscriber) {
+      return { ok: false, status: 404, code: 'SUBSCRIBER_NOT_FOUND', message: 'Subscriber was not found.' };
+    }
+    if (subscriber.workspace_id !== workspaceId || subscriber.channel_id !== channelId) {
+      return {
+        ok: false,
+        status: 404,
+        code: 'SUBSCRIBER_SCOPE_MISMATCH',
+        message: 'Subscriber does not belong to workspace and channel.',
+      };
+    }
+    return { ok: true, subscriber };
+  }
+
+  const normalizedEmail = normalizeEmailAddress(email);
+  if (!normalizedEmail) {
+    return {
+      ok: false,
+      status: 400,
+      code: 'SUBSCRIBER_LOOKUP_REQUIRED',
+      message: 'Provide subscriber_id or email.',
+    };
+  }
+  const params = [workspaceId, channelId, 'email', normalizedEmail];
+  let sql = `SELECT *
+             FROM subscribers
+             WHERE workspace_id = ? AND channel_id = ? AND subscriber_type = ? AND normalized_destination = ?`;
+  if (mode) {
+    sql += ' AND mode = ?';
+    params.push(mode);
+  }
+  const matches = await allRows(db, sql, params);
+  if (matches.length === 0) {
+    return { ok: false, status: 404, code: 'SUBSCRIBER_NOT_FOUND', message: 'Subscriber was not found.' };
+  }
+  if (matches.length > 1) {
+    return {
+      ok: false,
+      status: 409,
+      code: 'AMBIGUOUS_SUBSCRIBER_MATCH',
+      message: 'Multiple subscribers matched email lookup. Provide subscriber_id or mode.',
+    };
+  }
+  return { ok: true, subscriber: matches[0] };
+}
+
+export async function disableAdminSubscriber({ auth, db, input, now }) {
+  const denied = denyIfNeeded(auth, 'subscriber:update');
+  if (denied) return denied;
+  const scopeDenied =
+    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
+  if (scopeDenied) return scopeDenied;
+
+  const resolved = await resolveAdminSubscriber({
+    db,
+    workspaceId: input.workspace_id,
+    channelId: input.channel_id,
+    subscriberId: input.subscriber_id,
+    email: input.email,
+    mode: input.mode,
+  });
+  if (!resolved.ok) return resolved;
+
+  const subscriber = resolved.subscriber;
+  await db
+    .prepare('UPDATE subscribers SET enabled = 0, updated_at = ? WHERE id = ? OR subscriber_id = ?')
+    .bind(now, subscriber.id || subscriber.subscriber_id, subscriber.subscriber_id || subscriber.id)
+    .run();
+
+  return {
+    ok: true,
+    subscriber: publicSubscriber({ ...subscriber, enabled: 0, updated_at: now }),
+    changed: subscriber.enabled === 0 ? false : true,
+  };
+}
+
+export async function deleteAdminSubscriber({ auth, db, input }) {
+  const denied = denyIfNeeded(auth, 'subscriber:delete');
+  if (denied) return denied;
+  const scopeDenied =
+    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
+  if (scopeDenied) return scopeDenied;
+
+  const resolved = await resolveAdminSubscriber({
+    db,
+    workspaceId: input.workspace_id,
+    channelId: input.channel_id,
+    subscriberId: input.subscriber_id,
+    email: input.email,
+    mode: input.mode,
+  });
+  if (!resolved.ok) return resolved;
+
+  const subscriber = resolved.subscriber;
+  await db
+    .prepare('DELETE FROM subscribers WHERE id = ? OR subscriber_id = ?')
+    .bind(subscriber.id || subscriber.subscriber_id, subscriber.subscriber_id || subscriber.id)
+    .run();
+  return { ok: true, deleted: true, subscriber: publicSubscriber(subscriber) };
 }
 
 export async function createAdminSignal({ auth, db, input, now }) {

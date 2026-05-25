@@ -133,10 +133,10 @@ export async function provisionGenericScenario({
   );
   await client.d1Query(
     `INSERT INTO subscribers (
-      id, subscriber_id, workspace_id, channel_id, subscriber_type, name, destination_url,
+      id, subscriber_id, workspace_id, channel_id, subscriber_type, name, destination_url, normalized_destination,
       destination_url_redacted, secret_hash, mode, config_json, enabled, source_app,
       external_tenant_id, external_user_id, external_resource_id, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       ids.subscriber,
       ids.subscriber,
@@ -145,6 +145,7 @@ export async function provisionGenericScenario({
       subscriberType,
       subscriberName,
       subscriberUrl,
+      subscriberType === 'email' ? String(subscriberUrl || '').trim().toLowerCase() : subscriberUrl,
       redactUrl(subscriberUrl),
       null,
       subscriberMode,

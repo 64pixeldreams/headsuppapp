@@ -4,7 +4,12 @@ import test from 'node:test';
 import { createMemoryControlPlaneStore } from '../../src/services/control-plane/kv-store.js';
 import { ownershipFieldsFromContext } from '../../src/services/ownership/tenant-scope.js';
 import { createSubscriber } from '../../src/services/subscribers/create-subscriber.js';
-import { isSlackWebhookUrl, redactUrl, validateSubscriberUrl } from '../../src/services/subscribers/urls.js';
+import {
+  isSlackWebhookUrl,
+  redactUrl,
+  resolveSubscriberRecipients,
+  validateSubscriberUrl,
+} from '../../src/services/subscribers/urls.js';
 
 const context = {
   source_app: 'foretic',
@@ -92,4 +97,16 @@ test('rejects Slack subscriber when channel is from another workspace', async ()
 
 test('redacts invalid URLs to null', () => {
   assert.equal(redactUrl('not a url'), null);
+});
+
+test('validates email subscriber recipients from destination and config.to', () => {
+  const validated = validateSubscriberUrl('email', 'martin@example.com', {
+    to: ['alerts@example.com', 'martin@example.com'],
+  });
+  assert.equal(validated.ok, true);
+  assert.equal(validated.normalized_destination, 'martin@example.com');
+  assert.deepEqual(resolveSubscriberRecipients({ destinationUrl: 'martin@example.com', config: { to: ['alerts@example.com'] } }), [
+    'martin@example.com',
+    'alerts@example.com',
+  ]);
 });

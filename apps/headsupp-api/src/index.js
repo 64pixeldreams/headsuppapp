@@ -10,6 +10,8 @@ import { normalizeIncomingPayload } from './services/ingest/event-validation.js'
 import { createRawEventMessages, sendRawEventMessages } from './services/ingest/raw-event-queue.js';
 import { getObservabilityOverview } from './services/observability/overview.js';
 import { runScheduledTasks } from './services/scheduler/scheduled-tasks.js';
+import { writeAuditLog } from './services/audit/control-plane-audit.js';
+import { processUnsubscribeToken } from './services/subscribers/unsubscribe.js';
 
 export { WatchEvaluatorDO } from './durable/WatchEvaluatorDO.js';
 
@@ -38,6 +40,17 @@ function corsPreflight() {
       'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-HeadsUp-Timestamp, X-HeadsUp-Signature',
       'Access-Control-Max-Age': '86400',
+    },
+  });
+}
+
+function html(body, init = {}) {
+  return new Response(body, {
+    ...init,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      ...(init.headers || {}),
     },
   });
 }
@@ -123,6 +136,34 @@ export default {
             'Access-Control-Allow-Origin': '*',
           },
         });
+      }
+
+      if (url.pathname === '/v1/subscribers/unsubscribe' && request.method === 'GET') {
+        if (!env.DB) {
+          return html('<h1>Heads Up</h1><p>Unsubscribe is unavailable right now.</p>', { status: 503 });
+        }
+        const token = url.searchParams.get('token');
+        const result = await processUnsubscribeToken({
+          db: env.DB,
+          env,
+          token,
+          now: new Date().toISOString(),
+        });
+        await writeAuditLog({
+          db: env.DB,
+          action: 'subscriber.unsubscribe',
+          auth: null,
+          input: { token_present: Boolean(token), result: result.ok ? 'ok' : result.code },
+          success: Boolean(result.ok),
+          errorCode: result.ok ? null : result.code,
+          targetType: 'subscriber',
+          targetId: result.subscriber_id || null,
+        });
+
+        if (!result.ok) {
+          return html('<h1>Heads Up</h1><p>This unsubscribe link is invalid or expired.</p>', { status: 200 });
+        }
+        return html('<h1>Heads Up</h1><p>You are unsubscribed. You will no longer receive these emails.</p>', { status: 200 });
       }
 
       if (url.pathname === '/api/v1/observability/overview' && request.method === 'GET') {
@@ -272,7 +313,7 @@ export default {
         {
           error: 'Not Found',
           message:
-            'Try /health, /api/v1/health, /api/v1/observability/overview, POST /api/function, or POST /v1/events/{connector_key}.',
+            'Try /health, /api/v1/health, /api/v1/observability/overview, GET /v1/subscribers/unsubscribe, POST /api/function, or POST /v1/events/{connector_key}.',
         },
         { status: 404 },
       );

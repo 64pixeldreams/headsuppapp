@@ -46,6 +46,8 @@ curl -X POST "$HEADSUPP_BASE_URL/api/function" \
         "channel:update",
         "connector:create",
         "subscriber:create",
+        "subscriber:update",
+        "subscriber:delete",
         "signal:create",
         "watch:create",
         "alert:read",
@@ -290,3 +292,4 @@ Machine-routing keys are `type`, `watch_id`, `signal_id`, and `channel_metadata`
 - [reference.md](reference.md) for all request/response properties.
 - [node-cloudflare-client.md](node-cloudflare-client.md) for the SDK flow.
 - [webhook-receivers.md](webhook-receivers.md) for signature verification and retry behavior.
+- [email-subscribers.md](email-subscribers.md) for outbound email setup, unsubscribe links, and troubleshooting.

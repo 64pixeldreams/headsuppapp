@@ -101,14 +101,42 @@ Payload props:
 
 - `workspace_id` (string, required).
 - `channel_id` (string, required).
-- `subscriber_type` (string, required): `webhook` or `slack_webhook`.
-- `destination_url` (string, required, https).
+- `subscriber_type` (string, required): `webhook`, `slack_webhook`, or `email`.
+- `destination_url` (string, required): https URL for webhook/slack, email address for `email`.
 - `display_name` (string, optional).
 - `mode` (string, optional): `alert`, `aggregate_forward`, `quiet_summary`. Defaults to `alert`.
-- `config` (object, optional): receiver settings (for example `signing_secret`).
+- `config` (object, optional): receiver settings (`signing_secret` for webhook, `template_id`/`value_format`/`locale` for email).
 - `enabled` (boolean, optional): defaults to true.
 
 Returns `data.subscriber` (redacted destination only).
+
+### `admin.disableSubscriber`
+
+Payload props:
+
+- `workspace_id` (string, required).
+- `channel_id` (string, required).
+- `subscriber_id` (string, optional, recommended).
+- `email` (string, optional): convenience lookup for email subscribers.
+- `mode` (string, optional): helps disambiguate email lookup.
+
+Permission: `subscriber:update`.
+
+Returns `data.subscriber` with `enabled = 0`.
+
+### `admin.deleteSubscriber`
+
+Payload props:
+
+- `workspace_id` (string, required).
+- `channel_id` (string, required).
+- `subscriber_id` (string, optional, recommended).
+- `email` (string, optional): convenience lookup for email subscribers.
+- `mode` (string, optional): helps disambiguate email lookup.
+
+Permission: `subscriber:delete`.
+
+Returns `data.deleted = true` when removed.
 
 ### `admin.createSignal`
 

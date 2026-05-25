@@ -9,12 +9,19 @@ As a user, I need email as a delivery target so Heads Up can notify non-technica
 - Add subscriber type `email`.
 - Add delivery renderer for alert and quiet-summary email bodies.
 - Add suppression/unsubscribe hooks and safe recipient validation.
+- Add disable/remove API lifecycle (`admin.disableSubscriber`, `admin.deleteSubscriber`) and SDK wrappers.
+- Add normalized email destination + lookup indexes for deterministic disable/unsubscribe behavior.
+- Add public unsubscribe link endpoint with signed expiring tokens.
+- Add docs pack: `docs/api/email-subscribers.md` and linked updates in quickstart/reference/subscribers/README.
 
 ## Acceptance Criteria
 
 - Email subscribers can be created and receive alert deliveries.
 - Invalid/suppressed recipients are not sent and are auditable.
 - Email delivery state follows retry/fail semantics.
+- Unsubscribe link disables the target subscriber safely and idempotently.
+- Subscriber disable/delete actions work by `subscriber_id`, with email+mode lookup helper.
+- Existing webhook/slack subscribers are unchanged.
 
 ## Test Plan
 
@@ -42,4 +49,4 @@ As a user, I need email as a delivery target so Heads Up can notify non-technica
 
 ## Status
 
-Pending.
+In progress (Phase A: EMAIL-01,02,03,04,09,10,12,16).

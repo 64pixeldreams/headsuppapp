@@ -1,0 +1,214 @@
+# Email Subscribers
+
+Primary docs: start with [quickstart.md](quickstart.md) and [reference.md](reference.md).  
+Use this guide for end-to-end email alert delivery setup, unsubscribe behavior, and troubleshooting.
+
+## What This Adds
+
+Heads Up supports `subscriber_type: "email"` on the same delivery pipeline used for webhook subscribers:
+
+- alert rows are persisted first,
+- delivery rows are queued,
+- retries/backoff apply,
+- terminal states are tracked (`sent`, `retrying`, `failed`).
+
+Email is outbound-only in this scope. Inbound email handlers are not part of this story batch.
+
+## Cloudflare Binding Setup
+
+Worker config must include:
+
+```toml
+[[send_email]]
+name = "SEND_EMAIL"
+```
+
+Recommended vars:
+
+```toml
+[vars]
+HEADSUPP_EMAIL_FROM = "alerts@headsupp.io"
+HEADSUPP_EMAIL_REPLY_TO = "alerts@headsupp.io"
+HEADSUPP_PUBLIC_BASE_URL = "https://headsupp.io"
+HEADSUPP_UNSUBSCRIBE_TTL_SECONDS = "604800"
+```
+
+Official docs: [Cloudflare Email Workers: Send email](https://developers.cloudflare.com/email-routing/email-workers/send-email-workers/)
+
+## 1) Create Email Subscriber
+
+Use one subscriber row per recipient (best for per-user pause/remove control).
+
+```json
+{
+  "action": "admin.createSubscriber",
+  "payload": {
+    "workspace_id": "ws_demo",
+    "channel_id": "ch_coffee",
+    "subscriber_type": "email",
+    "name": "Martin",
+    "destination_url": "martin@example.com",
+    "mode": "alert",
+    "config": {
+      "template_id": "base_alert_v1",
+      "value_format": "money_usd_2",
+      "locale": "en-US",
+      "timezone": "UTC",
+      "from": {
+        "email": "alerts@headsupp.io",
+        "name": "Heads Up"
+      },
+      "reply_to": "alerts@headsupp.io",
+      "labels": {
+        "signal_label": "Coffee spend",
+        "threshold_label": "Weekly budget"
+      },
+      "template_by_severity": {
+        "critical": "base_alert_v1",
+        "warning": "base_alert_v1",
+        "recovered": "base_alert_v1"
+      }
+    }
+  }
+}
+```
+
+Response includes canonical `subscriber_id` for disable/delete and unsubscribe lifecycle.
+
+## 2) Send Events
+
+Keep events lean; send changing facts only:
+
+```json
+{
+  "signal_key": "coffee.spend",
+  "occurred_at": "2026-05-25T12:00:00Z",
+  "value": { "num": 42.5 },
+  "fields": {
+    "merchant": "Blue Bottle"
+  },
+  "cta": {
+    "label": "View coffee spend",
+    "url": "https://example.com/coffee/spend"
+  }
+}
+```
+
+Optional override (rare): `fields.notification` with custom title/summary/detail.
+
+## 3) What Email Gets Sent
+
+Each email includes:
+
+- subject (severity-prefixed),
+- plain text body (always),
+- responsive HTML body,
+- current value + threshold (formatted),
+- CTA when URL is valid,
+- unsubscribe link when `HEADSUPP_PUBLIC_BASE_URL` and unsubscribe secret are configured.
+
+## 4) Unsubscribe and Remove Paths
+
+### Public unsubscribe link (recipient-facing)
+
+Email footer includes a signed, expiring unsubscribe URL:
+
+```text
+GET /v1/subscribers/unsubscribe?token=...
+```
+
+Behavior:
+
+- valid token -> subscriber disabled (`enabled = 0`),
+- invalid/expired token -> safe generic message,
+- idempotent (re-click is safe).
+
+### API disable/delete (operator-facing)
+
+Disable by `subscriber_id` (recommended):
+
+```json
+{
+  "action": "admin.disableSubscriber",
+  "payload": {
+    "workspace_id": "ws_demo",
+    "channel_id": "ch_coffee",
+    "subscriber_id": "sub_123"
+  }
+}
+```
+
+Disable by email helper:
+
+```json
+{
+  "action": "admin.disableSubscriber",
+  "payload": {
+    "workspace_id": "ws_demo",
+    "channel_id": "ch_coffee",
+    "email": "martin@example.com",
+    "mode": "alert"
+  }
+}
+```
+
+Delete (hard remove):
+
+```json
+{
+  "action": "admin.deleteSubscriber",
+  "payload": {
+    "workspace_id": "ws_demo",
+    "channel_id": "ch_coffee",
+    "subscriber_id": "sub_123"
+  }
+}
+```
+
+## SDK Examples
+
+```js
+const subscriber = await headsup.createSubscriber({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  subscriber_type: 'email',
+  name: 'Martin',
+  destination_url: 'martin@example.com',
+  mode: 'alert',
+  config: {
+    template_id: 'base_alert_v1',
+    value_format: 'money_usd_2',
+    locale: 'en-US',
+    timezone: 'UTC',
+  },
+});
+
+await headsup.disableSubscriber({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  subscriber_id: subscriber.subscriber_id,
+});
+```
+
+## Troubleshooting (Top 10)
+
+1. `SEND_EMAIL binding is not configured`  
+   Add `[[send_email]] name = "SEND_EMAIL"` to Worker config.
+2. `INVALID_EMAIL_RECIPIENT`  
+   Use valid email in `destination_url` or `config.to`.
+3. Delivery stuck in `retrying`  
+   Check provider/domain status and `response_body` on delivery row.
+4. `failed` after first attempt  
+   Likely permanent config issue (`from`, recipient, or binding setup).
+5. No unsubscribe link in email  
+   Set `HEADSUPP_PUBLIC_BASE_URL` and `HEADSUPP_UNSUBSCRIBE_SECRET`.
+6. Unsubscribe link always invalid  
+   Verify unsubscribe secret and clock skew between generation/verification.
+7. Disable by email returns ambiguous match  
+   Provide `mode` or disable by `subscriber_id`.
+8. CTA missing in email  
+   URL must be `http` or `https`.
+9. Values not currency/percent formatted  
+   Set `config.value_format` (`money_usd_2`, `money_gbp_2`, `percent_1`, etc.).
+10. Webhook subscribers regressed after email rollout  
+    Run delivery regression tests (`npm run check`) and verify subscriber type routing.

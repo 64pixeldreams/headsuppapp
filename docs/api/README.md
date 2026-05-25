@@ -18,6 +18,7 @@ Everything else in this folder is supporting context and should link back to tho
 [use-cases.md](use-cases.md)                  practical value and pattern mapping
 [node-cloudflare-client.md](node-cloudflare-client.md)     wrapper install and usage guide
 [webhook-receivers.md](webhook-receivers.md)          Slack and generic callback receiver guide
+[email-subscribers.md](email-subscribers.md)          outbound email subscriber and unsubscribe guide
 [watch-types.md](watch-types.md)                plain-English feature and watch catalog
 [getting-started-api-keys.md](getting-started-api-keys.md)   first-run bootstrap and service API keys
 [cursor-api-instructions.md](cursor-api-instructions.md)    copy-paste PowerShell API sheet
@@ -31,6 +32,7 @@ authentication.md
 admin.md
 connectors-and-ingest.md
 subscribers.md
+email-subscribers.md
 webhook-receivers.md
 watch-types.md
 alerts-and-deliveries.md
@@ -77,6 +79,7 @@ Base endpoints:
 GET /health
 GET /api/v1/health
 GET /api/v1/observability/overview
+GET /v1/subscribers/unsubscribe?token=...
 POST /api/function
 POST /v1/events/{connector_key}
 ```

@@ -64,3 +64,35 @@ test('processes alert delivery queue message', async () => {
   assert.equal(result.result.status, 'sent');
   assert.ok(calls.some((call) => call.sql.includes('UPDATE alert_deliveries')));
 });
+
+test('returns subscriber not found when subscriber row is missing', async () => {
+  const db = {
+    prepare(sql) {
+      return {
+        bind() {
+          return {
+            async first() {
+              if (sql.includes('FROM alert_deliveries')) {
+                return { id: 'delivery_123', alert_id: 'alert_123', subscriber_id: 'sub_missing', attempt_count: 0 };
+              }
+              if (sql.includes('FROM alerts')) {
+                return {
+                  id: 'alert_123',
+                  workspace_id: 'ws_123',
+                  channel_id: 'ch_123',
+                  severity: 'warning',
+                  summary_text: 'Forecast warning.',
+                };
+              }
+              return null;
+            },
+          };
+        },
+      };
+    },
+  };
+
+  const result = await processAlertDeliveryMessage({ alertDeliveryId: 'delivery_123' }, { DB: db });
+  assert.equal(result.processed, false);
+  assert.equal(result.reason, 'SUBSCRIBER_NOT_FOUND');
+});

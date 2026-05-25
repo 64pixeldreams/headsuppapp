@@ -104,6 +104,7 @@ https://headsupp_app.martin-598.workers.dev
 - Admin/control-plane API: [docs/api/admin.md](docs/api/admin.md)
 - Event ingest and connectors: [docs/api/connectors-and-ingest.md](docs/api/connectors-and-ingest.md)
 - Subscribers and delivery retry: [docs/api/subscribers.md](docs/api/subscribers.md)
+- Email subscribers and unsubscribe flow: [docs/api/email-subscribers.md](docs/api/email-subscribers.md)
 - Aggregate forwarding: [docs/api/aggregate-forwarding.md](docs/api/aggregate-forwarding.md)
 - Observability API: [docs/api/observability.md](docs/api/observability.md)
 - Schema and migrations: [docs/api/schema-and-migrations.md](docs/api/schema-and-migrations.md)
@@ -233,6 +234,7 @@ npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0003_chann
 npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0004_watch_actions_and_quiet_summaries.sql"
 npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0005_correctness_closure_runtime.sql"
 npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0006_channel_metadata.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0007_email_subscribers.sql"
 ```
 
 ## Tests And Proofs
@@ -297,7 +299,7 @@ This repository is not open source. See `LICENSE` for usage restrictions.
 - Delivery services: `apps/headsupp-api/src/services/delivery/`
 - Scheduled tasks: `apps/headsupp-api/src/services/scheduler/scheduled-tasks.js`
 - Observability: `apps/headsupp-api/src/services/observability/overview.js`
-- D1 schema: `apps/headsupp-api/migrations/0001_headsupp_core.sql`, `apps/headsupp-api/migrations/0002_correctness_closure.sql`, `apps/headsupp-api/migrations/0003_channel_contracts_and_read_apis.sql`, `apps/headsupp-api/migrations/0004_watch_actions_and_quiet_summaries.sql`, `apps/headsupp-api/migrations/0005_correctness_closure_runtime.sql`, `apps/headsupp-api/migrations/0006_channel_metadata.sql`
+- D1 schema: `apps/headsupp-api/migrations/0001_headsupp_core.sql`, `apps/headsupp-api/migrations/0002_correctness_closure.sql`, `apps/headsupp-api/migrations/0003_channel_contracts_and_read_apis.sql`, `apps/headsupp-api/migrations/0004_watch_actions_and_quiet_summaries.sql`, `apps/headsupp-api/migrations/0005_correctness_closure_runtime.sql`, `apps/headsupp-api/migrations/0006_channel_metadata.sql`, `apps/headsupp-api/migrations/legacy/0007_email_subscribers.sql`
 
 ## CI And Release
 

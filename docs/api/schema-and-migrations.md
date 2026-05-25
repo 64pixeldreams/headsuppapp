@@ -14,6 +14,7 @@ apps/headsupp-api/migrations/legacy/0003_channel_contracts_and_read_apis.sql
 apps/headsupp-api/migrations/legacy/0004_watch_actions_and_quiet_summaries.sql
 apps/headsupp-api/migrations/legacy/0005_correctness_closure_runtime.sql
 apps/headsupp-api/migrations/legacy/0006_channel_metadata.sql
+apps/headsupp-api/migrations/legacy/0007_email_subscribers.sql
 ```
 
 It creates the operational core API tables required by the product spec:
@@ -78,3 +79,5 @@ raw_event_dedupe.updated_at
 `legacy/0005_correctness_closure_runtime.sql` adds aggregate-applied idempotency staging, latest aggregate context preservation, and dimension-safe aggregate-forward delivery identity.
 
 `legacy/0006_channel_metadata.sql` adds `channels.metadata_json` for channel-level metadata echoed in callback payloads.
+
+`legacy/0007_email_subscribers.sql` adds `subscribers.normalized_destination` and lookup indexing used by email subscriber disable/delete and unsubscribe flows.

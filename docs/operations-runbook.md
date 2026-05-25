@@ -69,6 +69,7 @@ npm run smoke:action-controls
 npm run smoke:channel-contracts
 npm run smoke:aggregate-forward-dimensions
 npm run smoke:advanced-watches
+npm run smoke:email-subscriber
 npm run smoke:operator-observability
 ```
 
@@ -143,6 +144,18 @@ create a new subscriber if the destination is permanently invalid
 
 Do not paste full webhook URLs into issues, docs, logs, or commits.
 
+## Email Delivery Checks
+
+If email deliveries fail:
+
+```text
+confirm SEND_EMAIL binding exists in wrangler config
+confirm sender domain is enabled on Cloudflare Email Routing
+check HEADSUPP_EMAIL_FROM and HEADSUPP_EMAIL_REPLY_TO
+inspect alert_deliveries.response_body for provider errors
+confirm HEADSUPP_PUBLIC_BASE_URL and HEADSUPP_UNSUBSCRIBE_SECRET when unsubscribe links are expected
+```
+
 ## D1 Migration Or Query Failure
 
 Symptoms:
@@ -169,6 +182,7 @@ npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0003_chann
 npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0004_watch_actions_and_quiet_summaries.sql"
 npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0005_correctness_closure_runtime.sql"
 npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0006_channel_metadata.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0007_email_subscribers.sql"
 ```
 
 Fresh installs must use `migrations/fresh/schema.sql` and should not run legacy `ALTER TABLE` patches.

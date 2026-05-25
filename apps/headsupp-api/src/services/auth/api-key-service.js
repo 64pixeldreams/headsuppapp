@@ -7,6 +7,7 @@ export const SERVICE_KEY_PERMISSIONS = Object.freeze([
   'channel:create',
   'connector:create',
   'subscriber:create',
+  'subscriber:update',
   'signal:create',
   'watch:create',
 ]);

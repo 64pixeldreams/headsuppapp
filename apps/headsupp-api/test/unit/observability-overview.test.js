@@ -20,6 +20,23 @@ test('observability overview returns operational counts without payloads', async
               }
               return { count: values.shift() };
             },
+            async all() {
+              if (/FROM alert_deliveries delivery/.test(sql)) {
+                return {
+                  results: [
+                    {
+                      subscriber_type: 'email',
+                      severity: 'warning',
+                      template_id: 'base_alert_v1',
+                      sent_count: 2,
+                      retrying_count: 1,
+                      failed_count: 0,
+                    },
+                  ],
+                };
+              }
+              return { results: [] };
+            },
           };
         },
       };
@@ -36,5 +53,7 @@ test('observability overview returns operational counts without payloads', async
   assert.equal(overview.status, 'degraded');
   assert.equal(overview.operator_health.retry_backlog.alerts_due, 2);
   assert.equal(overview.operator_health.scheduled_tasks.status, 'ok');
+  assert.equal(overview.deliveries.alert_breakdown[0].subscriber_type, 'email');
+  assert.equal(overview.deliveries.alert_breakdown[0].template_id, 'base_alert_v1');
   assert.equal(JSON.stringify(overview).includes('payload_json'), false);
 });

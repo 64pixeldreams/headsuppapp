@@ -1,4 +1,4 @@
-import { dispatchAlertDelivery } from './webhook.js';
+import { dispatchAlertDeliveryBySubscriberType } from './alert-router.js';
 
 export async function loadAlertDeliveryBundle(db, deliveryId) {
   const delivery = await db.prepare('SELECT * FROM alert_deliveries WHERE id = ? LIMIT 1').bind(deliveryId).first();
@@ -31,8 +31,21 @@ export async function processAlertDeliveryMessage(message, env, options = {}) {
       reason: 'DELIVERY_NOT_FOUND',
     };
   }
+  if (!bundle.subscriber) {
+    return {
+      processed: false,
+      reason: 'SUBSCRIBER_NOT_FOUND',
+    };
+  }
+  if (['sent', 'failed'].includes(bundle.delivery.status)) {
+    return {
+      processed: true,
+      reason: 'DELIVERY_TERMINAL_STATE',
+      result: { status: bundle.delivery.status },
+    };
+  }
 
-  const result = await dispatchAlertDelivery({
+  const result = await dispatchAlertDeliveryBySubscriberType({
     db: env.DB,
     delivery: bundle.delivery,
     alert: bundle.alert,

@@ -79,6 +79,60 @@ test('supports getChannel and updateChannel wrappers', async () => {
   });
 });
 
+test('supports disable/delete subscriber wrappers', async () => {
+  const calls = [];
+  const client = createHeadsUpClient({
+    baseUrl: 'https://headsupp.example',
+    apiKey: 'hu_api_test',
+    fetch: async (url, init) => {
+      calls.push({ url, init });
+      if (calls.length === 3) {
+        return jsonResponse({ success: true, data: { ok: true, deleted: true } });
+      }
+      return jsonResponse({
+        success: true,
+        data: {
+          ok: true,
+          subscriber: { subscriber_id: 'sub_demo', enabled: 0 },
+        },
+      });
+    },
+  });
+
+  const disabledById = await client.disableSubscriber({
+    workspace_id: 'ws_demo',
+    channel_id: 'ch_demo',
+    subscriber_id: 'sub_demo',
+  });
+  const disabledByEmail = await client.disableSubscriberByEmail({
+    workspace_id: 'ws_demo',
+    channel_id: 'ch_demo',
+    email: 'martin@example.com',
+    mode: 'alert',
+  });
+  const deleted = await client.deleteSubscriber({
+    workspace_id: 'ws_demo',
+    channel_id: 'ch_demo',
+    subscriber_id: 'sub_demo',
+  });
+
+  assert.equal(disabledById.subscriber_id, 'sub_demo');
+  assert.equal(disabledByEmail.enabled, 0);
+  assert.equal(deleted.deleted, true);
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    action: 'admin.disableSubscriber',
+    payload: { workspace_id: 'ws_demo', channel_id: 'ch_demo', subscriber_id: 'sub_demo' },
+  });
+  assert.deepEqual(JSON.parse(calls[1].init.body), {
+    action: 'admin.disableSubscriber',
+    payload: { workspace_id: 'ws_demo', channel_id: 'ch_demo', email: 'martin@example.com', mode: 'alert' },
+  });
+  assert.deepEqual(JSON.parse(calls[2].init.body), {
+    action: 'admin.deleteSubscriber',
+    payload: { workspace_id: 'ws_demo', channel_id: 'ch_demo', subscriber_id: 'sub_demo' },
+  });
+});
+
 test('throws useful API errors', async () => {
   const client = createHeadsUpClient({
     baseUrl: 'https://headsupp.example',
