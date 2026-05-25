@@ -23,6 +23,7 @@ test('renders fallback template with formatting profile', () => {
     alert: baseAlert,
     subscriber: {
       name: 'Martin',
+      destination_url: 'martin@inc64.com',
       config_json: JSON.stringify({
         value_format: 'money_gbp_2',
         locale: 'en-GB',
@@ -35,6 +36,7 @@ test('renders fallback template with formatting profile', () => {
   assert.match(rendered.subject, /^Critical:/);
   assert.match(rendered.text, /£126\.40/);
   assert.match(rendered.text, /Unsubscribe:/);
+  assert.match(rendered.text, /Signal reached £126\.40/);
   assert.match(rendered.html, /href="https:\/\/headsupp\.io\/v1\/subscribers\/unsubscribe\?token=test"/);
 });
 
@@ -71,4 +73,18 @@ test('omits CTA button when URL is invalid', () => {
     channel: {},
   });
   assert.doesNotMatch(rendered.html, /View coffee spend/);
+});
+
+test('uses email-derived recipient name when subscriber label is generic', () => {
+  const rendered = renderAlertEmail({
+    alert: baseAlert,
+    subscriber: {
+      name: 'Coffee Email Alerts',
+      destination_url: 'martin@inc64.com',
+      config_json: '{}',
+    },
+    channel: {},
+  });
+
+  assert.match(rendered.text, /Hi Martin,/);
 });

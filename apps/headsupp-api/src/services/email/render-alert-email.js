@@ -78,7 +78,22 @@ function buildDefaultTitle(alert, labels = {}) {
 function buildDefaultSummary({ alert, labels, currentValue, thresholdValue }) {
   const signal = labels.signal_label || 'Signal';
   const threshold = labels.threshold_label || 'Threshold';
-  return `${signal} is ${alert.severity} at ${currentValue}. ${threshold}: ${thresholdValue}.`;
+  return `${signal} reached ${currentValue}. ${threshold}: ${thresholdValue}.`;
+}
+
+function looksGenericRecipientLabel(value) {
+  return /alert|subscriber|channel|callback|webhook/i.test(String(value || ''));
+}
+
+function humanizeEmailRecipient(email) {
+  const local = String(email || '').split('@')[0] || '';
+  if (!local) return null;
+  const normalized = local.replace(/[._-]+/g, ' ').trim();
+  if (!normalized) return null;
+  return normalized
+    .split(/\s+/)
+    .map((part) => (part ? `${part[0].toUpperCase()}${part.slice(1).toLowerCase()}` : part))
+    .join(' ');
 }
 
 function selectTemplateId({ subscriberConfig = {}, alert, templateRegistry = {} }) {
@@ -188,6 +203,14 @@ export function renderAlertEmail({ alert, subscriber, channel, unsubscribe_url =
     fields?.display?.threshold_value || formatNumericValue(alert.threshold_value, { profile: valueFormat, locale });
   const ctaUrl = safeUrl(alert.cta_url || payload?.cta?.url || subscriberConfig?.defaults?.cta_url || null);
   const ctaLabel = payload?.cta?.label || alert.cta_label || subscriberConfig?.defaults?.cta_label || 'View details';
+  const configuredRecipientName = subscriberConfig?.recipient_name || subscriberConfig?.name || null;
+  const subscriberName = subscriber.name || subscriber.display_name || null;
+  const fallbackRecipientFromEmail = humanizeEmailRecipient(subscriber.destination_url);
+  const recipientName = configuredRecipientName
+    || (subscriberName && !looksGenericRecipientLabel(subscriberName) ? subscriberName : null)
+    || fallbackRecipientFromEmail
+    || null;
+
   const title = notification.title || buildDefaultTitle(alert, labels);
   const summary = notification.summary || buildDefaultSummary({
     alert,
@@ -213,7 +236,7 @@ export function renderAlertEmail({ alert, subscriber, channel, unsubscribe_url =
     threshold_label: labels.threshold_label || 'Threshold',
     brand_name: subscriberConfig?.branding?.brand_name || 'Heads Up',
     footer_text: subscriberConfig?.branding?.footer_text || 'Fewer surprises. Just a heads up.',
-    recipient_name: subscriber.name || subscriber.display_name || null,
+    recipient_name: recipientName,
     cta_url: ctaUrl,
     cta_label: ctaLabel,
     unsubscribe_url,
