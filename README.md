@@ -89,6 +89,65 @@ POST /v1/events/{connector_key}
 
 Control-plane actions use CFKit through `POST /api/function`. Event ingest uses connector-level HMAC and returns `202 Accepted` after validation and queueing.
 
+## Recommended Client Wrapper
+
+Most integrations should use the private Node/Cloudflare wrapper instead of calling the raw API directly. The wrapper hides `POST /api/function`, unwraps API responses, signs connector events, and works in Node 20+ and Cloudflare Workers.
+
+Package:
+
+```text
+@64pixelholdings/headsupp-client
+```
+
+Install options:
+
+```bash
+# Preferred once private package publishing is configured
+npm install @64pixelholdings/headsupp-client
+
+# Local development from this repo
+npm install ../headsupp/packages/headsupp-client
+
+# Git fallback if the wrapper is split into a private SDK repo
+npm install git+ssh://git@github.com/64pixeldreams/headsupp-client-js.git
+```
+
+Minimal setup:
+
+```js
+import { createHeadsUpClient } from '@64pixelholdings/headsupp-client';
+
+const headsup = createHeadsUpClient({
+  baseUrl: process.env.HEADSUPP_BASE_URL,
+  apiKey: process.env.HEADSUPP_API_KEY,
+});
+
+const workspace = await headsup.createWorkspace({
+  name: 'Demo Workspace',
+  source_app: 'headsupp-demo',
+  external_tenant_id: 'demo-tenant',
+  external_user_id: 'demo-user',
+});
+```
+
+Send a signed event:
+
+```js
+await headsup.sendEvent({
+  connectorKey: process.env.HEADSUPP_CONNECTOR_KEY,
+  connectorSecret: process.env.HEADSUPP_CONNECTOR_SECRET,
+  event: {
+    idempotency_key: 'evt_demo_001',
+    signal_key: 'demo.metric',
+    occurred_at: new Date().toISOString(),
+    value: { num: 15 },
+    fields: { source: 'demo' },
+  },
+});
+```
+
+Start with `docs/api/node-cloudflare-client.md` for install/use instructions, `docs/api/foretic-wrapper-guide.md` for Foretic, and `docs/api/quickstart.md` for the raw API tutorial with request and response examples.
+
 ## Development
 
 ```bash
