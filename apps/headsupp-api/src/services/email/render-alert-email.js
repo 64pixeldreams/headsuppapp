@@ -209,7 +209,7 @@ function renderBaseAlertTemplate(context) {
                 </table>
                 ${
                   context.cta_url
-                    ? `<p style="margin:0 0 16px 0;"><a href="${escapeHtml(context.cta_url)}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:10px 14px;border-radius:8px;font-weight:600;">${escapeHtml(context.cta_label)}</a></p>`
+                    ? `<p style="margin:0 0 16px 0;"><a href="${escapeHtml(context.cta_url)}" style="display:block;width:100%;box-sizing:border-box;background:#111827;color:#ffffff;text-align:center;text-decoration:none;padding:12px 16px;border-radius:8px;font-weight:700;">${escapeHtml(context.cta_label)}</a></p>`
                     : ''
                 }
                 ${

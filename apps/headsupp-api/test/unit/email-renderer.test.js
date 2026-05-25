@@ -41,6 +41,7 @@ test('renders fallback template with formatting profile', () => {
   assert.match(rendered.html, /href="https:\/\/headsupp\.io\/v1\/subscribers\/unsubscribe\?token=test"/);
   assert.match(rendered.html, /Critical/);
   assert.match(rendered.html, /background:#FEE2E2/);
+  assert.match(rendered.html, /display:block;width:100%;box-sizing:border-box;background:#111827/);
   assert.doesNotMatch(rendered.html, /<strong>Severity:<\/strong>/);
   assert.doesNotMatch(rendered.text, /Severity:/);
 });
