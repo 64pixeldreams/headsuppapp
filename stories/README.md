@@ -14,7 +14,7 @@ Each numbered Markdown file is one story stub. Expand one story at a time using:
 Cursor should build one story at a time and run:
 
 ```bash
-npm test
+npm run check
 ```
 
 If tests fail, Cursor should fix the issue and rerun tests until green before moving on.
@@ -23,7 +23,7 @@ If a story creates or changes an endpoint, auth rule, event payload, delivery pa
 
 ## Current Story Count
 
-There are 95 story files.
+There are 101 story files.
 
 Stories marked `_done` are complete. Pending stories should be built one at a time or in an agreed batch, with tests and docs updated before marking `_done`.
 
@@ -109,4 +109,17 @@ Non-AI/non-email proof and hardening gaps found during the platform alignment au
 93 Scheduled delivery and aggregate-forward cursor hardening
 94 Deployed advanced watch smoke
 95 Deployed operator observability smoke
+```
+
+## Core API Gap Closure Batch
+
+Non-UI/non-email website/API gaps to close in small implementation stories:
+
+```text
+96 Week bucket support_done
+97 Relative change watch types_done
+98 Due-date reminder watches_done
+99 Recurring expectations v2_done
+100 Richer weekly monthly summaries_done
+101 High volume proof_done
 ```

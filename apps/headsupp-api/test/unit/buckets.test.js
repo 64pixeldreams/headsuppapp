@@ -9,7 +9,13 @@ test('calculates UTC bucket starts', () => {
   assert.equal(bucketStartAt(occurredAt, 'minute'), '2026-05-24T10:37:00.000Z');
   assert.equal(bucketStartAt(occurredAt, 'hour'), '2026-05-24T10:00:00.000Z');
   assert.equal(bucketStartAt(occurredAt, 'day'), '2026-05-24T00:00:00.000Z');
+  assert.equal(bucketStartAt(occurredAt, 'week'), '2026-05-18T00:00:00.000Z');
   assert.equal(bucketStartAt(occurredAt, 'month'), '2026-05-01T00:00:00.000Z');
+});
+
+test('calculates UTC week bucket starts on Monday boundary', () => {
+  assert.equal(bucketStartAt('2026-05-24T23:59:59.999Z', 'week'), '2026-05-18T00:00:00.000Z');
+  assert.equal(bucketStartAt('2026-05-25T00:00:00.000Z', 'week'), '2026-05-25T00:00:00.000Z');
 });
 
 test('extracts configured dimensions from event fields', () => {
@@ -48,14 +54,16 @@ test('converts event to aggregate deltas for configured buckets', () => {
     },
     contract: {
       dimensions: ['forecast_id', 'status'],
-      default_bucket_types: ['minute', 'hour'],
+      default_bucket_types: ['minute', 'hour', 'week'],
     },
     now: '2026-05-24T10:38:00.000Z',
   });
 
-  assert.equal(deltas.length, 2);
+  assert.equal(deltas.length, 3);
   assert.equal(deltas[0].bucket_type, 'minute');
   assert.equal(deltas[0].sum_value, 64);
   assert.deepEqual(deltas[0].dimensions, { forecast_id: 'fc_123', status: 'critical' });
   assert.equal(deltas[1].bucket_start_at, '2026-05-24T10:00:00.000Z');
+  assert.equal(deltas[2].bucket_type, 'week');
+  assert.equal(deltas[2].bucket_start_at, '2026-05-18T00:00:00.000Z');
 });

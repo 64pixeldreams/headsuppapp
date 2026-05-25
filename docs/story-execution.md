@@ -28,6 +28,7 @@ The current story phases are:
 77-81: website alignment features now implemented
 82-88: future advanced trend/recurring/email/AI setup stories
 89-95: platform audit follow-up proof and hardening
+96-101: core API website gap closure
 ```
 
 ## Story Template

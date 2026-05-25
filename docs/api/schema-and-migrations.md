@@ -47,6 +47,8 @@ control_plane_audit_logs: request/action/actor/target metadata only, no secrets
 operational_status: one row per operator health signal
 ```
 
+Supported aggregate `bucket_type` values are `minute`, `hour`, `day`, `week`, and `month`. Week buckets use a UTC Monday boundary.
+
 These constraints are required for idempotency, atomic aggregate upsert, and duplicate-safe aggregate forwarding.
 
 `control_plane_audit_logs` records low-volume admin/operator actions. It must not contain raw API keys, connector secrets, Slack webhook URLs, generic webhook destination URLs, or raw event payloads.

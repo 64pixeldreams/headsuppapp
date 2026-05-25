@@ -19,3 +19,12 @@ test('load smoke summary proves queue and fold invariants', () => {
   assert.equal(summary.unique_idempotency_keys, 1000);
   assert.ok(summary.folded_deltas < summary.aggregate_deltas);
 });
+
+test('high-volume smoke summary can exceed normal load smoke size', () => {
+  const summary = summarizeLoadSmoke({ count: 20000 });
+
+  assert.equal(summary.input_events, 20000);
+  assert.equal(summary.queue_messages, 20000);
+  assert.equal(summary.unique_idempotency_keys, 20000);
+  assert.ok(summary.folded_deltas < summary.aggregate_deltas);
+});

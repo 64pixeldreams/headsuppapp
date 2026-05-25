@@ -46,4 +46,4 @@ As a user, I need trend-oriented watch types beyond simple deltas so alerts repr
 
 ## Status
 
-Pending.
+Partially complete through story 97: `PERCENT_CHANGE_GT`, `PERCENT_CHANGE_LT`, `PREVIOUS_PERIOD_RATIO_GT`, `PREVIOUS_PERIOD_RATIO_LT`, and `SPIKE_GT` are implemented, tested, and documented. `WINDOW_VS_PREVIOUS_WINDOW_GT` and `WINDOW_VS_PREVIOUS_WINDOW_LT` remain pending.

@@ -29,6 +29,7 @@ Before declaring a deployed API healthy, run:
 cd apps/headsupp-api
 npm run check
 npm run load:smoke
+npm run load:high-volume
 npm run smoke:generic-slack
 npm run smoke:alert-decisions
 npm run smoke:scheduled
@@ -63,6 +64,7 @@ smoke:scheduled          D1 + deployed     MISSING_EXPECTED, DIGEST, AGGREGATE_F
 smoke:delivery-retry     HTTP + deployed   retrying, sent, failed delivery states and no duplicate alerts
 smoke:tenant-isolation   D1 + deployed     same signal_key across tenants without alert/aggregate leakage
 load:smoke               local             10000 synthetic events fold into fewer aggregate deltas
+load:high-volume         local             configurable high-volume synthetic proof, default 100000 events
 soak:release             local             bounded throughput and fold-compression release proof
 ```
 
@@ -118,6 +120,29 @@ queue_messages: 10000
 folded_deltas much lower than aggregate_deltas
 ok: true
 ```
+
+Command:
+
+```bash
+npm run load:high-volume
+```
+
+Optional tuning:
+
+```text
+HEADSUPP_HIGH_VOLUME_EVENT_COUNT
+```
+
+Expected output:
+
+```text
+input_events: 100000 by default
+queue_messages equals input_events
+folded_deltas much lower than aggregate_deltas
+ok: true
+```
+
+This is local synthetic proof. Increase the count manually for heavier validation; do not run million-event proof in every CI job.
 
 Command:
 

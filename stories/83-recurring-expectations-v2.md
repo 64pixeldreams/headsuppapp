@@ -47,4 +47,4 @@ As a finance/revenue operator, I need richer “expected event” contracts so a
 
 ## Status
 
-Pending.
+Partially complete through story 99: `MISSING_EXPECTED` now supports explicit due windows, dimensions, grace, and expected value ranges while preserving the old count-in-window shape. Per-cycle fulfilled state and skip/snooze windows remain pending.

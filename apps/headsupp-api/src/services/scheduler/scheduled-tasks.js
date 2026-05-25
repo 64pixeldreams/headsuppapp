@@ -5,6 +5,7 @@ import { processQuietSummaryDeliveryMessage } from '../delivery/quiet-summary.js
 import { evaluateDigestWatches } from '../scheduled-watches/digest.js';
 import { evaluateMissingExpectedWatches } from '../scheduled-watches/missing-expected.js';
 import { evaluateQuietSummaries } from '../scheduled-watches/quiet-summary.js';
+import { evaluateReminderWatches } from '../scheduled-watches/reminder.js';
 import { recordOperationalStatus } from '../operational/status.js';
 import { cleanupRawEventDedupe } from './dedupe-cleanup.js';
 
@@ -45,6 +46,10 @@ export async function runScheduledTasks(env, _event = {}, options = {}) {
       db: env.DB,
       now,
     });
+    const reminders = await evaluateReminderWatches({
+      db: env.DB,
+      now,
+    });
     const aggregateForward = await evaluateClosedAggregateForwardWatches({
       db: env.DB,
       queue: env.AGGREGATE_DELIVERY_QUEUE,
@@ -69,6 +74,7 @@ export async function runScheduledTasks(env, _event = {}, options = {}) {
 
     const result = {
       missing_expected: missingExpected,
+      reminders,
       aggregate_forward: aggregateForward,
       digest,
       quiet_summary: quietSummary,

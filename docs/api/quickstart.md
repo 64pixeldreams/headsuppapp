@@ -225,6 +225,106 @@ Create a watch:
 }
 ```
 
+Weekly spend watch:
+
+```json
+{
+  "action": "admin.createWatch",
+  "payload": {
+    "workspace_id": "ws_...",
+    "channel_id": "ch_...",
+    "signal_id": "sig_spend",
+    "name": "OpenAI spend over weekly budget",
+    "watch_type": "WINDOW_SUM_GT",
+    "config": {
+      "threshold": 500,
+      "severity": "warning",
+      "bucket_type": "week",
+      "window": {
+        "size": 1
+      }
+    },
+    "cooldown_seconds": 86400
+  }
+}
+```
+
+Spike watch:
+
+```json
+{
+  "action": "admin.createWatch",
+  "payload": {
+    "workspace_id": "ws_...",
+    "channel_id": "ch_...",
+    "signal_id": "sig_api_usage",
+    "name": "API usage doubled",
+    "watch_type": "PREVIOUS_PERIOD_RATIO_GT",
+    "config": {
+      "threshold": 2,
+      "severity": "warning",
+      "bucket_type": "hour"
+    },
+    "cooldown_seconds": 3600
+  }
+}
+```
+
+Renewal reminder:
+
+```json
+{
+  "action": "admin.createWatch",
+  "payload": {
+    "workspace_id": "ws_...",
+    "channel_id": "ch_...",
+    "signal_id": "sig_renewals",
+    "name": "OpenAI renewal due",
+    "watch_type": "REMINDER_DUE",
+    "config": {
+      "due_at": "2026-06-01T00:00:00.000Z",
+      "lead": {
+        "unit": "day",
+        "count": 7
+      },
+      "severity": "warning",
+      "label": "OpenAI renewal"
+    },
+    "cooldown_seconds": 86400
+  }
+}
+```
+
+Recurring payment expectation with an amount range:
+
+```json
+{
+  "action": "admin.createWatch",
+  "payload": {
+    "workspace_id": "ws_...",
+    "channel_id": "ch_...",
+    "signal_id": "sig_payment",
+    "name": "Expected recurring payment",
+    "watch_type": "MISSING_EXPECTED",
+    "config": {
+      "bucket_type": "day",
+      "due_window": {
+        "start_at": "2026-05-24T00:00:00.000Z",
+        "end_at": "2026-05-24T23:59:59.000Z"
+      },
+      "minimum_count": 1,
+      "value_range": {
+        "field": "sum",
+        "min": 100,
+        "max": 200
+      },
+      "severity": "warning"
+    },
+    "cooldown_seconds": 86400
+  }
+}
+```
+
 Create a Slack subscriber:
 
 ```json

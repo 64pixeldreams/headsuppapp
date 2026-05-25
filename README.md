@@ -129,6 +129,7 @@ Local quality gates:
 cd apps/headsupp-api
 npm run check
 npm run load:smoke
+npm run load:high-volume
 ```
 
 Deployed smoke tests:
@@ -149,6 +150,7 @@ These prove:
 - Triggering events produce alerts.
 - Cooldown, escalation, and recovery work.
 - Scheduled missing-expected, digest, and aggregate-forward watches work.
+- Week buckets, relative-change watches, reminders, richer recurring expectations, and weekly/monthly digests are covered by local tests.
 - Retry and permanent delivery failure behavior works.
 - Tenant isolation holds when two workspaces share the same `signal_key`.
 

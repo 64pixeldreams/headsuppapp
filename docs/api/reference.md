@@ -346,7 +346,7 @@ Request:
     "signal_type": "metric",
     "value_mode": "last",
     "contract": {
-      "default_bucket_types": ["minute", "hour"],
+      "default_bucket_types": ["minute", "hour", "day", "week"],
       "dimensions": ["source"]
     }
   }
@@ -422,12 +422,110 @@ WINDOW_SUM_GT
 WINDOW_COUNT_GT
 DELTA_GT
 DELTA_LT
+PERCENT_CHANGE_GT
+PERCENT_CHANGE_LT
+PREVIOUS_PERIOD_RATIO_GT
+PREVIOUS_PERIOD_RATIO_LT
+SPIKE_GT
 MISSING_EXPECTED
+REMINDER_DUE
 DIGEST
 AGGREGATE_FORWARD
 ```
 
 Scheduled watches run from Cloudflare Cron, not inline ingest.
+
+Supported aggregate bucket types:
+
+```text
+minute
+hour
+day
+week
+month
+```
+
+Weekly buckets use a UTC Monday boundary.
+
+Weekly spend example:
+
+```json
+{
+  "watch_type": "WINDOW_SUM_GT",
+  "config": {
+    "threshold": 500,
+    "severity": "warning",
+    "bucket_type": "week",
+    "window": {
+      "size": 1
+    }
+  }
+}
+```
+
+Relative-change example for "API usage suddenly doubles":
+
+```json
+{
+  "watch_type": "PREVIOUS_PERIOD_RATIO_GT",
+  "config": {
+    "threshold": 2,
+    "severity": "warning",
+    "bucket_type": "hour"
+  }
+}
+```
+
+Reminder example for "renewal is due in seven days":
+
+```json
+{
+  "watch_type": "REMINDER_DUE",
+  "config": {
+    "due_at": "2026-06-01T00:00:00.000Z",
+    "lead": {
+      "unit": "day",
+      "count": 7
+    },
+    "severity": "warning",
+    "label": "OpenAI renewal"
+  }
+}
+```
+
+Recurring expectation v2 can constrain due windows and value ranges while preserving existing count-in-window behavior:
+
+```json
+{
+  "watch_type": "MISSING_EXPECTED",
+  "config": {
+    "bucket_type": "day",
+    "due_window": {
+      "start_at": "2026-05-24T00:00:00.000Z",
+      "end_at": "2026-05-24T23:59:59.000Z"
+    },
+    "minimum_count": 1,
+    "value_range": {
+      "field": "sum",
+      "min": 100,
+      "max": 200
+    }
+  }
+}
+```
+
+Digest watches support `hourly`, `daily`, `weekly`, and `monthly` schedules. For richer summaries, pass `signal_ids`:
+
+```json
+{
+  "watch_type": "DIGEST",
+  "config": {
+    "schedule": "weekly",
+    "signal_ids": ["sig_revenue", "sig_churn"],
+    "include": ["sum", "count", "avg", "last"]
+  }
+}
+```
 
 ### Create Subscriber
 

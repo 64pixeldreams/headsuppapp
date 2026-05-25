@@ -7,6 +7,11 @@ const WATCH_TYPES = new Set([
   'WINDOW_COUNT_GT',
   'DELTA_LT',
   'DELTA_GT',
+  'PERCENT_CHANGE_GT',
+  'PERCENT_CHANGE_LT',
+  'PREVIOUS_PERIOD_RATIO_GT',
+  'PREVIOUS_PERIOD_RATIO_LT',
+  'SPIKE_GT',
 ]);
 
 export function parseWatchJson(value) {
@@ -38,6 +43,14 @@ function windowStats(aggregates) {
     count,
     avg: count > 0 ? sum / count : null,
   };
+}
+
+function latestPair(aggregates) {
+  if (aggregates.length < 2) return null;
+  const previous = Number(aggregates[aggregates.length - 2]?.last_value);
+  const latest = Number(aggregates[aggregates.length - 1]?.last_value);
+  if (!Number.isFinite(previous) || !Number.isFinite(latest)) return null;
+  return { previous, latest };
 }
 
 export function evaluateWatchAgainstAggregates(watch, aggregates = []) {
@@ -80,13 +93,30 @@ export function evaluateWatchAgainstAggregates(watch, aggregates = []) {
   }
 
   if (watch.watch_type === 'DELTA_LT' || watch.watch_type === 'DELTA_GT') {
-    if (aggregates.length >= 2) {
-      const previous = Number(aggregates[aggregates.length - 2]?.last_value);
-      const latestValue = Number(latest?.last_value);
-      if (Number.isFinite(previous) && Number.isFinite(latestValue)) {
-        currentValue = latestValue - previous;
-        triggered = watch.watch_type === 'DELTA_LT' ? currentValue < config.threshold : currentValue > config.threshold;
-      }
+    const pair = latestPair(aggregates);
+    if (pair) {
+      currentValue = pair.latest - pair.previous;
+      triggered = watch.watch_type === 'DELTA_LT' ? currentValue < config.threshold : currentValue > config.threshold;
+    }
+  }
+
+  if (watch.watch_type === 'PERCENT_CHANGE_LT' || watch.watch_type === 'PERCENT_CHANGE_GT' || watch.watch_type === 'SPIKE_GT') {
+    const pair = latestPair(aggregates);
+    if (pair && pair.previous !== 0) {
+      currentValue = ((pair.latest - pair.previous) / Math.abs(pair.previous)) * 100;
+      triggered =
+        watch.watch_type === 'PERCENT_CHANGE_LT' ? currentValue < config.threshold : currentValue > config.threshold;
+    }
+  }
+
+  if (watch.watch_type === 'PREVIOUS_PERIOD_RATIO_LT' || watch.watch_type === 'PREVIOUS_PERIOD_RATIO_GT') {
+    const pair = latestPair(aggregates);
+    if (pair && pair.previous !== 0) {
+      currentValue = pair.latest / pair.previous;
+      triggered =
+        watch.watch_type === 'PREVIOUS_PERIOD_RATIO_LT'
+          ? currentValue < config.threshold
+          : currentValue > config.threshold;
     }
   }
 

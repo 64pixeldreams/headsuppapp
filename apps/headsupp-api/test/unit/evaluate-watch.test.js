@@ -90,3 +90,77 @@ test('evaluates WINDOW_COUNT_GT across aggregate rows', () => {
   assert.equal(result.triggered, true);
   assert.equal(result.current_value, 11);
 });
+
+test('evaluates PERCENT_CHANGE_GT from adjacent aggregate rows', () => {
+  const result = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'PERCENT_CHANGE_GT',
+      threshold: 50,
+    },
+    [{ last_value: 100 }, { last_value: 180 }],
+  );
+
+  assert.equal(result.triggered, true);
+  assert.equal(result.current_value, 80);
+});
+
+test('evaluates PERCENT_CHANGE_LT for drops from adjacent aggregate rows', () => {
+  const result = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'PERCENT_CHANGE_LT',
+      threshold: -25,
+    },
+    [{ last_value: 100 }, { last_value: 60 }],
+  );
+
+  assert.equal(result.triggered, true);
+  assert.equal(result.current_value, -40);
+});
+
+test('evaluates PREVIOUS_PERIOD_RATIO_GT for suddenly doubles rules', () => {
+  const result = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'PREVIOUS_PERIOD_RATIO_GT',
+      threshold: 2,
+    },
+    [{ last_value: 100 }, { last_value: 250 }],
+  );
+
+  assert.equal(result.triggered, true);
+  assert.equal(result.current_value, 2.5);
+});
+
+test('does not trigger relative-change watches when previous value is zero', () => {
+  const percent = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'PERCENT_CHANGE_GT',
+      threshold: 50,
+    },
+    [{ last_value: 0 }, { last_value: 100 }],
+  );
+  const ratio = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'PREVIOUS_PERIOD_RATIO_GT',
+      threshold: 2,
+    },
+    [{ last_value: 0 }, { last_value: 100 }],
+  );
+
+  assert.equal(percent.triggered, false);
+  assert.equal(percent.current_value, null);
+  assert.equal(ratio.triggered, false);
+  assert.equal(ratio.current_value, null);
+});
+
+test('evaluates SPIKE_GT as a percent increase alias', () => {
+  const result = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'SPIKE_GT',
+      threshold: 100,
+    },
+    [{ last_value: 10 }, { last_value: 25 }],
+  );
+
+  assert.equal(result.triggered, true);
+  assert.equal(result.current_value, 150);
+});

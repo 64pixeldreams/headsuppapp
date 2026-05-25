@@ -4,6 +4,16 @@ import test from 'node:test';
 import { evaluateMissingExpectedWatch } from '../../src/services/scheduled-watches/missing-expected.js';
 
 function dbWithAggregateCount(countValue, batches = [], calls = []) {
+  const aggregateRow =
+    typeof countValue === 'object'
+      ? countValue
+      : {
+          count_value: countValue,
+          sum_value: countValue,
+          avg_value: countValue,
+          min_value: countValue,
+          max_value: countValue,
+        };
   return {
     prepare(sql) {
       return {
@@ -11,7 +21,7 @@ function dbWithAggregateCount(countValue, batches = [], calls = []) {
           calls.push({ sql, params });
           return {
             async first() {
-              if (sql.includes('SUM(count_value)')) return { count_value: countValue };
+              if (sql.includes('SUM(count_value)')) return aggregateRow;
               if (sql.includes('watch_states')) return null;
               return null;
             },
@@ -59,6 +69,49 @@ test('missing expected watch triggers when aggregate count is below minimum', as
 
   assert.equal(result.triggered, true);
   assert.equal(result.alert.severity, 'warning');
+  assert.equal(batches.length, 2);
+});
+
+test('missing expected watch uses explicit due window when configured', async () => {
+  const calls = [];
+  const result = await evaluateMissingExpectedWatch({
+    db: dbWithAggregateCount(1, [], calls),
+    watch: {
+      ...watch,
+      config_json: JSON.stringify({
+        due_window: {
+          start_at: '2026-05-24T00:00:00.000Z',
+          end_at: '2026-05-24T23:59:59.000Z',
+        },
+        bucket_type: 'day',
+      }),
+    },
+    now: '2026-05-25T01:00:00.000Z',
+  });
+
+  const aggregateCall = calls.find((call) => call.sql.includes('SUM(count_value)'));
+  assert.equal(result.triggered, false);
+  assert.equal(aggregateCall.params[2], '2026-05-24T00:00:00.000Z');
+  assert.equal(aggregateCall.params[3], '2026-05-24T23:59:59.000Z');
+});
+
+test('missing expected watch triggers when value range is not met', async () => {
+  const batches = [];
+  const result = await evaluateMissingExpectedWatch({
+    db: dbWithAggregateCount({ count_value: 1, sum_value: 75, avg_value: 75, min_value: 75, max_value: 75 }, batches),
+    watch: {
+      ...watch,
+      config_json: JSON.stringify({
+        expected_every: { unit: 'day', count: 1 },
+        minimum_count: 1,
+        value_range: { field: 'sum', min: 100, max: 200 },
+      }),
+    },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.triggered, true);
+  assert.equal(result.alert.current_value, 75);
   assert.equal(batches.length, 2);
 });
 

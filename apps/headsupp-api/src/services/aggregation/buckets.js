@@ -1,4 +1,4 @@
-const BUCKET_TYPES = new Set(['minute', 'hour', 'day', 'month']);
+const BUCKET_TYPES = new Set(['minute', 'hour', 'day', 'week', 'month']);
 
 export function bucketStartAt(occurredAt, bucketType) {
   if (!BUCKET_TYPES.has(bucketType)) {
@@ -12,6 +12,13 @@ export function bucketStartAt(occurredAt, bucketType) {
 
   if (bucketType === 'month') {
     return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1, 0, 0, 0, 0)).toISOString();
+  }
+  if (bucketType === 'week') {
+    const day = date.getUTCDay();
+    const daysSinceMonday = (day + 6) % 7;
+    return new Date(
+      Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - daysSinceMonday, 0, 0, 0, 0),
+    ).toISOString();
   }
   if (bucketType === 'day') {
     return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0)).toISOString();

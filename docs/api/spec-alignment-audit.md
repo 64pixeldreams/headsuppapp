@@ -22,10 +22,10 @@ connector -> queue -> aggregate -> watch -> alert / aggregate forward
 
 The strongest proof is the deployed Slack alert path, alert-decision smoke, scheduled watches smoke, delivery retry smoke, tenant-isolation smoke, local load smoke, and the unit/integration suite.
 
-The main non-AI/non-email gaps are not product-direction gaps. They are proof and hardening gaps:
+The main non-AI/non-email gaps are now proof and hardening gaps:
 
 - Some deployed smokes still seed deterministic resources through D1/KV harnesses instead of the public `/api/function` control plane.
-- Quiet summaries, action controls, channel contract inheritance, dimensioned aggregate-forwarding, advanced watch types, and operator key lifecycle need dedicated deployed smoke scripts.
+- Quiet summaries, action controls, channel contract inheritance, dimensioned aggregate-forwarding, advanced watch types, reminder watches, recurring expectations v2, and operator key lifecycle need dedicated deployed smoke scripts.
 - Scheduled alert delivery and aggregate-forward repeat enqueue behavior need focused code-hardening stories.
 
 ## Product Principles
@@ -165,7 +165,13 @@ WINDOW_SUM_GT
 WINDOW_COUNT_GT
 DELTA_GT
 DELTA_LT
+PERCENT_CHANGE_GT
+PERCENT_CHANGE_LT
+PREVIOUS_PERIOD_RATIO_GT
+PREVIOUS_PERIOD_RATIO_LT
+SPIKE_GT
 MISSING_EXPECTED
+REMINDER_DUE
 DIGEST
 AGGREGATE_FORWARD
 ```
@@ -177,8 +183,8 @@ Proof:
 
 Gaps:
 
-- `WINDOW_*` and `DELTA_*` do not yet have deployed smoke coverage.
-- Weekly/monthly business-spend examples need clearer cookbook guidance because bucket support and window config are separate concepts.
+- `WINDOW_*`, `DELTA_*`, relative-change watches, reminder watches, and recurring-expectation v2 do not yet have deployed smoke coverage.
+- Weekly/monthly business-spend examples have local coverage and docs, but still need deployed smoke coverage.
 
 ### Alerts And Deliveries
 
@@ -234,7 +240,7 @@ Gap:
 
 - `smoke:foretic` is fixture/local-runtime oriented. A deployed Foretic smoke should exercise the live Worker path.
 
-### Channel Contracts, Read APIs, Action Controls, Quiet Summaries
+### Channel Contracts, Read APIs, Action Controls, Quiet Summaries, Reminders, And Rich Digests
 
 Status: implemented with proof gaps.
 
@@ -244,6 +250,8 @@ Evidence:
 - Alert/watch-state reads are implemented in `apps/headsupp-api/src/services/admin/read-models.js`.
 - Snooze/mute/resume/ignore controls are implemented in `apps/headsupp-api/src/services/watches/action-controls.js`.
 - Quiet summaries are implemented in scheduled and delivery services.
+- Reminder watches are implemented in scheduled services.
+- Weekly/monthly multi-signal digest summaries are implemented in scheduled services.
 
 Proof:
 
@@ -251,7 +259,7 @@ Proof:
 
 Gaps:
 
-- Add deployed smoke scripts for channel contract inheritance/read APIs, action controls, and quiet-summary delivery.
+- Add deployed smoke scripts for channel contract inheritance/read APIs, action controls, quiet-summary delivery, reminders, recurring expectations v2, and rich digests.
 
 ## Out Of Scope For V1
 
@@ -278,5 +286,6 @@ Non-AI/non-email follow-up stories should focus on proof and hardening:
 4. Deployed dimensioned aggregate-forward smoke.
 5. Scheduled alert delivery enqueue hardening.
 6. Aggregate-forward emitted cursor/requeue hardening.
-7. Deployed advanced watch smoke for `WINDOW_*` and `DELTA_*`.
-8. Deployed operator key lifecycle and observability smoke.
+7. Deployed advanced watch smoke for `WINDOW_*`, `DELTA_*`, and relative-change watches.
+8. Deployed reminder, recurring-expectation v2, and rich digest smoke.
+9. Deployed operator key lifecycle and observability smoke.
