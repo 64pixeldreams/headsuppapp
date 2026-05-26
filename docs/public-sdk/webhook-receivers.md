@@ -1,8 +1,20 @@
 # Webhook Receivers And Subscriptions
 
-Primary docs: use [quickstart.md](quickstart.md) for setup flow and [reference.md](reference.md) for canonical props. This file focuses on receiver implementation, signature verification, and retry behavior.
+Provision subscribers with the SDK ([cookbook/webhook-alerts.md](cookbook/webhook-alerts.md), [getting-started.md](getting-started.md)). This file focuses on **inbound** callback verification and retry behavior.
 
-This guide explains how to subscribe Slack or your own webhook to a channel and what happens when a watch fires.
+```js
+await headsup.createSubscriber({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  subscriber_type: 'webhook',
+  destination_url: 'https://your-app.example/alerts',
+  display_name: 'Alert receiver',
+  mode: 'alert',
+  config: { signing_secret: process.env.HEADSUPP_RECEIVER_SIGNING_SECRET },
+});
+```
+
+This guide explains what happens when a watch fires and your endpoint receives the POST.
 
 ## What A Subscriber Does
 
