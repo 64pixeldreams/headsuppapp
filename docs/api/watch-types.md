@@ -532,6 +532,8 @@ Digest creates an alert row and alert delivery. Quiet summaries are different: t
 
 Use `AGGREGATE_FORWARD` when another system should receive closed aggregate buckets instead of alert messages.
 
+Full guide: [aggregate-forwarding.md](aggregate-forwarding.md).
+
 First create a subscriber with `mode: "aggregate_forward"`, then create a watch:
 
 ```json

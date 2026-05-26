@@ -294,7 +294,7 @@ Supported watch types (explained in [watch-types.md](watch-types.md)):
 - [`MISSING_EXPECTED`](watch-types.md#missing_expected)
 - [`REMINDER_DUE`](watch-types.md#reminder_due)
 - [`DIGEST`](watch-types.md#digest)
-- [`AGGREGATE_FORWARD`](watch-types.md#aggregate_forward)
+- [`AGGREGATE_FORWARD`](aggregate-forwarding.md)
 
 ## Ingest Props (`POST /v1/events/{connector_key}`)
 

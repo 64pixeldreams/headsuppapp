@@ -2,6 +2,7 @@ export function bucketEndAt(bucketStartAt, bucketType) {
   const date = new Date(bucketStartAt);
   if (bucketType === 'hour') date.setUTCHours(date.getUTCHours() + 1);
   else if (bucketType === 'day') date.setUTCDate(date.getUTCDate() + 1);
+  else if (bucketType === 'week') date.setUTCDate(date.getUTCDate() + 7);
   else if (bucketType === 'month') date.setUTCMonth(date.getUTCMonth() + 1);
   else date.setUTCMinutes(date.getUTCMinutes() + 1);
   return date.toISOString();

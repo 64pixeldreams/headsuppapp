@@ -190,7 +190,7 @@ Business question: "Can we forward clean aggregates instead of raw event firehos
 - Pattern: `AGGREGATE_FORWARD`
 - Read in callback: `bucket`, `values`, `dimensions`, `dedupe_key`, `delivery_id`
 
-This is useful when a downstream app wants hourly/daily summaries and not raw events.
+This is useful when a downstream app wants hourly, daily, weekly, or monthly summaries and not raw events. See [aggregate-forwarding.md](aggregate-forwarding.md) for bucket sizes, payload examples, responses, signing headers, and retry behavior.
 
 ## Website Claims -> API Capability Mapping
 

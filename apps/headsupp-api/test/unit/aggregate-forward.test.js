@@ -41,6 +41,8 @@ test('builds aggregate-forward payload for closed bucket', () => {
   assert.equal(payload.cta.url, 'https://foretic.io/forecasts/fc_123');
   assert.equal(payload.values.avg, 14);
   assert.equal(bucketEndAt('2026-05-24T10:00:00.000Z', 'minute'), '2026-05-24T10:01:00.000Z');
+  assert.equal(bucketEndAt('2026-05-19T00:00:00.000Z', 'week'), '2026-05-26T00:00:00.000Z');
+  assert.equal(bucketEndAt('2026-05-01T00:00:00.000Z', 'month'), '2026-06-01T00:00:00.000Z');
 });
 
 test('creates aggregate delivery row with stable payload', async () => {
@@ -166,4 +168,53 @@ test('aggregate-forward evaluator queries dimension-filtered aggregates', async 
   assert.equal(aggregateCall.params[1], 'hour');
   assert.equal(typeof aggregateCall.params[3], 'string');
   assert.equal(aggregateCall.params[3], aggregateCall.params[4]);
+});
+
+test('aggregate-forward evaluator waits for week and month buckets to close', async () => {
+  const calls = [];
+  const db = {
+    prepare(sql) {
+      return {
+        bind(...params) {
+          calls.push({ sql, params });
+          return {
+            async all() {
+              return { results: [] };
+            },
+            async first() {
+              if (sql.includes('FROM subscribers')) return { id: 'sub_123', subscriber_id: 'sub_123' };
+              if (sql.includes('FROM signals')) return { id: 'sig_123', signal_key: 'views.form' };
+              if (sql.includes('FROM channels')) return { id: 'ch_123', channel_id: 'ch_123' };
+              return null;
+            },
+          };
+        },
+      };
+    },
+  };
+
+  await evaluateAggregateForwardWatch({
+    db,
+    watch: {
+      id: 'watch_forward_week',
+      signal_id: 'sig_123',
+      channel_id: 'ch_123',
+      config_json: JSON.stringify({ subscriber_id: 'sub_123', bucket_type: 'week' }),
+    },
+    now: '2026-05-26T12:05:00.000Z',
+  });
+  await evaluateAggregateForwardWatch({
+    db,
+    watch: {
+      id: 'watch_forward_month',
+      signal_id: 'sig_123',
+      channel_id: 'ch_123',
+      config_json: JSON.stringify({ subscriber_id: 'sub_123', bucket_type: 'month' }),
+    },
+    now: '2026-05-26T12:05:00.000Z',
+  });
+
+  const aggregateCalls = calls.filter((call) => call.sql.includes('FROM aggregates'));
+  assert.equal(aggregateCalls[0].params[2], '2026-05-25T00:00:00.000Z');
+  assert.equal(aggregateCalls[1].params[2], '2026-05-01T00:00:00.000Z');
 });

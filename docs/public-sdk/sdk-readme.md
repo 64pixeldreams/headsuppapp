@@ -266,6 +266,8 @@ await headsup.createWatch({
 });
 ```
 
+See `docs/api/aggregate-forwarding.md` in the main repo for supported bucket sizes, aggregate values, callback payloads, signing headers, and retry behavior.
+
 See [watch-types.md](./watch-types.md) in the main repo for all supported watch types.
 
 ## Send Events

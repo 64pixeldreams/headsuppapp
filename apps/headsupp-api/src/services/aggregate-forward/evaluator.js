@@ -5,10 +5,18 @@ import { dimensionsHash } from '../aggregation/buckets.js';
 function closedBefore(now, bucketType, graceSeconds = 60) {
   const date = new Date(now);
   date.setUTCSeconds(date.getUTCSeconds() - graceSeconds);
-  if (bucketType === 'hour') {
-    date.setUTCMinutes(0, 0, 0);
+  if (bucketType === 'month') {
+    date.setUTCDate(1);
+    date.setUTCHours(0, 0, 0, 0);
+  } else if (bucketType === 'week') {
+    const day = date.getUTCDay();
+    const daysSinceMonday = (day + 6) % 7;
+    date.setUTCDate(date.getUTCDate() - daysSinceMonday);
+    date.setUTCHours(0, 0, 0, 0);
   } else if (bucketType === 'day') {
     date.setUTCHours(0, 0, 0, 0);
+  } else if (bucketType === 'hour') {
+    date.setUTCMinutes(0, 0, 0);
   } else {
     date.setUTCSeconds(0, 0);
   }
