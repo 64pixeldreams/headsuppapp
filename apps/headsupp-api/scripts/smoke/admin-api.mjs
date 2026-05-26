@@ -1,7 +1,11 @@
+const BOOTSTRAP_AUTH_HINT =
+  'Bootstrap token rejected. Set GitHub secret HEADSUPP_BOOTSTRAP_TOKEN to the same value as Worker secret HEADSUPP_BOOTSTRAP_TOKEN (wrangler secret put HEADSUPP_BOOTSTRAP_TOKEN).';
+
 export async function postFunction({ baseUrl, action, payload = {}, apiKey = null, bootstrapToken = null }) {
   const headers = { 'Content-Type': 'application/json' };
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-  if (bootstrapToken) headers['X-HeadsUp-Bootstrap-Token'] = bootstrapToken;
+  const normalizedBootstrap = String(bootstrapToken || '').trim();
+  if (normalizedBootstrap) headers['X-HeadsUp-Bootstrap-Token'] = normalizedBootstrap;
 
   const response = await fetch(`${baseUrl}/api/function`, {
     method: 'POST',
@@ -10,6 +14,9 @@ export async function postFunction({ baseUrl, action, payload = {}, apiKey = nul
   });
   const body = await response.json();
   if (!response.ok || body.success === false) {
+    if (body?.error?.code === 'BOOTSTRAP_AUTH_REQUIRED') {
+      throw new Error(`Function ${action} failed: ${BOOTSTRAP_AUTH_HINT}`);
+    }
     throw new Error(`Function ${action} failed ${response.status}: ${JSON.stringify(body)}`);
   }
   return body.data;

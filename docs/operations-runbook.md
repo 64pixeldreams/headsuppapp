@@ -37,9 +37,16 @@ If bootstrap fails:
 
 ```text
 confirm HEADSUPP_BOOTSTRAP_TOKEN is set as a Worker secret
+confirm GitHub Actions secret HEADSUPP_BOOTSTRAP_TOKEN matches the Worker value exactly
 confirm the request sends X-HeadsUp-Bootstrap-Token or a valid operator Bearer token
 confirm the new key has the permissions needed by the integration
 do not paste raw api_key values into logs, docs, issues, or commits
+```
+
+CI preflight (from `apps/headsupp-api`):
+
+```bash
+HEADSUPP_BOOTSTRAP_TOKEN=<runtime token> node scripts/verify-bootstrap-auth.mjs
 ```
 
 Key lifecycle actions are `operator.listServiceApiKeys`, `operator.rotateServiceApiKey`, and `operator.revokeServiceApiKey`. Rotation returns the new raw key once.

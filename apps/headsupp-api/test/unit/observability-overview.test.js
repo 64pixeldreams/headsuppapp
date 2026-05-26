@@ -57,3 +57,31 @@ test('observability overview returns operational counts without payloads', async
   assert.equal(overview.deliveries.alert_breakdown[0].template_id, 'base_alert_v1');
   assert.equal(JSON.stringify(overview).includes('payload_json'), false);
 });
+
+test('observability overview tolerates alert breakdown query failures', async () => {
+  const values = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  const db = {
+    prepare(sql) {
+      return {
+        bind() {
+          return {
+            async first() {
+              if (/operational_status/.test(sql)) return null;
+              return { count: values.shift() ?? 0 };
+            },
+            async all() {
+              if (/FROM alert_deliveries delivery/.test(sql)) {
+                throw new Error('D1_ERROR: malformed JSON: SQLITE_ERROR');
+              }
+              return { results: [] };
+            },
+          };
+        },
+      };
+    },
+  };
+
+  const overview = await getObservabilityOverview(db);
+  assert.equal(overview.deliveries.alert_breakdown.length, 0);
+  assert.equal(overview.status, 'ok');
+});

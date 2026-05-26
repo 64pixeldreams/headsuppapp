@@ -1,9 +1,21 @@
 import {
   createServiceApiKey,
   listServiceApiKeys,
+  normalizeBootstrapToken,
   revokeServiceApiKey,
   rotateServiceApiKey,
 } from '../services/auth/api-key-service.js';
+
+function readBootstrapTokenFromRequest(request) {
+  if (!request?.headers) return null;
+  if (typeof request.headers.get === 'function') {
+    return normalizeBootstrapToken(request.headers.get('X-HeadsUp-Bootstrap-Token'));
+  }
+  const headers = request.headers;
+  return normalizeBootstrapToken(
+    headers['X-HeadsUp-Bootstrap-Token'] || headers['x-headsupp-bootstrap-token'],
+  );
+}
 import { listAuditLogs, writeAuditLog } from '../services/audit/control-plane-audit.js';
 import { requirePermission } from '../services/auth/permissions.js';
 
@@ -63,8 +75,8 @@ export async function registerOperatorFunctions(cloudFunction) {
           createServiceApiKey({
             env,
             input: payload || {},
-            bootstrapToken: env.HEADSUPP_BOOTSTRAP_TOKEN,
-            providedBootstrapToken: request?.headers?.get('X-HeadsUp-Bootstrap-Token'),
+            bootstrapToken: normalizeBootstrapToken(env.HEADSUPP_BOOTSTRAP_TOKEN),
+            providedBootstrapToken: readBootstrapTokenFromRequest(request),
           }),
       });
       return resultToResponse(result);

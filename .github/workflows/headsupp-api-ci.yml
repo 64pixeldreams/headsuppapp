@@ -113,6 +113,10 @@ jobs:
       - name: Advanced watches smoke
         run: npm run smoke:advanced-watches
 
+      - name: Verify bootstrap token matches deployed Worker
+        if: ${{ env.HEADSUPP_BOOTSTRAP_TOKEN != '' }}
+        run: node scripts/verify-bootstrap-auth.mjs
+
       - name: Operator observability smoke
         if: ${{ env.HEADSUPP_BOOTSTRAP_TOKEN != '' && env.HEADSUPP_OPERATOR_TOKEN != '' }}
         run: npm run smoke:operator-observability

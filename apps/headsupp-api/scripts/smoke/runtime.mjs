@@ -42,7 +42,7 @@ export function smokeRuntime(env = process.env) {
     apiToken: env.CLOUDFLARE_API_TOKEN,
     slackWebhookUrl: env.HEADSUPP_SMOKE_SLACK_WEBHOOK_URL,
     serviceApiKey: env.HEADSUPP_SMOKE_SERVICE_API_KEY || env.HEADSUPP_API_KEY,
-    bootstrapToken: env.HEADSUPP_BOOTSTRAP_TOKEN,
-    operatorToken: env.HEADSUPP_OPERATOR_TOKEN,
+    bootstrapToken: String(env.HEADSUPP_BOOTSTRAP_TOKEN || '').trim() || null,
+    operatorToken: String(env.HEADSUPP_OPERATOR_TOKEN || '').trim() || null,
   };
 }

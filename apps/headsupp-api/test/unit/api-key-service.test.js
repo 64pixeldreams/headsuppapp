@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   createServiceApiKey,
+  hasOperatorBootstrapAuth,
   listServiceApiKeys,
   revokeServiceApiKey,
   rotateServiceApiKey,
@@ -61,6 +62,13 @@ test('bootstrap creates hashed service API key and returns raw key once', async 
   const stored = await runtime.HEADSUPP_KEYS.get(`apikey:${result.key.key_hash}`, 'json');
   assert.equal(stored.active, true);
   assert.equal(stored.name, 'Smoke service');
+});
+
+test('bootstrap auth trims whitespace on compared tokens', () => {
+  assert.equal(
+    hasOperatorBootstrapAuth(null, ' bootstrap-secret\n', 'bootstrap-secret '),
+    true,
+  );
 });
 
 test('bootstrap rejects missing operator authorization', async () => {

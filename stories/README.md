@@ -151,3 +151,18 @@ Opt-in recipient confirmation and aggregate-based trend intelligence:
 114 Trend watch types over aggregates_done
 115 Trend and email authorization docs SDK smoke_done
 ```
+
+## Commercialization Batch
+
+Thin go-to-market layer: public domains, published docs, customer signup, self-serve API keys, minimal account portal (not a dashboard). Build from [commercialization/README.md](commercialization/README.md) in numeric order.
+
+```text
+commercialization/01 Public domains and worker routes
+commercialization/02 Public docs site and sync pipeline
+commercialization/03 Customer account signup and session
+commercialization/04 Self-serve service API keys
+commercialization/05 Minimal account portal (signup, login, keys only)
+commercialization/06 Customer onboarding documentation
+```
+
+Deferred until a later batch: usage metering, billing, event detail ledger, full dashboard UI.

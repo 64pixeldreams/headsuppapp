@@ -27,9 +27,16 @@ function normalizePermissions(permissions = SERVICE_KEY_PERMISSIONS) {
   return [...new Set((Array.isArray(permissions) ? permissions : []).filter((permission) => typeof permission === 'string' && permission.trim()))];
 }
 
+export function normalizeBootstrapToken(value) {
+  const normalized = String(value || '').trim();
+  return normalized || null;
+}
+
 export function hasOperatorBootstrapAuth(auth, bootstrapToken, providedToken) {
   if (auth && OPERATOR_PERMISSIONS.some((permission) => hasPermission(auth, permission))) return true;
-  return Boolean(bootstrapToken && providedToken && bootstrapToken === providedToken);
+  const expected = normalizeBootstrapToken(bootstrapToken);
+  const provided = normalizeBootstrapToken(providedToken);
+  return Boolean(expected && provided && expected === provided);
 }
 
 export function safeApiKeyMetadata(keyHash, keyData = {}) {

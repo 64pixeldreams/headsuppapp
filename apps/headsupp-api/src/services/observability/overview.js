@@ -55,22 +55,35 @@ export async function getObservabilityOverview(db, { now = new Date().toISOStrin
     countFirst(db, "SELECT COUNT(*) AS count FROM quiet_summary_deliveries WHERE status = 'failed'"),
   ]);
   const cronStatus = await loadOperationalStatus(db, 'scheduled_tasks');
-  const alertDeliveryBreakdown = await groupedRows(
-    db,
-    `SELECT
-       COALESCE(sub.subscriber_type, 'unknown') AS subscriber_type,
-       COALESCE(alert.severity, 'unknown') AS severity,
-       COALESCE(json_extract(delivery.response_body, '$.template_id'), 'unknown') AS template_id,
-       SUM(CASE WHEN delivery.status = 'sent' THEN 1 ELSE 0 END) AS sent_count,
-       SUM(CASE WHEN delivery.status = 'retrying' THEN 1 ELSE 0 END) AS retrying_count,
-       SUM(CASE WHEN delivery.status = 'failed' THEN 1 ELSE 0 END) AS failed_count
-     FROM alert_deliveries delivery
-     LEFT JOIN subscribers sub
-       ON sub.id = delivery.subscriber_id OR sub.subscriber_id = delivery.subscriber_id
-     LEFT JOIN alerts alert
-       ON alert.id = delivery.alert_id
-     GROUP BY subscriber_type, severity, template_id`,
-  );
+  let alertDeliveryBreakdown = [];
+  try {
+    // response_body is not always JSON (Slack "ok", HTTP errors, plain-text failures).
+    alertDeliveryBreakdown = await groupedRows(
+      db,
+      `SELECT
+         COALESCE(sub.subscriber_type, 'unknown') AS subscriber_type,
+         COALESCE(alert.severity, 'unknown') AS severity,
+         COALESCE(
+           CASE
+             WHEN delivery.response_body IS NOT NULL AND json_valid(delivery.response_body)
+             THEN json_extract(delivery.response_body, '$.template_id')
+             ELSE NULL
+           END,
+           'unknown'
+         ) AS template_id,
+         SUM(CASE WHEN delivery.status = 'sent' THEN 1 ELSE 0 END) AS sent_count,
+         SUM(CASE WHEN delivery.status = 'retrying' THEN 1 ELSE 0 END) AS retrying_count,
+         SUM(CASE WHEN delivery.status = 'failed' THEN 1 ELSE 0 END) AS failed_count
+       FROM alert_deliveries delivery
+       LEFT JOIN subscribers sub
+         ON sub.id = delivery.subscriber_id OR sub.subscriber_id = delivery.subscriber_id
+       LEFT JOIN alerts alert
+         ON alert.id = delivery.alert_id
+       GROUP BY subscriber_type, severity, template_id`,
+    );
+  } catch {
+    alertDeliveryBreakdown = [];
+  }
   const health = healthFromCounts({
     alertRetrying,
     alertFailed,
