@@ -1,6 +1,7 @@
 import { classifyDeliveryResult, nextRetryAt } from './backoff.js';
 import { renderAlertEmail } from '../email/render-alert-email.js';
 import { sendEmail } from '../email/send-email.js';
+import { buildEmailActionLinks } from '../subscribers/email-actions.js';
 import { buildUnsubscribeUrl, createUnsubscribeToken } from '../subscribers/unsubscribe.js';
 
 const PERMANENT_ERROR_CODES = new Set([
@@ -92,11 +93,19 @@ export async function dispatchEmailAlertDelivery({
       now,
     });
     const unsubscribeUrl = buildUnsubscribeUrl({ token, env });
+    const actionLinks = await buildEmailActionLinks({
+      env,
+      subscriber,
+      alert,
+      delivery,
+      now,
+    });
     rendered = renderAlertEmail({
       alert,
       subscriber,
       channel,
       unsubscribe_url: unsubscribeUrl,
+      action_links: actionLinks,
     });
   } catch (caught) {
     const state = classifyEmailResult({
@@ -153,7 +162,12 @@ export async function dispatchEmailAlertDelivery({
         html: rendered.html,
       },
     });
-    responseBody = JSON.stringify({ ok: true, provider: result || null, template_id: rendered.template_id });
+    responseBody = JSON.stringify({
+      ok: true,
+      provider: result || null,
+      template_id: rendered.template_id,
+      action_ids: rendered.action_ids || [],
+    });
     logEmailEvent('info', 'email_delivery_sent', {
       delivery_id: delivery.id,
       alert_id: alert.id,

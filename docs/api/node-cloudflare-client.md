@@ -23,7 +23,7 @@ packages/headsupp-client
 Install the private package from GitHub Packages:
 
 ```bash
-npm install @64pixeldreams/headsupp-client@0.1.0
+npm install @64pixeldreams/headsupp-client@0.1.1
 ```
 
 This package is published from the separate private SDK repository `64pixeldreams/headsuppclientsdk`. Consumers get normal semver, lockfiles, Dependabot/private registry support, and no need to clone the Heads Up API repository.
@@ -68,7 +68,7 @@ The separate private repository for the wrapper is:
 If you install directly from Git, pin a release tag for reproducibility:
 
 ```bash
-npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git#v0.1.0
+npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git#v0.1.1
 ```
 
 This is better than asking consumers to clone the whole Heads Up API repo.
@@ -327,6 +327,7 @@ const emailSubscriber = await headsup.createSubscriber({
   mode: 'alert',
   config: {
     template_id: 'base_alert_v1',
+    actions: ['snooze_1h', 'snooze_1d', 'stop_watching'],
     value_format: 'money_usd_2',
     locale: 'en-US',
     timezone: 'UTC',

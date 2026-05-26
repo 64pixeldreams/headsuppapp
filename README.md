@@ -20,7 +20,7 @@ Heads Up is not a dashboard, BI tool, or per-event alerting system. The core pro
 - Evaluates watches against aggregates, not raw events.
 - Applies cooldown, escalation, recovery, missing-expected, digest, and aggregate-forward rules.
 - Supports latest-value, total-in-period, average-in-window, count, delta, percent-change, spike, reminder, and recurring-expectation watches.
-- Sends Slack webhook alerts or generic webhook callbacks.
+- Sends email alerts, Slack webhook alerts, or generic webhook callbacks.
 - Retries transient delivery failures with backoff.
 - Keeps tenants/workspaces isolated by `source_app`, `external_tenant_id`, `external_user_id`, and `workspace_id`.
 - Exposes operator-safe observability for delivery health, retry backlog, and scheduled cron status.
@@ -120,6 +120,8 @@ https://headsupp_app.martin-598.workers.dev
 GET  /health
 GET  /api/v1/health
 GET  /api/v1/observability/overview
+GET  /v1/subscribers/unsubscribe?token=...
+GET  /v1/subscribers/email-action?token=...
 POST /api/function
 POST /v1/events/{connector_key}
 ```
@@ -140,13 +142,13 @@ Install options:
 
 ```bash
 # Preferred private GitHub Packages install
-npm install @64pixeldreams/headsupp-client@0.1.0
+npm install @64pixeldreams/headsupp-client@0.1.1
 
 # Local development from this repo
 npm install ../headsupp/packages/headsupp-client
 
 # Tag-pinned Git fallback from the private SDK repo
-npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git#v0.1.0
+npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git#v0.1.1
 ```
 
 For GitHub Packages, consuming projects need:
@@ -263,6 +265,7 @@ npm run smoke:channel-contracts
 npm run smoke:aggregate-forward-dimensions
 npm run smoke:advanced-watches
 npm run smoke:operator-observability
+npm run smoke:email-subscriber
 ```
 
 These prove:
@@ -274,10 +277,11 @@ These prove:
 - Scheduled missing-expected, digest, and aggregate-forward watches work.
 - Week buckets, relative-change watches, reminders, richer recurring expectations, and weekly/monthly digests have deployed and local coverage.
 - Quiet summaries, action controls, channel contracts/read APIs, dimensioned aggregate-forwarding, and operator observability have dedicated deployed smoke scripts.
+- Email subscriber smoke proves a triggered coffee event renders and sends one email alert with configured action buttons.
 - Retry and permanent delivery failure behavior works.
 - Tenant isolation holds when two workspaces share the same `signal_key`.
 
-Runtime secrets such as Cloudflare API tokens and Slack webhook URLs must be passed through environment variables only. Do not commit them.
+Runtime secrets such as Cloudflare API tokens, Slack webhook URLs, and email smoke recipients must be passed through environment variables only. Do not commit them.
 
 ## Ownership And License
 

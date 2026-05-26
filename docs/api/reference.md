@@ -105,7 +105,7 @@ Payload props:
 - `destination_url` (string, required): https URL for webhook/slack, email address for `email`.
 - `display_name` (string, optional).
 - `mode` (string, optional): `alert`, `aggregate_forward`, `quiet_summary`. Defaults to `alert`.
-- `config` (object, optional): receiver settings (`signing_secret` for webhook, `template_id`/`value_format`/`locale`/template labels for email).
+- `config` (object, optional): receiver settings (`signing_secret` for webhook, `template_id`/`value_format`/`locale`/template labels/standard action buttons for email).
 - `enabled` (boolean, optional): defaults to true.
 
 Returns `data.subscriber` (redacted destination only).
@@ -115,6 +115,7 @@ Email `config` supports formatted notification templates:
 ```json
 {
   "template_id": "base_alert_v1",
+  "actions": ["snooze_1h", "snooze_1d", "stop_watching"],
   "value_format": "money_usd_2",
   "locale": "en-US",
   "labels": {
@@ -133,6 +134,34 @@ Placeholders are rendered by the mailer at delivery time:
 ```
 
 `{value}` and `{threshold}` use `value_format`, so `9.5` with `money_usd_2` renders as `$9.50`.
+
+Allowed email `actions` values:
+
+```text
+snooze_1h
+snooze_6h
+snooze_1d
+snooze_7d
+stop_watching
+```
+
+These are standard API-owned actions. Unknown values are ignored. Snooze actions use signed expiring links and create watch snooze controls. `stop_watching` opens a confirmation page before disabling the email subscriber.
+
+### `GET /v1/subscribers/email-action`
+
+Public recipient endpoint for signed email action links.
+
+Query params:
+
+- `token` (string, required): signed email action token.
+- `confirm` (string, optional): `1` confirms a `stop_watching` action after the confirmation page.
+
+Behavior:
+
+- valid snooze token -> creates or replays an idempotent watch snooze.
+- valid `stop_watching` token without `confirm=1` -> returns confirmation page.
+- valid `stop_watching` token with `confirm=1` -> disables the email subscriber.
+- expired/tampered token -> safe generic HTML response and no state change.
 
 ### `admin.disableSubscriber`
 

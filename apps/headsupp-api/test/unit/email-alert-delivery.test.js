@@ -65,6 +65,42 @@ test('marks email delivery sent on successful send', async () => {
   assert.ok(calls.some((call) => /UPDATE alert_deliveries/.test(call.sql)));
 });
 
+test('includes configured email action buttons in sent message and response body', async () => {
+  const calls = [];
+  let sentMessage = null;
+  const result = await dispatchEmailAlertDelivery({
+    db: fakeDb(calls),
+    delivery: { id: 'delivery_1', attempt_count: 0 },
+    alert: { ...alert, workspace_id: 'ws_1', channel_id: 'ch_1', watch_id: 'watch_1' },
+    subscriber: {
+      ...subscriber,
+      workspace_id: 'ws_1',
+      config_json: JSON.stringify({
+        template_id: 'base_alert_v1',
+        actions: ['snooze_1h', 'snooze_1d', 'stop_watching'],
+      }),
+    },
+    channel: {},
+    env: {
+      HEADSUPP_UNSUBSCRIBE_SECRET: 'secret_123',
+      HEADSUPP_PUBLIC_BASE_URL: 'https://headsupp.io',
+    },
+    now: '2026-05-25T12:00:00.000Z',
+    sendEmailFn: async ({ message }) => {
+      sentMessage = message;
+      return { id: 'provider_1' };
+    },
+  });
+
+  assert.equal(result.status, 'sent');
+  assert.match(sentMessage.html, /SNOOZE 1H/);
+  assert.match(sentMessage.html, /STOP WATCHING/);
+  assert.match(sentMessage.text, /Alert controls:/);
+  const update = calls.find((call) => /UPDATE alert_deliveries/.test(call.sql));
+  const responseBody = JSON.parse(update.params[5]);
+  assert.deepEqual(responseBody.action_ids, ['snooze_1h', 'snooze_1d', 'stop_watching']);
+});
+
 test('marks email delivery retrying on transient error', async () => {
   const calls = [];
   const result = await dispatchEmailAlertDelivery({

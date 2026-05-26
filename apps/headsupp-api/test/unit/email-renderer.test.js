@@ -41,7 +41,8 @@ test('renders fallback template with formatting profile', () => {
   assert.match(rendered.html, /href="https:\/\/headsupp\.io\/v1\/subscribers\/unsubscribe\?token=test"/);
   assert.match(rendered.html, /Critical/);
   assert.match(rendered.html, /background:#FEE2E2/);
-  assert.match(rendered.html, /display:block;width:100%;box-sizing:border-box;background:#111827/);
+  assert.match(rendered.html, /VIEW COFFEE SPEND/);
+  assert.match(rendered.html, /min-width:148px;background:#f1f5f9;color:#111827/);
   assert.doesNotMatch(rendered.html, /<strong>Severity:<\/strong>/);
   assert.doesNotMatch(rendered.text, /Severity:/);
 });
@@ -137,4 +138,29 @@ test('renders configured title template placeholders with formatted values', () 
 
   assert.equal(rendered.subject, 'Warning: Highest coffee purchase: $9.50');
   assert.match(rendered.text, /Your highest coffee purchase reached \$9\.50; threshold is \$8\.00\./);
+});
+
+test('renders configured alert action links in html and text', () => {
+  const rendered = renderAlertEmail({
+    alert: baseAlert,
+    subscriber: {
+      name: 'Martin',
+      destination_url: 'martin@inc64.com',
+      config_json: '{}',
+    },
+    channel: {},
+    action_links: [
+      { id: 'snooze_1h', label: 'SNOOZE 1H', url: 'https://headsupp.io/v1/subscribers/email-action?token=s1' },
+      { id: 'stop_watching', label: 'STOP WATCHING', url: 'https://headsupp.io/v1/subscribers/email-action?token=s2' },
+    ],
+  });
+
+  assert.deepEqual(rendered.action_ids, ['snooze_1h', 'stop_watching']);
+  assert.match(rendered.text, /Alert controls:/);
+  assert.match(rendered.text, /SNOOZE 1H: https:\/\/headsupp\.io\/v1\/subscribers\/email-action\?token=s1/);
+  assert.match(rendered.html, /Alert controls/);
+  assert.match(rendered.html, /SNOOZE 1H/);
+  assert.match(rendered.html, /STOP WATCHING/);
+  assert.match(rendered.html, /min-width:104px/);
+  assert.match(rendered.html, /font-weight:600/);
 });

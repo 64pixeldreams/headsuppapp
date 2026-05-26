@@ -134,6 +134,14 @@ function renderBaseAlertTemplate(context) {
   const escapedFooter = escapeHtml(context.footer_text || 'Fewer surprises. Just a heads up.');
   const escapedBrand = escapeHtml(context.brand_name || 'Heads Up');
   const escapedRecipient = context.recipient_name ? escapeHtml(context.recipient_name) : null;
+  const actionLinks = Array.isArray(context.action_links) ? context.action_links : [];
+  const actionTextLines = actionLinks.map((action) => `${action.label}: ${action.url}`);
+  const actionHtml = actionLinks
+    .map(
+      (action) =>
+        `<a href="${escapeHtml(action.url)}" style="display:inline-block;min-width:104px;margin:0 8px 8px 0;background:#f1f5f9;color:#111827;text-align:center;text-decoration:none;padding:10px 14px;border:1px solid #cbd5e1;border-radius:999px;font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;">${escapeHtml(action.label)}</a>`,
+    )
+    .join('');
 
   const severityStyles = {
     critical: {
@@ -177,6 +185,9 @@ function renderBaseAlertTemplate(context) {
     `${context.threshold_label}: ${context.threshold_value_display}`,
     context.cta_url ? '' : null,
     context.cta_url ? `${context.cta_label}: ${context.cta_url}` : null,
+    actionTextLines.length ? '' : null,
+    actionTextLines.length ? 'Alert controls:' : null,
+    ...actionTextLines,
     context.unsubscribe_url ? '' : null,
     context.unsubscribe_url ? `Unsubscribe: ${context.unsubscribe_url}` : null,
     '',
@@ -186,18 +197,18 @@ function renderBaseAlertTemplate(context) {
   const text = lines.join('\n');
   const html = `<!doctype html>
 <html>
-  <body style="margin:0;padding:0;background:#f5f7fb;font-family:Arial,sans-serif;color:#111827;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:20px 0;">
+  <body style="margin:0;padding:0;background:#f3f6fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#111827;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:24px 0;">
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border-radius:12px;overflow:hidden;">
-            <tr><td style="padding:20px 24px;background:#111827;color:#ffffff;font-size:18px;font-weight:700;">${escapedBrand}</td></tr>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;">
+            <tr><td style="padding:20px 24px;background:#111827;color:#ffffff;font-size:18px;font-weight:700;letter-spacing:-0.01em;">${escapedBrand}</td></tr>
             <tr>
-              <td style="padding:24px;">
-                ${escapedRecipient ? `<p style="margin:0 0 12px 0;font-size:14px;">Hi ${escapedRecipient},</p>` : ''}
-                <h1 style="margin:0 0 12px 0;font-size:22px;line-height:1.3;">${escapedTitle}</h1>
+              <td style="padding:28px 24px 24px 24px;">
+                ${escapedRecipient ? `<p style="margin:0 0 14px 0;font-size:14px;color:#374151;">Hi ${escapedRecipient},</p>` : ''}
+                <h1 style="margin:0 0 12px 0;font-size:24px;line-height:1.25;letter-spacing:-0.025em;">${escapedTitle}</h1>
                 <p style="margin:0 0 12px 0;">
-                  <span style="display:inline-block;background:${severityStyle.bg};color:${severityStyle.text};border:1px solid ${severityStyle.border};padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;">
+                  <span style="display:inline-block;background:${severityStyle.bg};color:${severityStyle.text};border:1px solid ${severityStyle.border};padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0.02em;">
                     ${severityStyle.label}
                   </span>
                 </p>
@@ -209,7 +220,12 @@ function renderBaseAlertTemplate(context) {
                 </table>
                 ${
                   context.cta_url
-                    ? `<p style="margin:0 0 16px 0;"><a href="${escapeHtml(context.cta_url)}" style="display:block;width:100%;box-sizing:border-box;background:#111827;color:#ffffff;text-align:center;text-decoration:none;padding:12px 16px;border-radius:8px;font-weight:700;">${escapeHtml(context.cta_label)}</a></p>`
+                    ? `<p style="margin:0 0 16px 0;"><a href="${escapeHtml(context.cta_url)}" style="display:inline-block;min-width:148px;background:#f1f5f9;color:#111827;text-align:center;text-decoration:none;padding:11px 16px;border:1px solid #cbd5e1;border-radius:999px;font-size:11px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;">${escapeHtml(String(context.cta_label || 'View details').toUpperCase())}</a></p>`
+                    : ''
+                }
+                ${
+                  actionLinks.length
+                    ? `<div style="margin:0 0 16px 0;"><p style="margin:0 0 10px 0;font-size:11px;font-weight:700;letter-spacing:0.08em;color:#64748b;text-transform:uppercase;">Alert controls</p>${actionHtml}</div>`
                     : ''
                 }
                 ${
@@ -238,7 +254,7 @@ const TEMPLATE_REGISTRY = Object.freeze({
   base_alert_v1: renderBaseAlertTemplate,
 });
 
-export function renderAlertEmail({ alert, subscriber, channel, unsubscribe_url = null }) {
+export function renderAlertEmail({ alert, subscriber, channel, unsubscribe_url = null, action_links = [] }) {
   const payload = parseJson(alert.payload_json, {});
   const fields = parseJson(payload.fields, {});
   const channelMetadata = parseJson(channel?.metadata_json, {});
@@ -301,6 +317,7 @@ export function renderAlertEmail({ alert, subscriber, channel, unsubscribe_url =
     cta_url: ctaUrl,
     cta_label: ctaLabel,
     unsubscribe_url,
+    action_links,
     fields,
     channel_metadata: channelMetadata,
     template_id: templateId,
@@ -308,6 +325,7 @@ export function renderAlertEmail({ alert, subscriber, channel, unsubscribe_url =
 
   return {
     template_id: templateId,
+    action_ids: action_links.map((action) => action.id),
     ...renderer(context),
   };
 }

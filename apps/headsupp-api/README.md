@@ -31,6 +31,8 @@ CFKit is vendored at:
 GET /health
 GET /api/v1/health
 GET /api/v1/observability/overview
+GET /v1/subscribers/unsubscribe?token=...
+GET /v1/subscribers/email-action?token=...
 POST /api/function
 POST /v1/events/{connector_key}
 ```
@@ -72,6 +74,18 @@ $env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
 npm run smoke:generic-slack
 Remove-Item Env:HEADSUPP_SMOKE_SLACK_WEBHOOK_URL
 Remove-Item Env:CLOUDFLARE_API_TOKEN
+```
+
+## Email Subscriber Smoke
+
+Use this as the deployed proof that Heads Up can provision an email subscriber, keep normal events silent, and send one email alert after a meaningful trigger.
+
+```powershell
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+$env:HEADSUPP_SMOKE_EMAIL_DESTINATION='martin@example.com'
+npm run smoke:email-subscriber
+Remove-Item Env:CLOUDFLARE_API_TOKEN
+Remove-Item Env:HEADSUPP_SMOKE_EMAIL_DESTINATION
 ```
 
 ## Cloudflare Resources

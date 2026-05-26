@@ -12,6 +12,8 @@ DB_BOOTSTRAP_ENABLED = "true"
 DB_BOOTSTRAP_BLOCKING = "false"
 HEADSUPP_EMAIL_FROM = "alerts@headsupp.io"
 HEADSUPP_EMAIL_REPLY_TO = "alerts@headsupp.io"
+HEADSUPP_PUBLIC_BASE_URL = "https://headsupp_app.martin-598.workers.dev"
+HEADSUPP_EMAIL_ACTION_TTL_SECONDS = "604800"
 HEADSUPP_UNSUBSCRIBE_TTL_SECONDS = "604800"
 
 [triggers]

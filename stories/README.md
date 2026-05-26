@@ -23,7 +23,7 @@ If a story creates or changes an endpoint, auth rule, event payload, delivery pa
 
 ## Current Story Count
 
-There are 101 story files.
+There are 113 story files.
 
 Stories marked `_done` are complete. Pending stories should be built one at a time or in an agreed batch, with tests and docs updated before marking `_done`.
 
@@ -122,4 +122,22 @@ Non-UI/non-email website/API gaps to close in small implementation stories:
 99 Recurring expectations v2_done
 100 Richer weekly monthly summaries_done
 101 High volume proof_done
+```
+
+## Email Subscriber Controls Batch
+
+Recipient-facing controls for email alerts:
+
+```text
+102 Email data model and migration hardening_partial
+103 Unsubscribe token security and UX_done
+104 Email observability and ops runbook_done
+105 SDK upgrade versioning and release docs_done
+106 Email docs pack API SDK ops_done
+107 Template registry and notification selection_partial
+108 Renotify policy once until recovered_done
+109 Email standard action buttons_done
+110 Email action token endpoint_done
+111 Email template CTA and action polish_done
+112 Email action buttons docs and smoke_done
 ```

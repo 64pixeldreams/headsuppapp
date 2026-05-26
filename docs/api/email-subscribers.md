@@ -30,8 +30,11 @@ Recommended vars:
 HEADSUPP_EMAIL_FROM = "alerts@headsupp.io"
 HEADSUPP_EMAIL_REPLY_TO = "alerts@headsupp.io"
 HEADSUPP_PUBLIC_BASE_URL = "https://headsupp.io"
+HEADSUPP_EMAIL_ACTION_TTL_SECONDS = "604800"
 HEADSUPP_UNSUBSCRIBE_TTL_SECONDS = "604800"
 ```
+
+Set `HEADSUPP_EMAIL_ACTION_SECRET` for signed action buttons. If it is absent, the current unsubscribe secret is used as a fallback for MVP deployments.
 
 Official docs: [Cloudflare Email Workers: Send email](https://developers.cloudflare.com/email-routing/email-workers/send-email-workers/)
 
@@ -51,6 +54,7 @@ Use one subscriber row per recipient (best for per-user pause/remove control).
     "mode": "alert",
     "config": {
       "template_id": "base_alert_v1",
+      "actions": ["snooze_1h", "snooze_1d", "stop_watching"],
       "value_format": "money_usd_2",
       "locale": "en-US",
       "timezone": "UTC",
@@ -76,6 +80,36 @@ Use one subscriber row per recipient (best for per-user pause/remove control).
 ```
 
 Response includes canonical `subscriber_id` for disable/delete and unsubscribe lifecycle.
+
+## Recipient Action Buttons
+
+Email subscribers can opt into standard alert-control buttons. Heads Up owns the catalog, labels, durations, signing, and behavior. Subscriber config only chooses which standard actions appear:
+
+```json
+{
+  "config": {
+    "actions": ["snooze_1h", "snooze_6h", "snooze_1d", "snooze_7d", "stop_watching"]
+  }
+}
+```
+
+Supported MVP action IDs:
+
+```text
+snooze_1h       Snooze this watch for one hour.
+snooze_6h       Snooze this watch for six hours.
+snooze_1d       Snooze this watch for one day.
+snooze_7d       Snooze this watch for seven days.
+stop_watching   Open a confirmation page before disabling this email subscriber.
+```
+
+Unknown action IDs are ignored. Custom action URLs and custom action labels are not accepted.
+
+Action links are signed and expiring. A valid snooze link applies a watch snooze using the same action-control system as `admin.snoozeWatch`. Re-clicking the same link is idempotent. A different valid snooze duration from the same email can replace the active snooze. A month-old or expired link does not mutate state; recipients see a safe expired-link page.
+
+`stop_watching` is intentionally not a one-click GET mutation. The email link opens a confirmation page, then disables this email subscriber only after explicit confirmation.
+
+Threshold editing is not part of this MVP. Use a future `manage_alert` page for threshold/cooldown/recovery editing.
 
 ## Notification Templates
 
@@ -142,6 +176,21 @@ Keep events lean; send changing facts only:
 
 Optional override (rare): `fields.notification` with custom title/summary/detail.
 
+### Trigger A Test Email
+
+Run the deployed smoke when you want to prove the full email path:
+
+```powershell
+cd apps/headsupp-api
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+$env:HEADSUPP_SMOKE_EMAIL_DESTINATION='martin@example.com'
+npm run smoke:email-subscriber
+Remove-Item Env:CLOUDFLARE_API_TOKEN
+Remove-Item Env:HEADSUPP_SMOKE_EMAIL_DESTINATION
+```
+
+The smoke provisions an email subscriber, sends normal coffee events that stay silent, then sends one `coffee.highest_purchase` trigger event. Passing output means one alert row was created and the latest email delivery reached `sent`.
+
 ## 3) What Email Gets Sent
 
 Each email includes:
@@ -151,6 +200,7 @@ Each email includes:
 - responsive HTML body,
 - current value + threshold (formatted),
 - CTA when URL is valid,
+- optional alert-control buttons when `config.actions` is set,
 - unsubscribe link when `HEADSUPP_PUBLIC_BASE_URL` and unsubscribe secret are configured.
 
 ## Avoiding Too Many Emails
@@ -263,6 +313,7 @@ const subscriber = await headsup.createSubscriber({
   mode: 'alert',
   config: {
     template_id: 'base_alert_v1',
+    actions: ['snooze_1h', 'snooze_1d', 'stop_watching'],
     value_format: 'money_usd_2',
     locale: 'en-US',
     timezone: 'UTC',
@@ -276,7 +327,7 @@ await headsup.disableSubscriber({
 });
 ```
 
-## Troubleshooting (Top 10)
+## Troubleshooting
 
 1. `SEND_EMAIL binding is not configured`  
    Add `[[send_email]] name = "SEND_EMAIL"` to Worker config.
@@ -288,13 +339,15 @@ await headsup.disableSubscriber({
    Likely permanent config issue (`from`, recipient, or binding setup).
 5. No unsubscribe link in email  
    Set `HEADSUPP_PUBLIC_BASE_URL` and `HEADSUPP_UNSUBSCRIBE_SECRET`.
-6. Unsubscribe link always invalid  
+6. No action buttons in email
+   Set `config.actions`, `HEADSUPP_PUBLIC_BASE_URL`, and `HEADSUPP_EMAIL_ACTION_SECRET` (or unsubscribe secret fallback).
+7. Unsubscribe link always invalid
    Verify unsubscribe secret and clock skew between generation/verification.
-7. Disable by email returns ambiguous match  
+8. Disable by email returns ambiguous match
    Provide `mode` or disable by `subscriber_id`.
-8. CTA missing in email  
+9. CTA missing in email
    URL must be `http` or `https`.
-9. Values not currency/percent formatted  
+10. Values not currency/percent formatted
    Set `config.value_format` (`money_usd_2`, `money_gbp_2`, `percent_1`, etc.).
-10. Webhook subscribers regressed after email rollout  
+11. Webhook subscribers regressed after email rollout
     Run delivery regression tests (`npm run check`) and verify subscriber type routing.

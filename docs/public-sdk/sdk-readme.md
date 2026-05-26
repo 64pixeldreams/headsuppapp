@@ -18,7 +18,7 @@ POST /v1/events/{connectorKey}  HMAC-signed event ingest
 Recommended production install from GitHub Packages:
 
 ```bash
-npm install @64pixeldreams/headsupp-client@0.1.0
+npm install @64pixeldreams/headsupp-client@0.1.1
 ```
 
 For GitHub Packages, add this to the consuming project's `.npmrc`:
@@ -34,7 +34,7 @@ Local developers need a GitHub token with `read:packages`. CI should use a packa
 Tag-pinned Git fallback:
 
 ```bash
-npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git#v0.1.0
+npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git#v0.1.1
 ```
 
 Local workspace install while developing:

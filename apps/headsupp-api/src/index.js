@@ -11,6 +11,7 @@ import { createRawEventMessages, sendRawEventMessages } from './services/ingest/
 import { getObservabilityOverview } from './services/observability/overview.js';
 import { runScheduledTasks } from './services/scheduler/scheduled-tasks.js';
 import { writeAuditLog } from './services/audit/control-plane-audit.js';
+import { buildEmailActionUrl, processEmailActionToken } from './services/subscribers/email-actions.js';
 import { processUnsubscribeToken } from './services/subscribers/unsubscribe.js';
 
 export { WatchEvaluatorDO } from './durable/WatchEvaluatorDO.js';
@@ -53,6 +54,10 @@ function html(body, init = {}) {
       ...(init.headers || {}),
     },
   });
+}
+
+function page(title, body) {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head><body style="font-family:Arial,sans-serif;margin:40px;color:#111827;"><main style="max-width:560px;margin:0 auto;"><h1>${title}</h1>${body}</main></body></html>`;
 }
 
 function extractBearerToken(request) {
@@ -164,6 +169,67 @@ export default {
           return html('<h1>Heads Up</h1><p>This unsubscribe link is invalid or expired.</p>', { status: 200 });
         }
         return html('<h1>Heads Up</h1><p>You are unsubscribed. You will no longer receive these emails.</p>', { status: 200 });
+      }
+
+      if (url.pathname === '/v1/subscribers/email-action' && request.method === 'GET') {
+        if (!env.DB) {
+          return html(page('Heads Up', '<p>Email actions are unavailable right now.</p>'), { status: 503 });
+        }
+        const token = url.searchParams.get('token');
+        const confirm = url.searchParams.get('confirm') === '1';
+        const result = await processEmailActionToken({
+          db: env.DB,
+          env,
+          token,
+          confirm,
+          now: new Date().toISOString(),
+        });
+        await writeAuditLog({
+          db: env.DB,
+          action: 'subscriber.emailAction',
+          auth: null,
+          input: {
+            token_present: Boolean(token),
+            confirm,
+            result: result.ok ? result.code || 'ok' : result.code,
+            workspace_id: result.workspace_id || result.payload?.ws || null,
+          },
+          success: Boolean(result.ok),
+          errorCode: result.ok ? null : result.code,
+          targetType: result.watch_id || result.payload?.watch ? 'watch' : 'subscriber',
+          targetId: result.watch_id || result.payload?.watch || result.subscriber_id || result.payload?.sub || null,
+        });
+
+        if (!result.ok) {
+          const message =
+            result.code === 'EXPIRED_TOKEN'
+              ? 'This email action link has expired. Use the latest alert email or open the app to change this watch.'
+              : 'This email action link is invalid or can no longer be used.';
+          return html(page('Heads Up', `<p>${message}</p>`), { status: 200 });
+        }
+
+        if (result.needs_confirmation) {
+          const confirmUrl = buildEmailActionUrl({ token, env, confirm: true });
+          return html(
+            page(
+              'Stop Watching?',
+              `<p>This will stop this recipient from receiving future emails for this alert subscriber.</p><p><a href="${confirmUrl}" style="display:inline-block;background:#111827;color:#ffffff;padding:12px 16px;border-radius:8px;text-decoration:none;font-weight:700;">Confirm stop watching</a></p>`,
+            ),
+            { status: 200 },
+          );
+        }
+
+        if (result.code === 'SNOOZED' || result.code === 'ALREADY_APPLIED') {
+          const until = result.expires_at ? ` until ${result.expires_at}` : '';
+          const prefix = result.code === 'ALREADY_APPLIED' ? 'This email action was already applied.' : `This watch is snoozed${until}.`;
+          return html(page('Heads Up', `<p>${prefix}</p>`), { status: 200 });
+        }
+
+        if (result.code === 'STOPPED') {
+          return html(page('Heads Up', '<p>You will no longer receive these email alerts.</p>'), { status: 200 });
+        }
+
+        return html(page('Heads Up', '<p>Email action complete.</p>'), { status: 200 });
       }
 
       if (url.pathname === '/api/v1/observability/overview' && request.method === 'GET') {
@@ -313,7 +379,7 @@ export default {
         {
           error: 'Not Found',
           message:
-            'Try /health, /api/v1/health, /api/v1/observability/overview, GET /v1/subscribers/unsubscribe, POST /api/function, or POST /v1/events/{connector_key}.',
+            'Try /health, /api/v1/health, /api/v1/observability/overview, GET /v1/subscribers/unsubscribe, GET /v1/subscribers/email-action, POST /api/function, or POST /v1/events/{connector_key}.',
         },
         { status: 404 },
       );

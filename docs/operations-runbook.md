@@ -154,6 +154,23 @@ confirm sender domain is enabled on Cloudflare Email Routing
 check HEADSUPP_EMAIL_FROM and HEADSUPP_EMAIL_REPLY_TO
 inspect alert_deliveries.response_body for provider errors
 confirm HEADSUPP_PUBLIC_BASE_URL and HEADSUPP_UNSUBSCRIBE_SECRET when unsubscribe links are expected
+confirm HEADSUPP_PUBLIC_BASE_URL and HEADSUPP_EMAIL_ACTION_SECRET (or unsubscribe secret fallback) when email action buttons are expected
+```
+
+If email action links fail:
+
+```text
+expired link
+  Expected for old emails. It should show a safe expired-link page and make no D1 changes.
+
+invalid or tampered link
+  Expected to fail closed. Check control_plane_audit_logs for subscriber.emailAction outcomes.
+
+snooze button clicked but alerts still send
+  Check watch_action_controls for an active snooze row targeting the watch_id.
+
+stop watching clicked by scanner
+  First GET should only show confirmation. Subscriber is disabled only after confirm=1.
 ```
 
 ## D1 Migration Or Query Failure

@@ -43,6 +43,7 @@ const setup = await provisionGenericScenario({
 await client.d1Query('UPDATE subscribers SET config_json = ?, destination_url_redacted = ?, updated_at = ? WHERE id = ?', [
   JSON.stringify({
     template_id: 'base_alert_v1',
+    actions: ['snooze_1h', 'snooze_1d', 'stop_watching'],
     value_format: 'money_usd_2',
     locale: 'en-US',
     timezone: 'UTC',
@@ -116,6 +117,14 @@ if (delivered.delivery?.status !== 'sent') {
   throw new Error(`Email delivery did not reach sent status: ${JSON.stringify(delivered.delivery)}`);
 }
 
+const responseBody = JSON.parse(delivered.delivery.response_body || '{}');
+const expectedActions = ['snooze_1h', 'snooze_1d', 'stop_watching'];
+for (const actionId of expectedActions) {
+  if (!responseBody.action_ids?.includes(actionId)) {
+    throw new Error(`Email delivery response did not include action ${actionId}: ${delivered.delivery.response_body}`);
+  }
+}
+
 console.log(
   JSON.stringify(
     {
@@ -142,8 +151,9 @@ console.log(
       },
       latest_alert: delivered.alert,
       latest_delivery: delivered.delivery,
+      expected_action_buttons: expectedActions,
       recipient_hint: `${String(emailDestination).slice(0, 2)}***`,
-      expected_email_behavior: 'One warning email after trigger event value > 8.',
+      expected_email_behavior: 'One warning email after trigger event value > 8 with SNOOZE 1H, SNOOZE 1D, and STOP WATCHING buttons.',
       health: {
         status: health.status,
         app: health.app,
