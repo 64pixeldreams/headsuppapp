@@ -13,6 +13,23 @@ POST /api/function              control-plane actions
 POST /v1/events/{connectorKey}  HMAC-signed event ingest
 ```
 
+## API Docs Map
+
+Use these docs beside the SDK examples:
+
+```text
+Quickstart and full setup       ../../docs/api/quickstart.md
+All action props and responses  ../../docs/api/reference.md
+Channels, signals, admin API    ../../docs/api/admin.md
+Connectors and event ingest     ../../docs/api/connectors-and-ingest.md
+Subscribers and delivery retry  ../../docs/api/subscribers.md
+Email subscribers               ../../docs/api/email-subscribers.md
+Watch types and bucket config   ../../docs/api/watch-types.md
+Aggregate forwarding            ../../docs/api/aggregate-forwarding.md
+Scenario guidance               ../../docs/api/use-cases.md
+Webhook receiver behavior       ../../docs/api/webhook-receivers.md
+```
+
 ## Install
 
 Recommended production install from GitHub Packages:

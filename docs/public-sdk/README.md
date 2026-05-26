@@ -15,6 +15,7 @@ Only the files in this folder are eligible for public SDK sync automation.
 - `watch-types.md`
 - `use-cases.md`
 - `webhook-receivers.md`
+- `aggregate-forwarding.md`
 - `openapi.yaml`
 - `sdk-readme.md`
 
