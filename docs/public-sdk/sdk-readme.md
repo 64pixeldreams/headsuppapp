@@ -2,7 +2,7 @@
 
 Private Node and Cloudflare Workers client for the Heads Up API.
 
-For API onboarding, start with [quickstart.md](./quickstart.md) in the main repo, then use [reference.md](./reference.md) for all props and [use-cases.md](./use-cases.md) for scenario guidance.
+For API onboarding, start with [quickstart.md](quickstart.md), then use [reference.md](reference.md) for all props and [use-cases.md](use-cases.md) for scenario guidance. The `docs/` folder is included in the SDK repository and in the published package.
 
 This package is proprietary software owned by 64 Pixel Holdings LLC and operated by Inc64 LLC.
 
@@ -64,7 +64,7 @@ npm install git+ssh://git@github.com/64pixeldreams/headsuppclientsdk.git#v0.1.1
 Local workspace install while developing:
 
 ```bash
-npm install ../headsupp/packages/headsupp-client
+npm install ../headsuppclientsdk
 ```
 
 ## Environment
@@ -290,9 +290,9 @@ await headsup.createWatch({
 });
 ```
 
-See `docs/api/aggregate-forwarding.md` in the main repo for supported bucket sizes, aggregate values, callback payloads, signing headers, and retry behavior.
+See [aggregate-forwarding.md](aggregate-forwarding.md) for supported bucket sizes, aggregate values, callback payloads, signing headers, and retry behavior.
 
-See [watch-types.md](./watch-types.md) in the main repo for all supported watch types.
+See [watch-types.md](watch-types.md) for all supported watch types.
 
 ## Send Events
 

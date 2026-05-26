@@ -2,7 +2,7 @@
 
 Private Node and Cloudflare Workers client for the Heads Up API.
 
-For API onboarding, start with [quickstart.md](../../docs/api/quickstart.md) in the main repo, then use [reference.md](../../docs/api/reference.md) for all props and [use-cases.md](../../docs/api/use-cases.md) for scenario guidance.
+For API onboarding, start with the [quickstart](https://github.com/64pixeldreams/headsuppapp/blob/main/docs/api/quickstart.md), then use the [API reference](https://github.com/64pixeldreams/headsuppapp/blob/main/docs/api/reference.md) for all props and [use cases](https://github.com/64pixeldreams/headsuppapp/blob/main/docs/api/use-cases.md) for scenario guidance.
 
 This package is proprietary software owned by 64 Pixel Holdings LLC and operated by Inc64 LLC.
 
@@ -18,16 +18,16 @@ POST /v1/events/{connectorKey}  HMAC-signed event ingest
 Use these docs beside the SDK examples:
 
 ```text
-Quickstart and full setup       ../../docs/api/quickstart.md
-All action props and responses  ../../docs/api/reference.md
-Channels, signals, admin API    ../../docs/api/admin.md
-Connectors and event ingest     ../../docs/api/connectors-and-ingest.md
-Subscribers and delivery retry  ../../docs/api/subscribers.md
-Email subscribers               ../../docs/api/email-subscribers.md
-Watch types and bucket config   ../../docs/api/watch-types.md
-Aggregate forwarding            ../../docs/api/aggregate-forwarding.md
-Scenario guidance               ../../docs/api/use-cases.md
-Webhook receiver behavior       ../../docs/api/webhook-receivers.md
+Quickstart and full setup       https://github.com/64pixeldreams/headsuppapp/blob/main/docs/api/quickstart.md
+All action props and responses  https://github.com/64pixeldreams/headsuppapp/blob/main/docs/api/reference.md
+Channels, signals, admin API    https://github.com/64pixeldreams/headsuppapp/blob/main/docs/api/admin.md
+Connectors and event ingest     https://github.com/64pixeldreams/headsuppapp/blob/main/docs/api/connectors-and-ingest.md
+Subscribers and delivery retry  https://github.com/64pixeldreams/headsuppapp/blob/main/docs/api/subscribers.md
+Email subscribers               https://github.com/64pixeldreams/headsuppapp/blob/main/docs/api/email-subscribers.md
+Watch types and bucket config   https://github.com/64pixeldreams/headsuppapp/blob/main/docs/api/watch-types.md
+Aggregate forwarding            https://github.com/64pixeldreams/headsuppapp/blob/main/docs/api/aggregate-forwarding.md
+Scenario guidance               https://github.com/64pixeldreams/headsuppapp/blob/main/docs/api/use-cases.md
+Webhook receiver behavior       https://github.com/64pixeldreams/headsuppapp/blob/main/docs/api/webhook-receivers.md
 ```
 
 ## Install
@@ -380,7 +380,7 @@ await headsup.createWatch({
 });
 ```
 
-See [watch-types.md](../../docs/api/watch-types.md) in the main repo for all supported watch types.
+See the [watch types guide](https://github.com/64pixeldreams/headsuppapp/blob/main/docs/api/watch-types.md) for all supported watch types and the [aggregate forwarding guide](https://github.com/64pixeldreams/headsuppapp/blob/main/docs/api/aggregate-forwarding.md) for closed-bucket callbacks.
 
 ## Send Events
 
