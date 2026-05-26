@@ -22,10 +22,13 @@ export async function loadAggregatesForWatch(db, watch, input) {
     watch.watch_type.startsWith('DELTA_') ||
     watch.watch_type.startsWith('PERCENT_CHANGE_') ||
     watch.watch_type.startsWith('PREVIOUS_PERIOD_RATIO_') ||
+    watch.watch_type.startsWith('TREND_') ||
     watch.watch_type === 'SPIKE_GT';
 
   if (needsWindowRows) {
-    const limit = watch.watch_type.startsWith('WINDOW_') ? Number(config.window?.size || 60) : 2;
+    const limit = watch.watch_type.startsWith('WINDOW_') || watch.watch_type.startsWith('TREND_')
+      ? Number(config.window?.size || 60)
+      : 2;
     const result = await db
       .prepare(
         `SELECT *

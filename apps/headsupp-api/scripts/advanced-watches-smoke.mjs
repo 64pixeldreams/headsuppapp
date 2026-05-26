@@ -110,6 +110,12 @@ await insertWatch({
   config: { threshold: 50, severity: 'warning', bucket_type: 'minute' },
 });
 await insertWatch({
+  suffix: 'trend_up',
+  name: 'Advanced form views trending up',
+  type: 'TREND_UP_GT',
+  config: { threshold: 50, severity: 'warning', bucket_type: 'minute', window: { size: 2 }, field: 'last_value' },
+});
+await insertWatch({
   suffix: 'reminder',
   name: 'Advanced reminder due',
   type: 'REMINDER_DUE',
@@ -191,6 +197,7 @@ const expectedWatchIds = [
   watchId('percent_change'),
   watchId('ratio'),
   watchId('spike'),
+  watchId('trend_up'),
   watchId('reminder'),
   watchId('recurring_expectation'),
   watchId('rich_digest'),

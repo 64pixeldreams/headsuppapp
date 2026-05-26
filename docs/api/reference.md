@@ -116,6 +116,10 @@ Email `config` supports formatted notification templates:
 {
   "template_id": "base_alert_v1",
   "actions": ["snooze_1h", "snooze_1d", "stop_watching"],
+  "authorization": {
+    "required": true,
+    "ttl_seconds": 604800
+  },
   "value_format": "money_usd_2",
   "locale": "en-US",
   "labels": {
@@ -146,6 +150,22 @@ stop_watching
 ```
 
 These are standard API-owned actions. Unknown values are ignored. Snooze actions use signed expiring links and create watch snooze controls. `stop_watching` opens a confirmation page before disabling the email subscriber.
+
+Email authorization is optional and not default. When `authorization.required = true`, the subscriber starts disabled and must be confirmed through a signed email link before it receives alerts.
+
+### `GET /v1/subscribers/confirm`
+
+Public recipient endpoint for signed email subscription confirmation links.
+
+Query params:
+
+- `token` (string, required): signed confirmation token.
+
+Behavior:
+
+- valid token -> enables the pending email subscriber and records authorization state.
+- already confirmed token -> safe "already confirmed" page.
+- expired/tampered token -> safe generic HTML response and no state change.
 
 ### `GET /v1/subscribers/email-action`
 
@@ -239,6 +259,8 @@ snooze / mute
 
 For market-price or tick-style signals, prefer movement watch types such as `PERCENT_CHANGE_GT`, `PERCENT_CHANGE_LT`, or `SPIKE_GT` over raw `LAST_VALUE_GT` when the user cares about movement rather than every value above a line. See [watch-types.md#avoid-noisy-alerts](watch-types.md#avoid-noisy-alerts).
 
+For multi-bucket direction such as website views trending up/down or market feeds trending over days, use `TREND_UP_GT` or `TREND_DOWN_GT`.
+
 Supported `renotify_policy` values:
 
 ```text
@@ -267,6 +289,8 @@ Supported watch types (explained in [watch-types.md](watch-types.md)):
 - [`PREVIOUS_PERIOD_RATIO_GT`](watch-types.md#previous_period_ratio_gt)
 - [`PREVIOUS_PERIOD_RATIO_LT`](watch-types.md#previous_period_ratio_lt)
 - [`SPIKE_GT`](watch-types.md#spike_gt)
+- [`TREND_UP_GT`](watch-types.md#trend_up_gt)
+- [`TREND_DOWN_GT`](watch-types.md#trend_down_gt)
 - [`MISSING_EXPECTED`](watch-types.md#missing_expected)
 - [`REMINDER_DUE`](watch-types.md#reminder_due)
 - [`DIGEST`](watch-types.md#digest)

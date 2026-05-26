@@ -56,6 +56,8 @@ Master explainer: [docs/api/watch-types.md](docs/api/watch-types.md#watch-type-i
 - [`PREVIOUS_PERIOD_RATIO_GT`](docs/api/watch-types.md#previous_period_ratio_gt)
 - [`PREVIOUS_PERIOD_RATIO_LT`](docs/api/watch-types.md#previous_period_ratio_lt)
 - [`SPIKE_GT`](docs/api/watch-types.md#spike_gt)
+- [`TREND_UP_GT`](docs/api/watch-types.md#trend_up_gt)
+- [`TREND_DOWN_GT`](docs/api/watch-types.md#trend_down_gt)
 - [`MISSING_EXPECTED`](docs/api/watch-types.md#missing_expected)
 - [`REMINDER_DUE`](docs/api/watch-types.md#reminder_due)
 - [`DIGEST`](docs/api/watch-types.md#digest)
@@ -122,6 +124,7 @@ GET  /api/v1/health
 GET  /api/v1/observability/overview
 GET  /v1/subscribers/unsubscribe?token=...
 GET  /v1/subscribers/email-action?token=...
+GET  /v1/subscribers/confirm?token=...
 POST /api/function
 POST /v1/events/{connector_key}
 ```

@@ -12,6 +12,8 @@ const WATCH_TYPES = new Set([
   'PREVIOUS_PERIOD_RATIO_GT',
   'PREVIOUS_PERIOD_RATIO_LT',
   'SPIKE_GT',
+  'TREND_UP_GT',
+  'TREND_DOWN_GT',
 ]);
 
 export function parseWatchJson(value) {
@@ -32,6 +34,7 @@ export function watchConfig(watch) {
     bucket_type: config.bucket_type || watch.bucket_type || 'minute',
     severity: config.severity || watch.severity || 'warning',
     window: config.window || watch.window || null,
+    method: config.method || 'first_last_percent_change',
   };
 }
 
@@ -53,6 +56,28 @@ function latestPair(aggregates) {
   return { previous, latest };
 }
 
+function valueForField(row, field) {
+  const value = row?.[field] ?? row?.last_value;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function trendStats(aggregates, field) {
+  if (aggregates.length < 2) return { ok: false, reason: 'INSUFFICIENT_TREND_BUCKETS' };
+  const first = valueForField(aggregates[0], field);
+  const latest = valueForField(aggregates[aggregates.length - 1], field);
+  if (first === null || latest === null) return { ok: false, reason: 'INVALID_TREND_VALUES' };
+  if (first === 0) return { ok: false, reason: 'TREND_FIRST_VALUE_ZERO' };
+  const percent = ((latest - first) / Math.abs(first)) * 100;
+  return {
+    ok: true,
+    first,
+    latest,
+    percent,
+    bucket_count: aggregates.length,
+  };
+}
+
 export function evaluateWatchAgainstAggregates(watch, aggregates = []) {
   if (!WATCH_TYPES.has(watch.watch_type)) {
     return {
@@ -67,6 +92,8 @@ export function evaluateWatchAgainstAggregates(watch, aggregates = []) {
   const stats = windowStats(aggregates);
   let currentValue = null;
   let triggered = false;
+  let reason = null;
+  let fields = null;
 
   if (watch.watch_type === 'LAST_VALUE_LT' || watch.watch_type === 'LAST_VALUE_GT') {
     currentValue = latest ? Number(latest.last_value) : null;
@@ -120,12 +147,39 @@ export function evaluateWatchAgainstAggregates(watch, aggregates = []) {
     }
   }
 
+  if (watch.watch_type === 'TREND_UP_GT' || watch.watch_type === 'TREND_DOWN_GT') {
+    const trend = trendStats(aggregates, config.field);
+    if (!trend.ok) {
+      reason = trend.reason;
+    } else {
+      currentValue = trend.percent;
+      triggered =
+        watch.watch_type === 'TREND_UP_GT'
+          ? currentValue > config.threshold
+          : currentValue < -Math.abs(config.threshold);
+      fields = {
+        trend: {
+          method: config.method,
+          field: config.field,
+          first_value: trend.first,
+          latest_value: trend.latest,
+          trend_percent: trend.percent,
+          bucket_count: trend.bucket_count,
+          window_size: config.window?.size || trend.bucket_count,
+          direction: trend.percent >= 0 ? 'up' : 'down',
+        },
+      };
+    }
+  }
+
   return {
     supported: true,
     triggered,
+    reason,
     current_value: currentValue,
     threshold: config.threshold,
     severity: config.severity,
     bucket_type: config.bucket_type,
+    fields,
   };
 }

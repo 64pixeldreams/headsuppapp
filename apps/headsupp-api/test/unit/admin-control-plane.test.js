@@ -345,6 +345,38 @@ test('subscriber row validates email destination and normalizes recipient', () =
   assert.match(built.row.destination_url_redacted, /^ma\*\*\*@example\.com$/);
 });
 
+test('email subscriber authorization starts disabled and pending when required', () => {
+  const built = buildSubscriberRow(
+    {
+      workspace_id: 'ws_123',
+      channel_id: 'ch_123',
+      subscriber_type: 'email',
+      destination_url: 'martin@example.com',
+      config: { authorization: { required: true } },
+    },
+    '2026-05-26T00:00:00.000Z',
+  );
+
+  assert.equal(built.ok, true);
+  assert.equal(built.row.enabled, 0);
+  const config = JSON.parse(built.row.config_json);
+  assert.equal(config.authorization.status, 'pending');
+  assert.equal(config.authorization.requested_at, '2026-05-26T00:00:00.000Z');
+});
+
+test('email subscriber authorization is not default', () => {
+  const built = buildSubscriberRow({
+    workspace_id: 'ws_123',
+    channel_id: 'ch_123',
+    subscriber_type: 'email',
+    destination_url: 'martin@example.com',
+    config: {},
+  });
+
+  assert.equal(built.ok, true);
+  assert.equal(built.row.enabled, 1);
+});
+
 test('watch row serializes config JSON', () => {
   const row = buildWatchRow({
     workspace_id: 'ws_123',

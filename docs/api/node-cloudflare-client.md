@@ -328,6 +328,10 @@ const emailSubscriber = await headsup.createSubscriber({
   config: {
     template_id: 'base_alert_v1',
     actions: ['snooze_1h', 'snooze_1d', 'stop_watching'],
+    authorization: {
+      required: true,
+      ttl_seconds: 604800,
+    },
     value_format: 'money_usd_2',
     locale: 'en-US',
     timezone: 'UTC',
@@ -343,6 +347,7 @@ const emailSubscriber = await headsup.createSubscriber({
 
 `{value}` and `{threshold}` are rendered by Heads Up at delivery time using `value_format`.
 With `money_usd_2`, a raw value of `9.5` renders as `$9.50`.
+If `authorization.required` is true, the subscriber starts pending and must confirm the emailed link before alerts are delivered.
 
 Aggregate-forward callback subscriber:
 
@@ -403,6 +408,44 @@ await headsup.createWatch({
     severity: 'warning',
     bucket_type: 'minute',
     window: { size: 3 },
+  },
+});
+```
+
+Website form views trending up:
+
+```js
+await headsup.createWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  signal_id: signalResult.signal.signal_id,
+  name: 'Form views trending up',
+  watch_type: 'TREND_UP_GT',
+  config: {
+    threshold: 10,
+    severity: 'warning',
+    bucket_type: 'day',
+    window: { size: 7 },
+    field: 'last_value',
+  },
+});
+```
+
+Market price trending down:
+
+```js
+await headsup.createWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  signal_id: signalResult.signal.signal_id,
+  name: 'Market price trend down',
+  watch_type: 'TREND_DOWN_GT',
+  config: {
+    threshold: 5,
+    severity: 'warning',
+    bucket_type: 'day',
+    window: { size: 3 },
+    field: 'last_value',
   },
 });
 ```

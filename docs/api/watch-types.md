@@ -39,6 +39,7 @@ Absolute change from previous bucket      DELTA_GT / DELTA_LT
 Percent change from previous bucket       PERCENT_CHANGE_GT / PERCENT_CHANGE_LT
 Previous-period ratio                     PREVIOUS_PERIOD_RATIO_GT / PREVIOUS_PERIOD_RATIO_LT
 Spike in percent terms                    SPIKE_GT
+Trend across recent buckets               TREND_UP_GT / TREND_DOWN_GT
 Expected event did not happen             MISSING_EXPECTED
 Calendar due-date reminder                REMINDER_DUE
 Scheduled rollup alert                    DIGEST
@@ -78,7 +79,7 @@ Coffee spend
   Prefer WINDOW_SUM_GT for weekly total spend, or LAST_VALUE_GT with a long cooldown for unusually expensive single purchases.
 
 Market price
-  Prefer PERCENT_CHANGE_GT, PERCENT_CHANGE_LT, or SPIKE_GT for meaningful movement.
+  Prefer PERCENT_CHANGE_GT, PERCENT_CHANGE_LT, SPIKE_GT, or TREND_* for meaningful movement.
   If using LAST_VALUE_GT, add recovery and a long cooldown so the user is not emailed for every tick above the line.
 ```
 
@@ -176,6 +177,14 @@ See [Percent Change And Ratio](#percent-change-and-ratio).
 ### SPIKE_GT
 
 See [Percent Change And Ratio](#percent-change-and-ratio).
+
+### TREND_UP_GT
+
+See [Trend Across Buckets](#trend-across-buckets).
+
+### TREND_DOWN_GT
+
+See [Trend Across Buckets](#trend-across-buckets).
 
 ### MISSING_EXPECTED
 
@@ -354,6 +363,61 @@ Use ratio when users think in multipliers.
 ```
 
 Relative-change watches need two adjacent buckets and do not trigger when the previous value is zero.
+
+## Trend Across Buckets
+
+Use `TREND_UP_GT` and `TREND_DOWN_GT` when the direction over a window matters more than a single jump.
+
+Examples:
+
+```text
+Website views
+  "Your form views are trending up over the last 7 days."
+  "Your checkout views are trending down over the last 3 days."
+
+Market feed
+  "Price trend is up 6.2% over the last day."
+  "Price trend is down 4.1% over the last week."
+```
+
+MVP trend method:
+
+```text
+((latest - first) / abs(first)) * 100
+```
+
+Example, form views trending up over seven daily buckets:
+
+```json
+{
+  "watch_type": "TREND_UP_GT",
+  "config": {
+    "threshold": 10,
+    "severity": "warning",
+    "bucket_type": "day",
+    "window": { "size": 7 },
+    "field": "last_value",
+    "method": "first_last_percent_change"
+  }
+}
+```
+
+Example, market price trending down over three days:
+
+```json
+{
+  "watch_type": "TREND_DOWN_GT",
+  "config": {
+    "threshold": 5,
+    "severity": "warning",
+    "bucket_type": "day",
+    "window": { "size": 3 },
+    "field": "last_value"
+  }
+}
+```
+
+Trend watches need at least two aggregate buckets and do not trigger when the first value is zero.
 
 ## Missing Expected
 

@@ -164,3 +164,71 @@ test('evaluates SPIKE_GT as a percent increase alias', () => {
   assert.equal(result.triggered, true);
   assert.equal(result.current_value, 150);
 });
+
+test('evaluates TREND_UP_GT across aggregate buckets', () => {
+  const result = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'TREND_UP_GT',
+      config_json: JSON.stringify({
+        threshold: 20,
+        field: 'last_value',
+        window: { size: 3 },
+      }),
+    },
+    [{ last_value: 100 }, { last_value: 115 }, { last_value: 140 }],
+  );
+
+  assert.equal(result.triggered, true);
+  assert.equal(result.current_value, 40);
+  assert.equal(result.fields.trend.direction, 'up');
+  assert.equal(result.fields.trend.first_value, 100);
+  assert.equal(result.fields.trend.latest_value, 140);
+});
+
+test('evaluates TREND_DOWN_GT across aggregate buckets', () => {
+  const result = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'TREND_DOWN_GT',
+      config_json: JSON.stringify({
+        threshold: 15,
+        field: 'last_value',
+        window: { size: 3 },
+      }),
+    },
+    [{ last_value: 100 }, { last_value: 90 }, { last_value: 70 }],
+  );
+
+  assert.equal(result.triggered, true);
+  assert.equal(result.current_value, -30);
+  assert.equal(result.fields.trend.direction, 'down');
+});
+
+test('trend watches stay quiet for flat or insufficient data', () => {
+  const flat = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'TREND_UP_GT',
+      config_json: JSON.stringify({ threshold: 20, window: { size: 3 } }),
+    },
+    [{ last_value: 100 }, { last_value: 101 }, { last_value: 102 }],
+  );
+  const insufficient = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'TREND_UP_GT',
+      config_json: JSON.stringify({ threshold: 20, window: { size: 3 } }),
+    },
+    [{ last_value: 100 }],
+  );
+  const firstZero = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'TREND_UP_GT',
+      config_json: JSON.stringify({ threshold: 20, window: { size: 3 } }),
+    },
+    [{ last_value: 0 }, { last_value: 100 }],
+  );
+
+  assert.equal(flat.triggered, false);
+  assert.equal(insufficient.triggered, false);
+  assert.equal(insufficient.reason, 'INSUFFICIENT_TREND_BUCKETS');
+  assert.equal(firstZero.triggered, false);
+  assert.equal(firstZero.reason, 'TREND_FIRST_VALUE_ZERO');
+});

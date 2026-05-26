@@ -6,6 +6,7 @@ import {
   redactSubscriberDestination,
   validateSubscriberUrl,
 } from '../subscribers/urls.js';
+import { normalizeAuthorizationConfig, sendAuthorizationEmail } from '../subscribers/email-authorization.js';
 import { buildActionControlRow } from '../watches/action-controls.js';
 
 const VALID_SUBSCRIBER_MODES = new Set(['alert', 'aggregate_forward', 'quiet_summary']);
@@ -96,7 +97,9 @@ export function buildSubscriberRow(input, now = new Date().toISOString()) {
     };
   }
   const subscriberType = input.subscriber_type || 'webhook';
-  const config = parseJsonField(input.config_json ?? input.config, {});
+  const parsedConfig = parseJsonField(input.config_json ?? input.config, {});
+  const authConfig = subscriberType === 'email' ? normalizeAuthorizationConfig(parsedConfig, now) : { config: parsedConfig, required: false };
+  const config = authConfig.config;
   const validation = validateSubscriberUrl(subscriberType, input.destination_url, config);
   if (!validation.ok) return validation;
   const destinationUrl = input.destination_url || validation.normalized_destination;
@@ -120,7 +123,7 @@ export function buildSubscriberRow(input, now = new Date().toISOString()) {
       secret_hash: null,
       mode,
       config_json: JSON.stringify(config),
-      enabled: input.enabled === false ? 0 : 1,
+      enabled: authConfig.required ? 0 : input.enabled === false ? 0 : 1,
       source_app: input.source_app || null,
       external_tenant_id: input.external_tenant_id || null,
       external_user_id: input.external_user_id || null,
@@ -523,7 +526,7 @@ export async function createAdminConnector({ auth, db, input, now, secretFactory
   return { ok: true, connector: publicConnector(row, { includeSecret: true }) };
 }
 
-export async function createAdminSubscriber({ auth, db, input, now }) {
+export async function createAdminSubscriber({ auth, db, input, env = {}, now }) {
   const denied = denyIfNeeded(auth, 'subscriber:create');
   if (denied) return denied;
   const scopeDenied =
@@ -534,7 +537,14 @@ export async function createAdminSubscriber({ auth, db, input, now }) {
   const built = buildSubscriberRow(inheritOwnership(input, channel), now);
   if (!built.ok) return built;
   const subscriber = await insertRow(db, 'subscribers', built.row);
-  return { ok: true, subscriber: publicSubscriber(subscriber) };
+  let authorization = null;
+  if (subscriber.subscriber_type === 'email') {
+    const config = parseJsonField(subscriber.config_json, {});
+    if (config.authorization?.required === true && config.authorization?.status === 'pending') {
+      authorization = await sendAuthorizationEmail({ env, subscriber, now });
+    }
+  }
+  return { ok: true, subscriber: publicSubscriber(subscriber), authorization };
 }
 
 async function resolveAdminSubscriber({ db, workspaceId, channelId, subscriberId, email, mode }) {

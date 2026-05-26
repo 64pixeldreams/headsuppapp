@@ -12,6 +12,7 @@ import { getObservabilityOverview } from './services/observability/overview.js';
 import { runScheduledTasks } from './services/scheduler/scheduled-tasks.js';
 import { writeAuditLog } from './services/audit/control-plane-audit.js';
 import { buildEmailActionUrl, processEmailActionToken } from './services/subscribers/email-actions.js';
+import { processEmailAuthorizationToken } from './services/subscribers/email-authorization.js';
 import { processUnsubscribeToken } from './services/subscribers/unsubscribe.js';
 
 export { WatchEvaluatorDO } from './durable/WatchEvaluatorDO.js';
@@ -232,6 +233,45 @@ export default {
         return html(page('Heads Up', '<p>Email action complete.</p>'), { status: 200 });
       }
 
+      if (url.pathname === '/v1/subscribers/confirm' && request.method === 'GET') {
+        if (!env.DB) {
+          return html(page('Heads Up', '<p>Email confirmation is unavailable right now.</p>'), { status: 503 });
+        }
+        const token = url.searchParams.get('token');
+        const result = await processEmailAuthorizationToken({
+          db: env.DB,
+          env,
+          token,
+          now: new Date().toISOString(),
+        });
+        await writeAuditLog({
+          db: env.DB,
+          action: 'subscriber.confirmEmail',
+          auth: null,
+          input: {
+            token_present: Boolean(token),
+            result: result.ok ? result.code || 'ok' : result.code,
+            workspace_id: result.workspace_id || null,
+          },
+          success: Boolean(result.ok),
+          errorCode: result.ok ? null : result.code,
+          targetType: 'subscriber',
+          targetId: result.subscriber_id || null,
+        });
+
+        if (!result.ok) {
+          const message =
+            result.code === 'EXPIRED_TOKEN'
+              ? 'This confirmation link has expired. Please request a new subscription confirmation.'
+              : 'This confirmation link is invalid or can no longer be used.';
+          return html(page('Heads Up', `<p>${message}</p>`), { status: 200 });
+        }
+        if (result.code === 'ALREADY_CONFIRMED') {
+          return html(page('Heads Up', '<p>This email subscription is already confirmed.</p>'), { status: 200 });
+        }
+        return html(page('Heads Up', '<p>Your email subscription is confirmed. You will now receive these alerts.</p>'), { status: 200 });
+      }
+
       if (url.pathname === '/api/v1/observability/overview' && request.method === 'GET') {
         if (!isAuthorizedObservabilityRequest(request, env)) {
           return json(
@@ -379,7 +419,7 @@ export default {
         {
           error: 'Not Found',
           message:
-            'Try /health, /api/v1/health, /api/v1/observability/overview, GET /v1/subscribers/unsubscribe, GET /v1/subscribers/email-action, POST /api/function, or POST /v1/events/{connector_key}.',
+            'Try /health, /api/v1/health, /api/v1/observability/overview, GET /v1/subscribers/unsubscribe, GET /v1/subscribers/email-action, GET /v1/subscribers/confirm, POST /api/function, or POST /v1/events/{connector_key}.',
         },
         { status: 404 },
       );

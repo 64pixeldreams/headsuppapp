@@ -112,6 +112,45 @@ Business question: "Did usage suddenly double?"
 
 Market-price style use cases usually belong here. A raw `LAST_VALUE_GT` watch can be noisy because every tick above the threshold may qualify after cooldown. Use percent-change or spike watches when the user wants meaningful movement, and add recovery/cooldown when the user wants "tell me once until it settles".
 
+## 5b) Trend Is Going Up Or Down
+
+Business question: "Are website form views, checkout views, or market prices trending up or down over a useful window?"
+
+- Watch types: `TREND_UP_GT`, `TREND_DOWN_GT`
+- Read in callback: `current_value` as trend percent, `fields.trend.first_value`, `fields.trend.latest_value`, `fields.trend.window_size`
+
+Website views example:
+
+```json
+{
+  "watch_type": "TREND_UP_GT",
+  "config": {
+    "threshold": 10,
+    "severity": "warning",
+    "bucket_type": "day",
+    "window": { "size": 7 },
+    "field": "last_value"
+  }
+}
+```
+
+This can power copy such as "Your form views are trending up 18% over the last 7 days." Use `TREND_DOWN_GT` for "views are trending down" alerts.
+
+Market feed example:
+
+```json
+{
+  "watch_type": "TREND_DOWN_GT",
+  "config": {
+    "threshold": 5,
+    "severity": "warning",
+    "bucket_type": "day",
+    "window": { "size": 3 },
+    "field": "last_value"
+  }
+}
+```
+
 ## Choosing Notification Behavior
 
 Use this decision guide:
@@ -125,6 +164,9 @@ I want to know about one unusually expensive purchase
 
 I want to know when a market price moves sharply
   Use PERCENT_CHANGE_GT, PERCENT_CHANGE_LT, or SPIKE_GT.
+
+I want to know if form views or market price are trending up/down
+  Use TREND_UP_GT or TREND_DOWN_GT over day/hour buckets.
 
 I want one alert and then silence until normal again
   Use recovery + renotify_policy = once_until_recovered.

@@ -55,6 +55,10 @@ Use one subscriber row per recipient (best for per-user pause/remove control).
     "config": {
       "template_id": "base_alert_v1",
       "actions": ["snooze_1h", "snooze_1d", "stop_watching"],
+      "authorization": {
+        "required": true,
+        "ttl_seconds": 604800
+      },
       "value_format": "money_usd_2",
       "locale": "en-US",
       "timezone": "UTC",
@@ -80,6 +84,42 @@ Use one subscriber row per recipient (best for per-user pause/remove control).
 ```
 
 Response includes canonical `subscriber_id` for disable/delete and unsubscribe lifecycle.
+
+## Optional Subscriber Authorization
+
+Email authorization is opt-in and not default. Use it when the recipient should confirm before Heads Up starts sending alerts:
+
+```json
+{
+  "config": {
+    "authorization": {
+      "required": true,
+      "ttl_seconds": 604800
+    }
+  }
+}
+```
+
+Behavior:
+
+```text
+authorization.required absent or false
+  Subscriber is enabled immediately.
+
+authorization.required true
+  Subscriber starts disabled with authorization.status = pending.
+  Heads Up sends a confirmation email.
+  The recipient must click the signed confirmation link before alerts can be delivered.
+
+Expired or month-old confirmation link
+  Fails closed and does not enable the subscriber.
+```
+
+Confirmation endpoint:
+
+```text
+GET /v1/subscribers/confirm?token=...
+```
 
 ## Recipient Action Buttons
 

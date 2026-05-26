@@ -155,6 +155,7 @@ check HEADSUPP_EMAIL_FROM and HEADSUPP_EMAIL_REPLY_TO
 inspect alert_deliveries.response_body for provider errors
 confirm HEADSUPP_PUBLIC_BASE_URL and HEADSUPP_UNSUBSCRIBE_SECRET when unsubscribe links are expected
 confirm HEADSUPP_PUBLIC_BASE_URL and HEADSUPP_EMAIL_ACTION_SECRET (or unsubscribe secret fallback) when email action buttons are expected
+confirm HEADSUPP_PUBLIC_BASE_URL and HEADSUPP_EMAIL_AUTH_SECRET (or action/unsubscribe secret fallback) when email confirmation is expected
 ```
 
 If email action links fail:
@@ -171,6 +172,32 @@ snooze button clicked but alerts still send
 
 stop watching clicked by scanner
   First GET should only show confirmation. Subscriber is disabled only after confirm=1.
+```
+
+If email subscription confirmation fails:
+
+```text
+subscriber remains disabled
+  Expected until recipient confirms the signed email link.
+
+expired confirmation link
+  Expected for old emails. It should show a safe expired-link page and make no D1 changes.
+
+confirmation email not sent
+  Check SEND_EMAIL binding, HEADSUPP_PUBLIC_BASE_URL, and signing secret configuration.
+```
+
+If trend watches do not fire:
+
+```text
+insufficient buckets
+  TREND_* needs at least two aggregate rows in the configured bucket/window.
+
+first value is zero
+  TREND_* does not divide by zero; use more buckets or a different watch type.
+
+wrong bucket type
+  Confirm the signal contract materializes the configured bucket_type.
 ```
 
 ## D1 Migration Or Query Failure

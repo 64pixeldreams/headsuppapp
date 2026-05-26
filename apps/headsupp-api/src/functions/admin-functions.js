@@ -72,7 +72,7 @@ export async function registerAdminFunctions(cloudFunction) {
         if (missingDb) return resultToResponse(missingDb);
         const input = payload || {};
         const store = env.HEADSUPP_CACHE ? createKVControlPlaneStore(env.HEADSUPP_CACHE) : null;
-        const result = await handler({ auth, input, db: env.DB, store, now: new Date().toISOString() });
+        const result = await handler({ auth, input, db: env.DB, env, store, now: new Date().toISOString() });
         const target = targetFromResult(result);
         await writeAuditLog({
           db: env.DB,

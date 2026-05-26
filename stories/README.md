@@ -23,7 +23,7 @@ If a story creates or changes an endpoint, auth rule, event payload, delivery pa
 
 ## Current Story Count
 
-There are 113 story files.
+There are 116 story files.
 
 Stories marked `_done` are complete. Pending stories should be built one at a time or in an agreed batch, with tests and docs updated before marking `_done`.
 
@@ -140,4 +140,14 @@ Recipient-facing controls for email alerts:
 110 Email action token endpoint_done
 111 Email template CTA and action polish_done
 112 Email action buttons docs and smoke_done
+```
+
+## Email Authorization And Trend Batch
+
+Opt-in recipient confirmation and aggregate-based trend intelligence:
+
+```text
+113 Email subscriber authorization opt-in_done
+114 Trend watch types over aggregates_done
+115 Trend and email authorization docs SDK smoke_done
 ```

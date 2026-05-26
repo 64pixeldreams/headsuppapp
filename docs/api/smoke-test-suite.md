@@ -78,7 +78,7 @@ smoke:quiet-summary      HTTP + deployed   quiet_summary_deliveries without norm
 smoke:action-controls    Slack + deployed  snooze, resume, mute, and ignored delivery states
 smoke:channel-contracts  API/D1 + deployed channel contracts, inherited signal defaults, read API safe shapes
 smoke:aggregate-forward-dimensions D1 + deployed dimension-filtered aggregate forwarding and no duplicate second pass
-smoke:advanced-watches   D1 + deployed     WINDOW, DELTA, relative change, reminders, recurring expectations, rich digest
+smoke:advanced-watches   D1 + deployed     WINDOW, DELTA, relative change, trend, reminders, recurring expectations, rich digest
 smoke:operator-observability API + deployed key lifecycle, audit read, observability overview, redaction
 smoke:email-subscriber  Email + deployed  provisions email subscriber, renders {value} title template and action buttons, triggers coffee highest-purchase alert, verifies sent delivery
 load:smoke               local             10000 synthetic events fold into fewer aggregate deltas
