@@ -278,6 +278,29 @@ await headsup.createWatch({
 });
 ```
 
+One alert until recovery:
+
+```js
+await headsup.createWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  signal_id: signalResult.signal.signal_id,
+  name: 'Market price above target',
+  watch_type: 'LAST_VALUE_GT',
+  config: {
+    threshold: 100,
+    severity: 'warning',
+    bucket_type: 'minute',
+    renotify_policy: 'once_until_recovered',
+  },
+  recovery: {
+    enabled: true,
+    condition: 'value <= 95',
+    severity: 'recovery',
+  },
+});
+```
+
 Aggregate forward:
 
 ```js

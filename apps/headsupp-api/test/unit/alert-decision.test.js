@@ -62,6 +62,77 @@ test('allows post-cooldown alert', () => {
   assert.equal(decision.action, 'alert');
 });
 
+test('once_until_recovered suppresses post-cooldown repeat while still triggered', () => {
+  const decision = decideAlertAction({
+    watch: {
+      cooldown_seconds: 60,
+      config_json: JSON.stringify({ renotify_policy: 'once_until_recovered' }),
+    },
+    evaluation: {
+      supported: true,
+      triggered: true,
+      severity: 'warning',
+      current_value: 82,
+    },
+    state: {
+      last_status: 'triggered',
+      last_alert_severity: 'warning',
+      cooldown_until: '2026-05-24T09:59:00.000Z',
+    },
+    now,
+  });
+
+  assert.equal(decision.action, 'none');
+  assert.equal(decision.reason, 'ALREADY_TRIGGERED_UNTIL_RECOVERY');
+});
+
+test('once_until_recovered allows a new alert after recovered state', () => {
+  const decision = decideAlertAction({
+    watch: {
+      cooldown_seconds: 60,
+      config_json: JSON.stringify({ renotify_policy: 'once_until_recovered' }),
+    },
+    evaluation: {
+      supported: true,
+      triggered: true,
+      severity: 'warning',
+      current_value: 82,
+    },
+    state: {
+      last_status: 'recovered',
+      last_alert_severity: 'recovery',
+      cooldown_until: null,
+    },
+    now,
+  });
+
+  assert.equal(decision.action, 'alert');
+});
+
+test('once_until_recovered suppresses same incident escalation until recovery', () => {
+  const decision = decideAlertAction({
+    watch: {
+      cooldown_seconds: 60,
+      config_json: JSON.stringify({ renotify_policy: 'once_until_recovered' }),
+    },
+    evaluation: {
+      supported: true,
+      triggered: true,
+      severity: 'critical',
+      current_value: 99,
+    },
+    state: {
+      last_status: 'triggered',
+      last_alert_severity: 'warning',
+      cooldown_until: '2026-05-24T09:59:00.000Z',
+    },
+    now,
+  });
+
+  assert.equal(decision.action, 'none');
+  assert.equal(decision.reason, 'ALREADY_TRIGGERED_UNTIL_RECOVERY');
+});
+
 test('allows severity escalation during cooldown', () => {
   const decision = decideAlertAction({
     watch: { cooldown_seconds: 3600 },

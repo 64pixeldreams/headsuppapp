@@ -47,6 +47,80 @@ Forward a closed aggregate bucket         AGGREGATE_FORWARD
 
 There is no `WINDOW_MAX_GT` watch type. If you need the highest value in a closed bucket, use `AGGREGATE_FORWARD` and read `values.max`, or model a spike/threshold watch depending on the product need.
 
+## Avoid Noisy Alerts
+
+Most products should not alert every time a value is above a threshold. Choose the watch and notification controls based on what the user actually wants to know.
+
+Use these controls first:
+
+```text
+cooldown_seconds
+  Suppresses repeat alerts for the same watch for a period after an alert is sent.
+  Example: alert at most once per day for an expensive coffee purchase.
+
+recovery
+  Defines when the watch is back to normal, so Heads Up can send a recovery notification and reset the user's mental model.
+  Example: market price fell back below the alert threshold.
+
+snooze / mute
+  Manual controls for users or admins to pause noisy watches without deleting the setup.
+  Snooze is temporary. Mute stays active until resumed.
+
+PERCENT_CHANGE_* / SPIKE_GT
+  Better for movement-based signals, such as market prices, than raw LAST_VALUE_GT.
+  Example: "price jumped 8% in an hour" is usually more useful than "price is still above 100" on every tick.
+```
+
+Practical choices:
+
+```text
+Coffee spend
+  Prefer WINDOW_SUM_GT for weekly total spend, or LAST_VALUE_GT with a long cooldown for unusually expensive single purchases.
+
+Market price
+  Prefer PERCENT_CHANGE_GT, PERCENT_CHANGE_LT, or SPIKE_GT for meaningful movement.
+  If using LAST_VALUE_GT, add recovery and a long cooldown so the user is not emailed for every tick above the line.
+```
+
+Renotify policy:
+
+```text
+The API supports cooldown + recovery and the first explicit renotify policy: once_until_recovered.
+```
+
+Use `renotify_policy` when the user wants clearer repeat-notification behavior than time-based cooldown alone:
+
+```json
+{
+  "watch_type": "LAST_VALUE_GT",
+  "config": {
+    "threshold": 100,
+    "severity": "warning",
+    "bucket_type": "minute",
+    "renotify_policy": "once_until_recovered"
+  },
+  "recovery": {
+    "enabled": true,
+    "condition": "value <= 95",
+    "severity": "recovery"
+  }
+}
+```
+
+Policy meanings:
+
+```text
+cooldown
+  Default/current behavior. Alert, then suppress repeats until cooldown expires.
+
+once_until_recovered
+  Alert once when the watch first triggers, then stay quiet until recovery happens.
+  This is best for "tell me once while this remains bad" use cases.
+
+on_escalation_only
+  Planned, not implemented yet. It would alert first trigger and later higher-severity escalation, but not same-severity repeats.
+```
+
 ## Watch Type Index
 
 Use these stable anchors when linking from references and SDK docs.

@@ -187,13 +187,41 @@ Payload props:
 - `signal_id` (string, required).
 - `name` (string, required).
 - `watch_type` (string, required).
-- `config` (object, required): watch-specific config.
+- `config` (object, required): watch-specific config. Supports `renotify_policy` for repeat-notification behavior.
 - `cooldown_seconds` (number, optional).
 - `escalation` (object, optional).
 - `recovery` (object, optional).
 - `enabled` (boolean, optional).
 
 Returns `data.watch`.
+
+Noise-control props:
+
+```text
+cooldown_seconds
+  Suppresses repeat alerts for the same watch for a period after an alert is emitted.
+
+recovery
+  Describes the condition that means the watch is back to normal. Recovery can emit a recovery notification after a prior trigger.
+
+snooze / mute
+  Not createWatch props. These are admin actions (`admin.snoozeWatch`, `admin.muteWatch`) that pause noisy watches after creation.
+```
+
+For market-price or tick-style signals, prefer movement watch types such as `PERCENT_CHANGE_GT`, `PERCENT_CHANGE_LT`, or `SPIKE_GT` over raw `LAST_VALUE_GT` when the user cares about movement rather than every value above a line. See [watch-types.md#avoid-noisy-alerts](watch-types.md#avoid-noisy-alerts).
+
+Supported `renotify_policy` values:
+
+```text
+cooldown
+  Default. Alert, then suppress repeats until cooldown_seconds expires.
+
+once_until_recovered
+  Alert once, then stay quiet while still triggered. A new alert can happen only after recovery is recorded.
+
+on_escalation_only
+  Planned but not implemented yet.
+```
 
 Supported watch types (explained in [watch-types.md](watch-types.md)):
 

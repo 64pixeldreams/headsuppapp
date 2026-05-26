@@ -30,6 +30,13 @@ function recoveryConfig(watch) {
   };
 }
 
+function renotifyPolicy(watch) {
+  const config = parseWatchJson(watch.config_json);
+  const policy = config.renotify_policy || watch.renotify_policy || 'cooldown';
+  if (policy === 'once_until_recovered') return policy;
+  return 'cooldown';
+}
+
 export function recoveryTriggered(watch, currentValue) {
   const recovery = recoveryConfig(watch);
   if (!recovery.enabled || !recovery.condition || currentValue === null || currentValue === undefined) return false;
@@ -77,6 +84,13 @@ export function decideAlertAction({ watch, evaluation, state = null, actionContr
   }
 
   const nextSeverity = evaluation.severity || 'warning';
+  if (renotifyPolicy(watch) === 'once_until_recovered' && state?.last_status === 'triggered') {
+    return {
+      action: 'none',
+      reason: 'ALREADY_TRIGGERED_UNTIL_RECOVERY',
+    };
+  }
+
   if (isCoolingDown(state, now)) {
     if (severityIncreased(state?.last_alert_severity, nextSeverity)) {
       return {

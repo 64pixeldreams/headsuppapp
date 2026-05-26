@@ -153,6 +153,46 @@ Each email includes:
 - CTA when URL is valid,
 - unsubscribe link when `HEADSUPP_PUBLIC_BASE_URL` and unsubscribe secret are configured.
 
+## Avoiding Too Many Emails
+
+Email subscribers use the same watch decision rules as webhooks and Slack.
+
+Use these controls to keep emails useful:
+
+```text
+cooldown_seconds
+  Suppresses repeat emails for the same watch for a period.
+
+recovery
+  Defines when the watch is back to normal, allowing a recovery email after a prior trigger.
+
+snooze / mute
+  Lets a user/admin pause noisy watches without deleting the subscriber or watch.
+
+PERCENT_CHANGE_* / SPIKE_GT
+  Better for market-price movement than LAST_VALUE_GT when the user cares about sharp changes, not every tick above a line.
+```
+
+Coffee example:
+
+```text
+Weekly budget email
+  Use WINDOW_SUM_GT with bucket_type = week.
+
+Unusually expensive single coffee
+  Use LAST_VALUE_GT with cooldown_seconds = 86400 or longer.
+```
+
+Market-price example:
+
+```text
+Meaningful movement
+  Use PERCENT_CHANGE_GT or SPIKE_GT.
+
+One alert until normal again
+  Use recovery plus renotify_policy = once_until_recovered.
+```
+
 ## 4) Unsubscribe and Remove Paths
 
 ### Public unsubscribe link (recipient-facing)

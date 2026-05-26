@@ -43,6 +43,8 @@ Example watch config:
 }
 ```
 
+For individual purchase alerts, avoid emailing on every qualifying purchase unless that is explicitly wanted. Use `cooldown_seconds` for "at most once per day/week", or prefer the weekly `WINDOW_SUM_GT` pattern when the user cares about total spend.
+
 ## 2) "Most Expensive Purchase This Week"
 
 Business question: "What was the highest transaction this week?"
@@ -107,6 +109,29 @@ Business question: "Did usage suddenly double?"
 
 - Watch types: `PREVIOUS_PERIOD_RATIO_GT`, `PERCENT_CHANGE_GT`, `SPIKE_GT`
 - Read in callback: `current_value`, `threshold_value`, `watch_id`
+
+Market-price style use cases usually belong here. A raw `LAST_VALUE_GT` watch can be noisy because every tick above the threshold may qualify after cooldown. Use percent-change or spike watches when the user wants meaningful movement, and add recovery/cooldown when the user wants "tell me once until it settles".
+
+## Choosing Notification Behavior
+
+Use this decision guide:
+
+```text
+I want to know total spend this week
+  Use WINDOW_SUM_GT with bucket_type = week.
+
+I want to know about one unusually expensive purchase
+  Use LAST_VALUE_GT with a long cooldown_seconds.
+
+I want to know when a market price moves sharply
+  Use PERCENT_CHANGE_GT, PERCENT_CHANGE_LT, or SPIKE_GT.
+
+I want one alert and then silence until normal again
+  Use recovery + renotify_policy = once_until_recovered.
+
+I want to pause alerts after the user complains
+  Use admin.snoozeWatch or admin.muteWatch.
+```
 
 ## 6) Recurring Summaries Instead Of Noise
 
