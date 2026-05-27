@@ -9,9 +9,11 @@ import {
   deleteAdminSubscriber,
   disableAdminSubscriber,
   getAdminChannel,
+  getAdminSubscriber,
   getAdminChannelContract,
   ignoreAdminAlert,
   listAdminChannelContractVersions,
+  listAdminSubscribers,
   muteAdminWatch,
   resumeAdminWatch,
   snoozeAdminWatch,
@@ -123,6 +125,8 @@ export async function registerAdminFunctions(cloudFunction) {
   defineAdmin('admin.updateChannel', updateAdminChannel);
   defineAdmin('admin.createConnector', createAdminConnector);
   defineAdmin('admin.createSubscriber', createAdminSubscriber);
+  defineAdmin('admin.getSubscriber', getAdminSubscriber);
+  defineAdmin('admin.listSubscribers', listAdminSubscribers);
   defineAdmin('admin.disableSubscriber', disableAdminSubscriber);
   defineAdmin('admin.deleteSubscriber', deleteAdminSubscriber);
   defineAdmin('admin.createSignal', createAdminSignal);

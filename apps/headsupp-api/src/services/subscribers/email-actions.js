@@ -1,4 +1,5 @@
 import { stableId } from '../ids/stable-id.js';
+import { dispatchSubscriberLifecycleEvent } from '../delivery/subscriber-lifecycle.js';
 import { buildActionControlRow } from '../watches/action-controls.js';
 
 const STANDARD_EMAIL_ACTIONS = Object.freeze({
@@ -331,7 +332,20 @@ export async function processEmailActionToken({
     };
   }
   if (action.kind === 'stop_watching') {
-    return applyStopWatchingAction({ db, payload: verified.payload, now });
+    const result = await applyStopWatchingAction({ db, payload: verified.payload, now });
+    if (result.ok && result.code === 'STOPPED') {
+      const subscriber = await loadSubscriber(db, verified.payload.sub);
+      if (subscriber) {
+        await dispatchSubscriberLifecycleEvent({
+          db,
+          env,
+          event: 'subscriber.disabled',
+          subscriber,
+          now,
+        }).catch(() => {});
+      }
+    }
+    return result;
   }
   if (action.kind === 'snooze') {
     return applySnoozeAction({ db, payload: verified.payload, now });

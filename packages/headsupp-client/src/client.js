@@ -92,6 +92,8 @@ export function createHeadsUpClient({ baseUrl, apiKey, bootstrapToken, fetch: fe
     createSignal: (payload) => requestFunction('admin.createSignal', payload).then((data) => data),
     createWatch: (payload) => requestFunction('admin.createWatch', payload).then((data) => resource(data, 'watch')),
     createSubscriber: (payload) => requestFunction('admin.createSubscriber', payload).then((data) => resource(data, 'subscriber')),
+    getSubscriber: (payload) => requestFunction('admin.getSubscriber', payload).then((data) => resource(data, 'subscriber')),
+    listSubscribers: (payload) => requestFunction('admin.listSubscribers', payload).then((data) => data?.subscribers || []),
     disableSubscriber: (payload) => requestFunction('admin.disableSubscriber', payload).then((data) => resource(data, 'subscriber')),
     deleteSubscriber: (payload) => requestFunction('admin.deleteSubscriber', payload).then((data) => data),
     disableSubscriberByEmail: (payload) =>

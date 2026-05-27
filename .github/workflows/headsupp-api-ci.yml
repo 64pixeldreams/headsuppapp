@@ -63,6 +63,9 @@ jobs:
       HEADSUPP_BOOTSTRAP_TOKEN: ${{ secrets.HEADSUPP_BOOTSTRAP_TOKEN }}
       HEADSUPP_OPERATOR_TOKEN: ${{ secrets.HEADSUPP_OPERATOR_TOKEN }}
       HEADSUPP_SMOKE_DISPATCH_SLACK: "true"
+      HEADSUPP_SMOKE_SERVICE_API_KEY: ${{ secrets.HEADSUPP_SMOKE_SERVICE_API_KEY }}
+      HEADSUPP_SMOKE_EMAIL_DESTINATION: ${{ secrets.HEADSUPP_SMOKE_EMAIL_DESTINATION }}
+      HEADSUPP_EMAIL_AUTH_SECRET: ${{ secrets.HEADSUPP_EMAIL_AUTH_SECRET }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -128,6 +131,18 @@ jobs:
         if: ${{ env.HEADSUPP_BOOTSTRAP_TOKEN == '' || env.HEADSUPP_OPERATOR_TOKEN == '' }}
         run: |
           echo "Skipping operator observability smoke because HEADSUPP_BOOTSTRAP_TOKEN or HEADSUPP_OPERATOR_TOKEN is not configured."
+
+      - name: Email subscriber smoke
+        if: ${{ env.HEADSUPP_SMOKE_EMAIL_DESTINATION != '' }}
+        run: npm run smoke:email-subscriber
+
+      - name: Email subscriber smoke skipped
+        if: ${{ env.HEADSUPP_SMOKE_EMAIL_DESTINATION == '' }}
+        run: |
+          echo "Skipping email subscriber smoke because HEADSUPP_SMOKE_EMAIL_DESTINATION is not configured."
+
+      - name: Subscriber lifecycle smoke
+        run: npm run smoke:subscriber-lifecycle
 
       - name: Release soak
         run: npm run soak:release

@@ -1,3 +1,4 @@
+import { dispatchSubscriberLifecycleEvent } from '../delivery/subscriber-lifecycle.js';
 import { sendEmail } from '../email/send-email.js';
 
 function base64UrlEncode(value) {
@@ -195,6 +196,21 @@ export async function processEmailAuthorizationToken({ db, env, token, now = new
     .prepare('UPDATE subscribers SET enabled = 1, config_json = ?, updated_at = ? WHERE id = ? OR subscriber_id = ?')
     .bind(JSON.stringify(nextConfig), now, subscriber.id || subscriber.subscriber_id, subscriber.subscriber_id || subscriber.id)
     .run();
+
+  const updatedSubscriber = {
+    ...subscriber,
+    enabled: 1,
+    config_json: JSON.stringify(nextConfig),
+    updated_at: now,
+  };
+  await dispatchSubscriberLifecycleEvent({
+    db,
+    env,
+    event: 'subscriber.authorized',
+    subscriber: updatedSubscriber,
+    now,
+  }).catch(() => {});
+
   return {
     ok: true,
     code: 'CONFIRMED',

@@ -174,7 +174,42 @@ const sub = await headsup.createSubscriber({
 
 `subscriber_type`: `webhook`, `slack_webhook`, `email`, ...
 
-`mode`: `alert` or `aggregate_forward`.
+`mode`: `alert`, `aggregate_forward`, `quiet_summary`, or `lifecycle`.
+
+Use `mode: 'lifecycle'` with `subscriber_type: 'webhook'` to receive opt-in/opt-out callbacks. See [webhook-receivers.md](../api/webhook-receivers.md).
+
+### getSubscriber(payload) → subscriber
+
+Refresh subscriber state after email confirmation:
+
+```js
+const sub = await headsup.getSubscriber({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  subscriber_id: 'sub_123',
+});
+// sub.config.authorization.status === 'authorized'
+```
+
+Lookup by email when needed:
+
+```js
+await headsup.getSubscriber({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  email: 'user@example.com',
+  mode: 'alert',
+});
+```
+
+### listSubscribers(payload) → subscribers[]
+
+```js
+const subs = await headsup.listSubscribers({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+});
+```
 
 ### disableSubscriber(payload) → subscriber
 

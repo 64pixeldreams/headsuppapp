@@ -18,6 +18,8 @@ aggregate-forward output -> mode = aggregate_forward
 quiet summary output     -> mode = quiet_summary
 ```
 
+Lifecycle webhooks use `mode = lifecycle` and receive subscriber opt-in/opt-out events instead of watch output. See [webhook-receivers.md](webhook-receivers.md).
+
 ## First Subscriber Types
 
 ```text
@@ -70,7 +72,7 @@ Rules:
 
 ```text
 destination_url must be https
-mode must be alert, aggregate_forward, or quiet_summary
+mode must be alert, aggregate_forward, quiet_summary, or lifecycle
 destination_url must look like a Slack incoming webhook for slack_webhook
 workspace_id must belong to the authenticated user or service tenant context
 channel_id must belong to workspace_id
@@ -118,9 +120,12 @@ Modes:
 alert
 aggregate_forward
 quiet_summary
+lifecycle
 ```
 
 `quiet_summary` subscribers receive scheduled “all quiet” summaries. They do not receive normal alert payloads and do not create alert rows.
+
+`lifecycle` subscribers receive subscriber authorization and disable/delete events for other subscribers on the same channel. Use this for third-party apps that need push notification when a recipient confirms email opt-in or opts out.
 
 ## Delivery Payloads
 

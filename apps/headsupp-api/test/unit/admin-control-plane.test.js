@@ -18,7 +18,9 @@ import {
   createAdminWorkspace,
   getAdminChannel,
   getAdminChannelContract,
+  getAdminSubscriber,
   ignoreAdminAlert,
+  listAdminSubscribers,
   muteAdminWatch,
   resumeAdminWatch,
   snoozeAdminWatch,
@@ -520,6 +522,122 @@ test('admin connector duplicate create returns existing connector without a fres
   assert.equal(result.connector.connector_secret, undefined);
 });
 
+test('admin get subscriber returns authorization status after confirmation', async () => {
+  const result = await getAdminSubscriber({
+    auth: { user_id: 'user_admin', permissions: ['subscriber:read'] },
+    db: scopedDb({
+      workspace: { id: 'ws_123', workspace_id: 'ws_123', source_app: 'foretic', external_tenant_id: 'user:123' },
+      channel: {
+        id: 'ch_123',
+        channel_id: 'ch_123',
+        workspace_id: 'ws_123',
+        source_app: 'foretic',
+        external_tenant_id: 'user:123',
+      },
+      subscriber: {
+        id: 'sub_123',
+        subscriber_id: 'sub_123',
+        workspace_id: 'ws_123',
+        channel_id: 'ch_123',
+        subscriber_type: 'email',
+        destination_url: 'martin@example.com',
+        normalized_destination: 'martin@example.com',
+        destination_url_redacted: 'ma***@example.com',
+        mode: 'alert',
+        enabled: 1,
+        source_app: 'foretic',
+        external_tenant_id: 'user:123',
+        config_json: JSON.stringify({
+          authorization: {
+            required: true,
+            status: 'authorized',
+            requested_at: '2026-05-26T00:00:00.000Z',
+            authorized_at: '2026-05-26T00:05:00.000Z',
+          },
+        }),
+        created_at: '2026-05-26T00:00:00.000Z',
+        updated_at: '2026-05-26T00:05:00.000Z',
+      },
+    }),
+    input: { workspace_id: 'ws_123', channel_id: 'ch_123', subscriber_id: 'sub_123' },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.subscriber.enabled, 1);
+  assert.equal(result.subscriber.config.authorization.status, 'authorized');
+  assert.equal(result.subscriber.config.authorization.authorized_at, '2026-05-26T00:05:00.000Z');
+  assert.equal(result.subscriber.destination_url, undefined);
+});
+
+test('admin get subscriber supports email lookup and returns pending authorization', async () => {
+  const result = await getAdminSubscriber({
+    auth: { user_id: 'user_admin', permissions: ['subscriber:update'] },
+    db: scopedDb({
+      workspace: { id: 'ws_123', workspace_id: 'ws_123' },
+      channel: { id: 'ch_123', channel_id: 'ch_123', workspace_id: 'ws_123' },
+      subscribers: [
+        {
+          id: 'sub_123',
+          subscriber_id: 'sub_123',
+          workspace_id: 'ws_123',
+          channel_id: 'ch_123',
+          subscriber_type: 'email',
+          destination_url: 'martin@example.com',
+          normalized_destination: 'martin@example.com',
+          mode: 'alert',
+          enabled: 0,
+          config_json: JSON.stringify({
+            authorization: {
+              required: true,
+              status: 'pending',
+              requested_at: '2026-05-26T00:00:00.000Z',
+            },
+          }),
+          created_at: '2026-05-26T00:00:00.000Z',
+          updated_at: '2026-05-26T00:00:00.000Z',
+        },
+      ],
+    }),
+    input: { workspace_id: 'ws_123', channel_id: 'ch_123', email: 'MARTIN@example.com', mode: 'alert' },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.subscriber.enabled, 0);
+  assert.equal(result.subscriber.config.authorization.status, 'pending');
+});
+
+test('admin list subscribers returns safe channel subscribers', async () => {
+  const result = await listAdminSubscribers({
+    auth: { user_id: 'user_admin', permissions: ['subscriber:read'] },
+    db: scopedDb({
+      workspace: { id: 'ws_123', workspace_id: 'ws_123' },
+      channel: { id: 'ch_123', channel_id: 'ch_123', workspace_id: 'ws_123' },
+      subscribers: [
+        {
+          id: 'sub_123',
+          subscriber_id: 'sub_123',
+          workspace_id: 'ws_123',
+          channel_id: 'ch_123',
+          subscriber_type: 'email',
+          destination_url: 'martin@example.com',
+          normalized_destination: 'martin@example.com',
+          mode: 'alert',
+          enabled: 1,
+          config_json: JSON.stringify({ authorization: { required: true, status: 'authorized' } }),
+          created_at: '2026-05-26T00:00:00.000Z',
+          updated_at: '2026-05-26T00:05:00.000Z',
+        },
+      ],
+    }),
+    input: { workspace_id: 'ws_123', channel_id: 'ch_123', subscriber_type: 'email' },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.subscribers.length, 1);
+  assert.equal(result.subscribers[0].subscriber_id, 'sub_123');
+  assert.equal(result.subscribers[0].config.authorization.status, 'authorized');
+});
+
 test('admin subscriber rejects channel from another workspace', async () => {
   const result = await createAdminSubscriber({
     auth: { user_id: 'user_admin', permissions: ['subscriber:create'] },
@@ -743,4 +861,24 @@ test('admin ignore alert marks pending deliveries ignored', async () => {
   assert.equal(result.ok, true);
   assert.equal(result.action_control.action_type, 'ignore');
   assert.equal(calls.some((call) => /UPDATE alert_deliveries/.test(call.sql) && call.params[0] === 'ignored'), true);
+});
+
+test('admin create subscriber rejects lifecycle mode for non-webhook types', async () => {
+  const result = await createAdminSubscriber({
+    auth: { user_id: 'user_admin', permissions: ['subscriber:create'] },
+    db: scopedDb({
+      workspace: { id: 'ws_123', workspace_id: 'ws_123' },
+      channel: { id: 'ch_123', channel_id: 'ch_123', workspace_id: 'ws_123' },
+    }),
+    input: {
+      workspace_id: 'ws_123',
+      channel_id: 'ch_123',
+      subscriber_type: 'email',
+      destination_url: 'user@example.com',
+      mode: 'lifecycle',
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'INVALID_SUBSCRIBER_MODE');
 });

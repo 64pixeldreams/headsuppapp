@@ -79,6 +79,58 @@ test('supports getChannel and updateChannel wrappers', async () => {
   });
 });
 
+test('supports getSubscriber and listSubscribers wrappers', async () => {
+  const calls = [];
+  const client = createHeadsUpClient({
+    baseUrl: 'https://headsupp.example',
+    apiKey: 'hu_api_test',
+    fetch: async (url, init) => {
+      calls.push({ url, init });
+      if (calls.length === 1) {
+        return jsonResponse({
+          success: true,
+          data: {
+            ok: true,
+            subscriber: {
+              subscriber_id: 'sub_demo',
+              enabled: 1,
+              config: { authorization: { required: true, status: 'authorized' } },
+            },
+          },
+        });
+      }
+      return jsonResponse({
+        success: true,
+        data: {
+          ok: true,
+          subscribers: [{ subscriber_id: 'sub_demo', enabled: 1 }],
+        },
+      });
+    },
+  });
+
+  const subscriber = await client.getSubscriber({
+    workspace_id: 'ws_demo',
+    channel_id: 'ch_demo',
+    subscriber_id: 'sub_demo',
+  });
+  const subscribers = await client.listSubscribers({
+    workspace_id: 'ws_demo',
+    channel_id: 'ch_demo',
+  });
+
+  assert.equal(subscriber.config.authorization.status, 'authorized');
+  assert.equal(subscribers.length, 1);
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    action: 'admin.getSubscriber',
+    payload: { workspace_id: 'ws_demo', channel_id: 'ch_demo', subscriber_id: 'sub_demo' },
+  });
+  assert.deepEqual(JSON.parse(calls[1].init.body), {
+    action: 'admin.listSubscribers',
+    payload: { workspace_id: 'ws_demo', channel_id: 'ch_demo' },
+  });
+});
+
 test('supports disable/delete subscriber wrappers', async () => {
   const calls = [];
   const client = createHeadsUpClient({

@@ -15,6 +15,8 @@ Source: [`src/client.js`](../../src/client.js) and [`admin-functions.js`](https:
 | `createSignal` | `admin.createSignal` | getting-started |
 | `createWatch` | `admin.createWatch` | getting-started, [concepts/watch-types.md](../concepts/watch-types.md) |
 | `createSubscriber` | `admin.createSubscriber` | cookbooks |
+| `getSubscriber` | `admin.getSubscriber` | [client-reference.md](../client-reference.md), [email-subscribers.md](../../api/email-subscribers.md) |
+| `listSubscribers` | `admin.listSubscribers` | client-reference |
 | `disableSubscriber` | `admin.disableSubscriber` | [cookbook/subscriber-lifecycle.md](../cookbook/subscriber-lifecycle.md) |
 | `disableSubscriberByEmail` | `admin.disableSubscriber` | cookbook/subscriber-lifecycle |
 | `deleteSubscriber` | `admin.deleteSubscriber` | cookbook/subscriber-lifecycle |

@@ -25,6 +25,7 @@ Supported modes:
 alert             receives alert notifications when watches fire
 aggregate_forward receives closed aggregate buckets from AGGREGATE_FORWARD watches
 quiet_summary     receives scheduled proof-of-silence summaries
+lifecycle           receives subscriber opt-in/opt-out lifecycle events (webhook only)
 ```
 
 Slack OAuth is not part of the current API. Slack uses incoming webhook URLs created in the customer Slack workspace.
@@ -132,6 +133,82 @@ Dedupe retries by:
 
 ```text
 alert_id
+X-HeadsUp-Delivery-Id
+```
+
+## Subscribe Your App To Subscriber Lifecycle Events
+
+Use `subscriber_type: "webhook"` and `mode: "lifecycle"` when your application should receive opt-in/opt-out callbacks for email subscribers on the same channel. This is the push alternative to polling `admin.getSubscriber` after a recipient confirms email authorization.
+
+```json
+{
+  "action": "admin.createSubscriber",
+  "payload": {
+    "workspace_id": "ws_demo",
+    "channel_id": "ch_demo",
+    "subscriber_type": "webhook",
+    "destination_url": "https://example.com/headsupp/subscriber-events",
+    "display_name": "Foretic lifecycle callback",
+    "mode": "lifecycle",
+    "config": {
+      "signing_secret": "receiver_shared_secret"
+    }
+  }
+}
+```
+
+Lifecycle subscribers do not receive alert payloads. Create a separate `mode: "alert"` webhook if you also need alert callbacks.
+
+### Lifecycle Payload
+
+Heads Up POSTs when a channel subscriber is authorized, disabled, or deleted:
+
+```json
+{
+  "type": "heads_up.subscriber.lifecycle",
+  "event": "subscriber.authorized",
+  "occurred_at": "2026-05-26T12:00:00.000Z",
+  "workspace_id": "ws_demo",
+  "channel_id": "ch_demo",
+  "subscriber_id": "sub_email_1",
+  "subscriber_type": "email",
+  "mode": "alert",
+  "enabled": true,
+  "normalized_destination": "user@example.com",
+  "source_app": "foretic",
+  "external_tenant_id": "user:abc",
+  "external_user_id": "user:abc",
+  "channel_metadata": {
+    "forecast_id": "forecast_coffee_2026"
+  },
+  "authorization": {
+    "required": true,
+    "status": "authorized",
+    "requested_at": "2026-05-26T11:00:00.000Z",
+    "authorized_at": "2026-05-26T12:00:00.000Z"
+  }
+}
+```
+
+Events:
+
+```text
+subscriber.authorized  recipient confirmed email authorization (opt-in)
+subscriber.disabled    subscriber disabled via API, unsubscribe, or stop-watching email action
+subscriber.deleted     subscriber removed via admin.deleteSubscriber
+```
+
+Route lifecycle callbacks by:
+
+```text
+type = heads_up.subscriber.lifecycle
+event = subscriber.authorized | subscriber.disabled | subscriber.deleted
+```
+
+Dedupe retries by:
+
+```text
+subscriber_id + event + occurred_at
 X-HeadsUp-Delivery-Id
 ```
 

@@ -1,5 +1,6 @@
-import { requirePermission } from '../auth/permissions.js';
+import { hasPermission, requirePermission } from '../auth/permissions.js';
 import { generateConnectorSecret, publicConnector } from '../connectors/secrets.js';
+import { dispatchSubscriberLifecycleEvent } from '../delivery/subscriber-lifecycle.js';
 import { stableId } from '../ids/stable-id.js';
 import {
   normalizeEmailAddress,
@@ -9,7 +10,7 @@ import {
 import { normalizeAuthorizationConfig, sendAuthorizationEmail } from '../subscribers/email-authorization.js';
 import { buildActionControlRow } from '../watches/action-controls.js';
 
-const VALID_SUBSCRIBER_MODES = new Set(['alert', 'aggregate_forward', 'quiet_summary']);
+const VALID_SUBSCRIBER_MODES = new Set(['alert', 'aggregate_forward', 'quiet_summary', 'lifecycle']);
 
 function denyIfNeeded(auth, permission) {
   const allowed = requirePermission(auth, permission);
@@ -146,6 +147,14 @@ export function buildSubscriberRow(input, now = new Date().toISOString()) {
     };
   }
   const subscriberType = input.subscriber_type || 'webhook';
+  if (mode === 'lifecycle' && subscriberType !== 'webhook') {
+    return {
+      ok: false,
+      status: 400,
+      code: 'INVALID_SUBSCRIBER_MODE',
+      message: 'Subscriber mode lifecycle is only supported for subscriber_type webhook.',
+    };
+  }
   const parsedConfig = parseJsonField(input.config_json ?? input.config, {});
   const authConfig = subscriberType === 'email' ? normalizeAuthorizationConfig(parsedConfig, now) : { config: parsedConfig, required: false };
   const config = authConfig.config;
@@ -354,6 +363,54 @@ function publicSubscriber(row) {
       row.destination_url_redacted || redactSubscriberDestination(row.subscriber_type || 'webhook', row.destination_url),
     config: parseJsonField(row.config_json, {}),
   };
+}
+
+function sanitizeSubscriberConfig(config = {}) {
+  const safe = {};
+  for (const key of ['template_id', 'value_format', 'locale', 'actions', 'labels']) {
+    if (config[key] !== undefined) safe[key] = config[key];
+  }
+  if (config.authorization && typeof config.authorization === 'object') {
+    safe.authorization = {
+      required: config.authorization.required === true,
+      status: config.authorization.status || null,
+      requested_at: config.authorization.requested_at || null,
+      authorized_at: config.authorization.authorized_at || null,
+    };
+    if (config.authorization.ttl_seconds !== undefined) {
+      safe.authorization.ttl_seconds = config.authorization.ttl_seconds;
+    }
+  }
+  if (config.branding && typeof config.branding === 'object') {
+    safe.branding = config.branding;
+  }
+  return safe;
+}
+
+function publicSubscriberRead(row) {
+  const subscriber = publicSubscriber(row);
+  if (!subscriber) return null;
+  return {
+    subscriber_id: subscriber.subscriber_id || subscriber.id,
+    subscriber_type: subscriber.subscriber_type,
+    mode: subscriber.mode,
+    enabled: subscriber.enabled,
+    destination_url_redacted: subscriber.destination_url_redacted,
+    normalized_destination: subscriber.subscriber_type === 'email' ? subscriber.normalized_destination : undefined,
+    display_name: subscriber.name || subscriber.display_name || null,
+    workspace_id: subscriber.workspace_id,
+    channel_id: subscriber.channel_id,
+    config: sanitizeSubscriberConfig(subscriber.config || {}),
+    created_at: subscriber.created_at,
+    updated_at: subscriber.updated_at,
+  };
+}
+
+function denyUnlessSubscriberRead(auth) {
+  if (hasPermission(auth, 'subscriber:read')) return null;
+  // Existing integration keys may only include subscriber:update until rotated.
+  if (hasPermission(auth, 'subscriber:update')) return null;
+  return requirePermission(auth, 'subscriber:read');
 }
 
 async function insertRow(db, table, row) {
@@ -716,7 +773,7 @@ async function resolveAdminSubscriber({ db, workspaceId, channelId, subscriberId
   return { ok: true, subscriber: matches[0] };
 }
 
-export async function disableAdminSubscriber({ auth, db, input, now }) {
+export async function disableAdminSubscriber({ auth, db, env, input, now }) {
   const denied = denyIfNeeded(auth, 'subscriber:update');
   if (denied) return denied;
   const scopeDenied =
@@ -740,14 +797,25 @@ export async function disableAdminSubscriber({ auth, db, input, now }) {
     .bind(now, subscriber.id || subscriber.subscriber_id, subscriber.subscriber_id || subscriber.id)
     .run();
 
+  const changed = subscriber.enabled !== 0;
+  if (changed) {
+    await dispatchSubscriberLifecycleEvent({
+      db,
+      env,
+      event: 'subscriber.disabled',
+      subscriber: { ...subscriber, enabled: 0, updated_at: now },
+      now,
+    }).catch(() => {});
+  }
+
   return {
     ok: true,
     subscriber: publicSubscriber({ ...subscriber, enabled: 0, updated_at: now }),
-    changed: subscriber.enabled === 0 ? false : true,
+    changed,
   };
 }
 
-export async function deleteAdminSubscriber({ auth, db, input }) {
+export async function deleteAdminSubscriber({ auth, db, env, input, now }) {
   const denied = denyIfNeeded(auth, 'subscriber:delete');
   if (denied) return denied;
   const scopeDenied =
@@ -766,11 +834,83 @@ export async function deleteAdminSubscriber({ auth, db, input }) {
   if (!resolved.ok) return resolved;
 
   const subscriber = resolved.subscriber;
+  await dispatchSubscriberLifecycleEvent({
+    db,
+    env,
+    event: 'subscriber.deleted',
+    subscriber,
+    now,
+  }).catch(() => {});
+
   await db
     .prepare('DELETE FROM subscribers WHERE id = ? OR subscriber_id = ?')
     .bind(subscriber.id || subscriber.subscriber_id, subscriber.subscriber_id || subscriber.id)
     .run();
   return { ok: true, deleted: true, subscriber: publicSubscriber(subscriber) };
+}
+
+export async function getAdminSubscriber({ auth, db, input }) {
+  const denied = denyUnlessSubscriberRead(auth);
+  if (denied) return denied;
+  const action = 'admin.getSubscriber';
+  for (const field of ['workspace_id', 'channel_id']) {
+    const required = requireString(input, field, action);
+    if (!required.ok) return required;
+  }
+  if (!cleanString(input.subscriber_id) && !cleanString(input.email)) {
+    return validationError(action, 'subscriber_id', 'Provide subscriber_id or email.');
+  }
+  const scopeDenied =
+    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
+  if (scopeDenied) return scopeDenied;
+
+  const resolved = await resolveAdminSubscriber({
+    db,
+    workspaceId: input.workspace_id,
+    channelId: input.channel_id,
+    subscriberId: input.subscriber_id,
+    email: input.email,
+    mode: input.mode,
+  });
+  if (!resolved.ok) return resolved;
+  if (tenantMismatch(auth, resolved.subscriber)) {
+    return ownershipError('TENANT_SCOPE_MISMATCH', 'Subscriber is outside the authenticated tenant scope.');
+  }
+  return { ok: true, subscriber: publicSubscriberRead(resolved.subscriber) };
+}
+
+export async function listAdminSubscribers({ auth, db, input }) {
+  const denied = denyUnlessSubscriberRead(auth);
+  if (denied) return denied;
+  const action = 'admin.listSubscribers';
+  for (const field of ['workspace_id', 'channel_id']) {
+    const required = requireString(input, field, action);
+    if (!required.ok) return required;
+  }
+  const scopeDenied =
+    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
+  if (scopeDenied) return scopeDenied;
+
+  const params = [input.workspace_id, input.channel_id];
+  let sql = 'SELECT * FROM subscribers WHERE workspace_id = ? AND channel_id = ?';
+  if (cleanString(input.subscriber_type)) {
+    sql += ' AND subscriber_type = ?';
+    params.push(cleanString(input.subscriber_type));
+  }
+  if (cleanString(input.mode)) {
+    sql += ' AND mode = ?';
+    params.push(cleanString(input.mode));
+  }
+  sql += ' ORDER BY created_at DESC LIMIT ?';
+  params.push(Math.min(Math.max(Number(input.limit || 50), 1), 100));
+
+  const rows = await allRows(db, sql, params);
+  const subscribers = rows
+    .filter((row) => !tenantMismatch(auth, row))
+    .map((row) => publicSubscriberRead(row));
+  return { ok: true, subscribers };
 }
 
 export async function createAdminSignal({ auth, db, input, now }) {

@@ -91,6 +91,8 @@ paths:
                       - channel:update
                       - connector:create
                       - subscriber:create
+                      - subscriber:read
+                      - subscriber:update
                       - signal:create
                       - watch:create
                       - alert:read
@@ -145,6 +147,31 @@ paths:
                     mode: alert
                     config:
                       signing_secret: receiver_shared_secret
+              createLifecycleWebhookSubscriber:
+                value:
+                  action: admin.createSubscriber
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+                    subscriber_type: webhook
+                    destination_url: https://example.com/headsupp/subscriber-events
+                    display_name: Subscriber lifecycle callback
+                    mode: lifecycle
+                    config:
+                      signing_secret: receiver_shared_secret
+              getSubscriber:
+                value:
+                  action: admin.getSubscriber
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+                    subscriber_id: sub_email_demo
+              listSubscribers:
+                value:
+                  action: admin.listSubscribers
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
               createThresholdWatch:
                 value:
                   action: admin.createWatch

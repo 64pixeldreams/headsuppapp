@@ -58,7 +58,7 @@ HEADSUPP_CONNECTOR_SECRET=hu_sec_...
 | [docs/cookbook/trend-watches.md](docs/cookbook/trend-watches.md) | TREND_UP_GT / TREND_DOWN_GT |
 | [docs/cookbook/noise-control.md](docs/cookbook/noise-control.md) | Cooldown, snooze, renotify policy |
 | [docs/cookbook/channel-contracts.md](docs/cookbook/channel-contracts.md) | Channel contract versions |
-| [docs/cookbook/subscriber-lifecycle.md](docs/cookbook/subscriber-lifecycle.md) | Disable / delete subscribers |
+| [docs/cookbook/subscriber-lifecycle.md](docs/cookbook/subscriber-lifecycle.md) | Read status, lifecycle webhooks, disable / delete |
 | [docs/concepts/watch-types.md](docs/concepts/watch-types.md) | Watch type chooser and config |
 | [docs/concepts/use-cases.md](docs/concepts/use-cases.md) | Scenario guidance |
 | [docs/webhook-receivers.md](docs/webhook-receivers.md) | Inbound signature verification |

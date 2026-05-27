@@ -190,6 +190,36 @@ Behavior:
 - already confirmed token -> safe "already confirmed" page.
 - expired/tampered token -> safe generic HTML response and no state change.
 
+When a `mode: "lifecycle"` webhook subscriber exists on the channel, confirmation also POSTs a `subscriber.authorized` lifecycle event to that callback URL.
+
+### `admin.getSubscriber`
+
+Payload props:
+
+- `workspace_id` (string, required).
+- `channel_id` (string, required).
+- `subscriber_id` (string, optional): preferred lookup key.
+- `email` (string, optional): lookup email subscriber by normalized address.
+- `mode` (string, optional): disambiguates email lookup when multiple modes share an address.
+
+Permission: `subscriber:read` or `subscriber:update`.
+
+Returns `data.subscriber` with redacted destination, `enabled`, and sanitized `config` including `authorization` status when configured.
+
+### `admin.listSubscribers`
+
+Payload props:
+
+- `workspace_id` (string, required).
+- `channel_id` (string, required).
+- `subscriber_type` (string, optional): filter by type.
+- `mode` (string, optional): filter by mode.
+- `enabled` (boolean, optional): filter by enabled state.
+
+Permission: `subscriber:read` or `subscriber:update`.
+
+Returns `data.subscribers` as a safe read list for the channel.
+
 ### `GET /v1/subscribers/email-action`
 
 Public recipient endpoint for signed email action links.

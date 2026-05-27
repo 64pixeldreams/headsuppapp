@@ -29,6 +29,8 @@ admin.getChannel
 admin.updateChannel
 admin.createConnector
 admin.createSubscriber
+admin.getSubscriber
+admin.listSubscribers
 admin.disableSubscriber
 admin.deleteSubscriber
 admin.createSignal
@@ -55,6 +57,7 @@ channel:read
 channel:update
 connector:create
 subscriber:create
+subscriber:read
 subscriber:update
 subscriber:delete
 signal:create

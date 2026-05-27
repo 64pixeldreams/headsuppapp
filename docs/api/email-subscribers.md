@@ -85,6 +85,8 @@ Use one subscriber row per recipient (best for per-user pause/remove control).
 
 Response includes canonical `subscriber_id` for disable/delete and unsubscribe lifecycle.
 
+After a recipient confirms via `GET /v1/subscribers/confirm`, Foretic can refresh UI state with `admin.getSubscriber` or receive a push callback by creating a separate `mode: "lifecycle"` webhook subscriber on the same channel. See [webhook-receivers.md](webhook-receivers.md).
+
 ## Optional Subscriber Authorization
 
 Email authorization is opt-in and not default. Use it when the recipient should confirm before Heads Up starts sending alerts:

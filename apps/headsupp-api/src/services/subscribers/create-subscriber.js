@@ -2,7 +2,7 @@ import { stableId } from '../ids/stable-id.js';
 import { ownershipFieldsFromContext, requireChannelInWorkspace } from '../ownership/tenant-scope.js';
 import { redactSubscriberDestination, validateSubscriberUrl } from './urls.js';
 
-const VALID_MODES = new Set(['alert', 'aggregate_forward', 'quiet_summary']);
+const VALID_MODES = new Set(['alert', 'aggregate_forward', 'quiet_summary', 'lifecycle']);
 
 export function publicSubscriber(subscriber) {
   return {
@@ -16,7 +16,6 @@ export async function createSubscriber({ input, context, workspace, channel, sto
   const relationship = requireChannelInWorkspace(channel, workspace, context);
   if (!relationship.ok) return relationship;
 
-  const subscriberType = input.subscriber_type;
   const mode = input.mode || 'alert';
   if (!VALID_MODES.has(mode)) {
     return {
@@ -24,6 +23,16 @@ export async function createSubscriber({ input, context, workspace, channel, sto
       status: 400,
       code: 'INVALID_SUBSCRIBER_MODE',
       message: `Subscriber mode must be one of: ${Array.from(VALID_MODES).join(', ')}.`,
+    };
+  }
+
+  const subscriberType = input.subscriber_type;
+  if (mode === 'lifecycle' && subscriberType !== 'webhook') {
+    return {
+      ok: false,
+      status: 400,
+      code: 'INVALID_SUBSCRIBER_MODE',
+      message: 'Subscriber mode lifecycle is only supported for subscriber_type webhook.',
     };
   }
 
