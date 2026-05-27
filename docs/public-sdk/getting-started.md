@@ -28,6 +28,14 @@ Optional (first key only):
 export HEADSUPP_BOOTSTRAP_TOKEN=...
 ```
 
+Webhook receiver signing (your app verifies inbound Heads Up POSTs; **you generate this secret** — Heads Up does not issue it):
+
+```bash
+export HEADSUPP_RECEIVER_SIGNING_SECRET=...   # same value as config.signing_secret on createSubscriber
+```
+
+See [webhook-receivers.md](../api/webhook-receivers.md#receiver-signing-secret-setup) for generate → deploy → subscriber setup.
+
 ## 1) Create client
 
 ```js

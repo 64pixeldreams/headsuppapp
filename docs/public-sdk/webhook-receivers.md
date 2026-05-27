@@ -90,7 +90,7 @@ Use `subscriber_type: "webhook"` and `mode: "alert"` when your application shoul
 }
 ```
 
-If a signing secret is configured on the subscriber, outbound deliveries include verification headers. You can also configure a runtime fallback signing secret with `OUTBOUND_WEBHOOK_SIGNING_SECRET`.
+If a signing secret is configured on the subscriber, outbound deliveries include verification headers. See [Receiver signing secret setup](#receiver-signing-secret-setup) below. Heads Up can also use a Worker-wide fallback with `OUTBOUND_WEBHOOK_SIGNING_SECRET` when a subscriber has no per-subscriber secret.
 
 ## Generic Alert Payload
 
@@ -286,6 +286,101 @@ Quiet summaries prove a channel was evaluated and nothing needed attention. They
   ]
 }
 ```
+
+## Receiver Signing Secret Setup
+
+Heads Up does **not** generate or issue webhook signing secrets. **Your application generates the secret** and configures the **same value in two places**:
+
+```text
+1. Your webhook receiver app   -> verify inbound POSTs (e.g. HEADSUPP_RECEIVER_SIGNING_SECRET)
+2. Heads Up subscriber config  -> sign outbound POSTs (config.signing_secret on createSubscriber)
+```
+
+This is a shared HMAC key between your receiver and Heads Up. It is unrelated to `HEADSUPP_API_KEY` (control-plane auth) and unrelated to connector ingest secrets (`hu_sec_...`).
+
+### Generate a secret
+
+Use a long random string. Example:
+
+```bash
+openssl rand -hex 32
+```
+
+Store it in your secrets manager or deployment config. Do not commit it to git.
+
+### Configure your receiver app
+
+Your HTTP handler verifies `X-HeadsUp-Signature` using this secret. Name the env var whatever fits your stack; SDK examples use `HEADSUPP_RECEIVER_SIGNING_SECRET`.
+
+Cloudflare Workers example:
+
+```bash
+wrangler secret put HEADSUPP_RECEIVER_SIGNING_SECRET
+```
+
+Paste the generated value when prompted.
+
+### Configure Heads Up when creating the subscriber
+
+Pass the **same secret** in `config.signing_secret` for each webhook subscriber (`mode: alert`, `lifecycle`, or `aggregate_forward`):
+
+```js
+await headsup.createSubscriber({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  subscriber_type: 'webhook',
+  destination_url: 'https://your-app.example/headsupp/alerts',
+  mode: 'alert',
+  config: {
+    signing_secret: process.env.HEADSUPP_RECEIVER_SIGNING_SECRET,
+  },
+});
+```
+
+Raw API equivalent:
+
+```json
+{
+  "action": "admin.createSubscriber",
+  "payload": {
+    "workspace_id": "ws_demo",
+    "channel_id": "ch_demo",
+    "subscriber_type": "webhook",
+    "destination_url": "https://your-app.example/headsupp/alerts",
+    "mode": "alert",
+    "config": {
+      "signing_secret": "<same secret as your receiver app>"
+    }
+  }
+}
+```
+
+Heads Up stores the secret on the subscriber row and uses it when signing deliveries to that destination. The secret is **not** returned in API read responses.
+
+### One secret per environment (typical)
+
+Use separate secrets per deployment environment, not per developer:
+
+```text
+dev     -> one dev secret shared by all developers on the dev stack
+staging -> one staging secret
+prod    -> one prod secret
+```
+
+Each environment needs:
+
+- the receiver app secret (e.g. `wrangler secret put` on the Workers service that handles callbacks), and
+- the same value in `config.signing_secret` when provisioning webhook subscribers against that environment's Heads Up API.
+
+Developers on the same dev environment reuse the same dev secret. You only need per-developer secrets if each developer runs an isolated receiver URL **and** provisions separate Heads Up test channels pointing at that URL.
+
+### Per-subscriber secrets (advanced)
+
+You may use a different `signing_secret` per webhook subscriber if your app stores and selects the matching secret when verifying (for example one secret per customer channel). The simple integration pattern is one secret per environment shared across all webhook subscribers in that environment.
+
+### Optional Worker fallback
+
+If `config.signing_secret` is omitted on a subscriber, Heads Up falls back to the Worker env var `OUTBOUND_WEBHOOK_SIGNING_SECRET`. Prefer per-subscriber secrets in production so alert, lifecycle, and aggregate callbacks can use distinct keys when needed.
 
 ## Verify Outbound Signatures
 

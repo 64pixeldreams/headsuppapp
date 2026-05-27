@@ -66,6 +66,8 @@ await headsup.createSubscriber({
 });
 ```
 
+Use the same secret in your receiver app to verify signatures. See [webhook-receivers.md](../webhook-receivers.md#receiver-signing-secret-setup).
+
 Heads Up POSTs `heads_up.subscriber.lifecycle` payloads when:
 
 ```text
