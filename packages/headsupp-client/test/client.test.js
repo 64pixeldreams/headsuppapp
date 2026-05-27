@@ -39,6 +39,47 @@ test('calls control-plane actions and unwraps resources', async () => {
   assert.deepEqual(JSON.parse(calls[0].init.body), { action: 'admin.createWorkspace', payload: { name: 'Demo' } });
 });
 
+test('supports provisionChannel without over-unwrapping the response', async () => {
+  const calls = [];
+  const client = createHeadsUpClient({
+    baseUrl: 'https://headsupp.example',
+    apiKey: 'hu_api_test',
+    fetch: async (url, init) => {
+      calls.push({ url, init });
+      return jsonResponse({
+        success: true,
+        data: {
+          ok: true,
+          created: { workspace: true, channel: true },
+          workspace: { workspace_id: 'ws_demo' },
+          channel: { channel_id: 'ch_demo' },
+          connector: { connector_key: 'ck_demo' },
+          signals: [{ signal_key: 'demo.metric' }],
+          watches: [],
+          subscribers: [],
+          workspace_subscribers: [],
+        },
+      });
+    },
+  });
+
+  const setup = await client.provisionChannel({
+    workspace: { name: 'Demo' },
+    channel: { name: 'Alerts' },
+  });
+
+  assert.equal(setup.workspace.workspace_id, 'ws_demo');
+  assert.equal(setup.channel.channel_id, 'ch_demo');
+  assert.equal(setup.connector.connector_key, 'ck_demo');
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    action: 'admin.provisionChannel',
+    payload: {
+      workspace: { name: 'Demo' },
+      channel: { name: 'Alerts' },
+    },
+  });
+});
+
 test('supports getChannel and updateChannel wrappers', async () => {
   const calls = [];
   const client = createHeadsUpClient({

@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   buildAlert,
   buildAlertDeliveries,
+  loadAlertSubscribers,
   persistAlertWithDeliveries,
 } from '../../src/services/alerts/persistence.js';
 
@@ -107,4 +108,48 @@ test('persists alert, watch state, and deliveries in D1 batch', async () => {
   assert.match(statements[1].sql, /last_alert_at/);
   assert.doesNotMatch(statements[1].sql, /last_triggered_at/);
   assert.match(statements[2].sql, /INSERT INTO alert_deliveries/);
+});
+
+test('loads channel and workspace-scoped alert subscribers', async () => {
+  const binds = [];
+  const db = {
+    prepare(sql) {
+      assert.match(sql, /COALESCE\(subscriber_scope, 'channel'\)/);
+      assert.match(sql, /subscriber_scope = 'workspace'/);
+      return {
+        bind(...params) {
+          binds.push(params);
+          return {
+            async all() {
+              return {
+                results: [
+                  {
+                    subscriber_id: 'sub_channel',
+                    subscriber_scope: 'channel',
+                    channel_id: 'ch_123',
+                    workspace_id: 'ws_123',
+                    destination_url: 'https://example.com/channel',
+                  },
+                  {
+                    subscriber_id: 'sub_workspace',
+                    subscriber_scope: 'workspace',
+                    channel_id: '__workspace__:ws_123',
+                    workspace_id: 'ws_123',
+                    destination_url: 'https://example.com/workspace',
+                  },
+                ],
+              };
+            },
+          };
+        },
+      };
+    },
+  };
+
+  const subscribers = await loadAlertSubscribers(db, { workspaceId: 'ws_123', channelId: 'ch_123' });
+
+  assert.deepEqual(binds[0], ['ch_123', 'ws_123']);
+  assert.equal(subscribers.length, 2);
+  assert.equal(subscribers[0].subscriber_id, 'sub_channel');
+  assert.equal(subscribers[1].subscriber_id, 'sub_workspace');
 });

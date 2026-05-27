@@ -27,6 +27,7 @@ import {
   updateAdminChannel,
   updateAdminChannelContract,
 } from '../../src/services/admin/control-plane.js';
+import { provisionAdminChannel } from '../../src/services/admin/provision-channel.js';
 
 function dbRecorder(calls = []) {
   return {
@@ -68,6 +69,81 @@ function scopedDb(rows = {}, calls = []) {
             },
             async all() {
               if (/FROM subscribers/.test(sql)) return { results: rows.subscribers || [] };
+              return { results: [] };
+            },
+          };
+        },
+      };
+    },
+  };
+}
+
+function provisionDb(calls = []) {
+  const tables = {
+    workspaces: [],
+    channels: [],
+    connectors: [],
+    signals: [],
+    watches: [],
+    subscribers: [],
+    signal_contracts: [],
+    channel_contracts: [],
+  };
+  const firstFrom = (sql, params) => {
+    if (/FROM workspaces/.test(sql)) {
+      return tables.workspaces.find((row) => [row.id, row.workspace_id, row.workspace_key].includes(params[0])) || null;
+    }
+    if (/FROM channels/.test(sql)) {
+      return tables.channels.find((row) => [row.id, row.channel_id, row.channel_key].includes(params[0])) || null;
+    }
+    if (/FROM connectors/.test(sql)) {
+      return tables.connectors.find((row) => row.connector_key === params[0] || row.id === params[0] || row.connector_id === params[0]) || null;
+    }
+    if (/FROM signals/.test(sql)) {
+      if (/channel_id = \? AND signal_key = \?/.test(sql)) {
+        return tables.signals.find((row) => row.channel_id === params[0] && row.signal_key === params[1]) || null;
+      }
+      return tables.signals.find((row) => row.id === params[0] || row.signal_id === params[0]) || null;
+    }
+    if (/FROM watches/.test(sql)) {
+      return tables.watches.find((row) => row.id === params[0] || row.watch_id === params[0]) || null;
+    }
+    if (/FROM subscribers/.test(sql)) {
+      return tables.subscribers.find((row) => row.id === params[0] || row.subscriber_id === params[0]) || null;
+    }
+    if (/FROM channel_contracts/.test(sql)) {
+      return tables.channel_contracts.find((row) => row.channel_id === params[0] && row.status === params[1]) || null;
+    }
+    return null;
+  };
+  return {
+    tables,
+    prepare(sql) {
+      return {
+        bind(...params) {
+          calls.push({ sql, params });
+          return {
+            async run() {
+              const match = sql.match(/INSERT OR IGNORE INTO (\w+) \(([^)]+)\)/);
+              if (match) {
+                const [, table, columnsCsv] = match;
+                const columns = columnsCsv.split(',').map((column) => column.trim());
+                const row = Object.fromEntries(columns.map((column, index) => [column, params[index]]));
+                const id = row.id || row[`${table.slice(0, -1)}_id`];
+                const existing = tables[table]?.find((item) => item.id === id || item[`${table.slice(0, -1)}_id`] === id);
+                if (!existing) tables[table].push(row);
+              }
+              if (/UPDATE channel_contracts SET status/.test(sql)) {
+                for (const row of tables.channel_contracts) {
+                  if (row.channel_id === params[2] && row.status === params[3]) row.status = params[0];
+                }
+              }
+              return { meta: { changes: 1 } };
+            },
+            async first() {
+              return firstFrom(sql, params);
+            },
+            async all() {
               return { results: [] };
             },
           };
@@ -183,6 +259,199 @@ test('admin channel create stores metadata object', async () => {
   assert.deepEqual(result.channel.metadata, { forecast_id: 'fc_123' });
   const insert = calls.find((call) => /INSERT OR IGNORE INTO channels/.test(call.sql));
   assert.equal(typeof insert.params.find((value) => typeof value === 'string' && value.includes('forecast_id')), 'string');
+});
+
+test('admin subscriber create supports workspace-scoped webhook alert callbacks', async () => {
+  const calls = [];
+  const result = await createAdminSubscriber({
+    auth: { user_id: 'user_admin', permissions: ['subscriber:create'] },
+    db: scopedDb(
+      {
+        workspace: { id: 'ws_123', workspace_id: 'ws_123', source_app: 'demo', external_tenant_id: 'tenant_1' },
+      },
+      calls,
+    ),
+    input: {
+      workspace_id: 'ws_123',
+      subscriber_scope: 'workspace',
+      subscriber_type: 'webhook',
+      destination_url: 'https://example.com/heads-up',
+      mode: 'alert',
+    },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.created, true);
+  assert.equal(result.subscriber.subscriber_scope, 'workspace');
+  assert.equal(result.subscriber.channel_id, null);
+  const insert = calls.find((call) => /INSERT OR IGNORE INTO subscribers/.test(call.sql));
+  assert.ok(insert.params.includes('workspace'));
+  assert.ok(insert.params.includes('__workspace__:ws_123'));
+});
+
+test('admin subscriber create rejects unsupported workspace subscriber types', async () => {
+  const result = await createAdminSubscriber({
+    auth: { user_id: 'user_admin', permissions: ['subscriber:create'] },
+    db: scopedDb({
+      workspace: { id: 'ws_123', workspace_id: 'ws_123', source_app: 'demo', external_tenant_id: 'tenant_1' },
+    }),
+    input: {
+      workspace_id: 'ws_123',
+      scope: 'workspace',
+      subscriber_type: 'email',
+      destination_url: 'martin@example.com',
+      mode: 'alert',
+    },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'INVALID_SUBSCRIBER_SCOPE');
+});
+
+test('admin provisionChannel creates a complete idempotent channel setup', async () => {
+  const calls = [];
+  const db = provisionDb(calls);
+  const permissions = [
+    'workspace:create',
+    'channel:create',
+    'connector:create',
+    'signal:create',
+    'watch:create',
+    'subscriber:create',
+  ];
+  const payload = {
+    workspace: {
+      workspace_key: 'demo:tenant_1',
+      name: 'Demo Tenant',
+      source_app: 'demo',
+      external_tenant_id: 'tenant_1',
+      external_user_id: 'user_1',
+    },
+    channel: {
+      channel_key: 'demo:tenant_1:forecast:one',
+      name: 'Forecast One',
+      purpose: 'forecast',
+    },
+    connector: {
+      connector_key: 'ck_demo_tenant_1_forecast_one',
+    },
+    signals: [
+      {
+        signal_key: 'forecast.revenue.pace',
+        description: 'Forecast pace',
+      },
+    ],
+    watches: [
+      {
+        signal_key: 'forecast.revenue.pace',
+        watch_key: 'pace_warning',
+        name: 'Forecast pace warning',
+        watch_type: 'LAST_VALUE_LT',
+        config: { threshold: 85, severity: 'warning' },
+      },
+    ],
+    subscribers: [
+      {
+        subscriber_type: 'email',
+        destination_url: 'martin@example.com',
+        mode: 'alert',
+      },
+    ],
+    workspace_subscribers: [
+      {
+        subscriber_type: 'webhook',
+        destination_url: 'https://example.com/heads-up',
+        mode: 'alert',
+      },
+    ],
+  };
+
+  const first = await provisionAdminChannel({
+    auth: { user_id: 'user_admin', permissions },
+    db,
+    input: payload,
+    now: '2026-05-24T10:00:00.000Z',
+  });
+  const second = await provisionAdminChannel({
+    auth: { user_id: 'user_admin', permissions },
+    db,
+    input: payload,
+    now: '2026-05-24T10:01:00.000Z',
+  });
+
+  assert.equal(first.ok, true);
+  assert.equal(first.created.workspace, true);
+  assert.equal(first.created.channel, true);
+  assert.equal(first.created.connector, true);
+  assert.equal(first.created.signals, 1);
+  assert.equal(first.created.watches, 1);
+  assert.equal(first.created.subscribers, 1);
+  assert.equal(first.created.workspace_subscribers, 1);
+  assert.equal(first.secret_returned, true);
+  assert.equal(first.signals[0].signal_key, 'forecast.revenue.pace');
+  assert.equal(first.watches[0].signal_id, first.signals[0].id);
+  assert.equal(first.workspace_subscribers[0].subscriber_scope, 'workspace');
+  assert.equal(first.workspace_subscribers[0].channel_id, null);
+
+  assert.equal(second.ok, true);
+  assert.equal(second.created.workspace, false);
+  assert.equal(second.reused.workspace, true);
+  assert.equal(second.created.connector, false);
+  assert.equal(second.secret_returned, false);
+  assert.equal(second.created.signals, 0);
+  assert.equal(second.reused.signals, 1);
+  assert.equal(db.tables.workspaces.length, 1);
+  assert.equal(db.tables.channels.length, 1);
+  assert.equal(db.tables.connectors.length, 1);
+  assert.equal(db.tables.signals.length, 1);
+  assert.equal(db.tables.watches.length, 1);
+  assert.equal(db.tables.subscribers.length, 2);
+});
+
+test('admin provisionChannel reports unknown watch signal_key with section details', async () => {
+  const db = provisionDb();
+  const permissions = [
+    'workspace:create',
+    'channel:create',
+    'connector:create',
+    'signal:create',
+    'watch:create',
+    'subscriber:create',
+  ];
+  const result = await provisionAdminChannel({
+    auth: { user_id: 'user_admin', permissions },
+    db,
+    input: {
+      workspace: {
+        workspace_key: 'demo:tenant_2',
+        name: 'Demo Tenant 2',
+        source_app: 'demo',
+        external_tenant_id: 'tenant_2',
+        external_user_id: 'user_2',
+      },
+      channel: {
+        channel_key: 'demo:tenant_2:forecast:one',
+        name: 'Forecast One',
+      },
+      watches: [
+        {
+          signal_key: 'missing.signal',
+          name: 'Missing signal watch',
+          watch_type: 'LAST_VALUE_LT',
+          config: { threshold: 1 },
+        },
+      ],
+    },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'PROVISION_STEP_FAILED');
+  assert.equal(result.details.section, 'watches');
+  assert.equal(result.details.index, 0);
+  assert.equal(result.details.cause.code, 'SIGNAL_NOT_FOUND');
 });
 
 test('admin channel read returns metadata', async () => {

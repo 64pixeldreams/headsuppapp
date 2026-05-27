@@ -1,0 +1,877 @@
+# Integration Improvements For Clients
+
+## Goal
+
+Make Heads Up much easier and faster for third-party apps to integrate.
+
+The desired third-party setup flow is one call:
+
+```js
+const setup = await headsup.provisionChannel({
+  workspace: { ... },
+  channel: { ... },
+  connector: { ... },
+  signals: [{ ... }],
+  watches: [{ ... }],
+  subscribers: [{ ... }],
+  workspace_subscribers: [{ ... }]
+});
+```
+
+Instead of asking an integrator to orchestrate:
+
+```text
+create workspace
+create channel
+create connector
+create signal
+create watches
+create subscribers
+store connector key/secret
+dedupe/retry every step
+```
+
+This work is HeadsUp-owned infrastructure. Foretic is the first target integration, but the implementation must stay generic and useful for any third-party app.
+
+## Current State From Codebase
+
+Current control-plane actions are registered in `apps/headsupp-api/src/functions/admin-functions.js`:
+
+```text
+admin.createWorkspace
+admin.createChannel
+admin.createConnector
+admin.createSubscriber
+admin.createSignal
+admin.createWatch
+admin.createChannelContract
+...
+```
+
+Current idempotency behavior:
+
+```text
+admin.createWorkspace   fetches existing by workspace_key
+admin.createChannel     fetches existing by channel_key
+admin.createConnector   fetches existing by connector_key
+admin.createSignal      fetches existing by channel_id + signal_key
+admin.createWatch       fetches existing by watch_id
+admin.createSubscriber  fetches existing by subscriber_id
+```
+
+Current pain:
+
+- Integrators still need many ordered calls.
+- They need to understand stable IDs and keys.
+- They need to handle partial setup failures.
+- Foretic needs one callback subscriber per channel because alert subscribers are channel-scoped.
+- SDK is thin and currently has no one-call provisioning helper.
+
+Current alert delivery query only loads channel subscribers:
+
+```text
+SELECT *
+FROM subscribers
+WHERE channel_id = ? AND mode = 'alert' AND enabled = 1
+```
+
+Current `subscribers.channel_id` is `NOT NULL`, so workspace/global subscribers need a compatibility-friendly schema design.
+
+## Product Principles
+
+1. Backward compatibility first.
+   Existing `admin.createX` actions, channel subscribers, email subscribers, webhook subscribers, Slack subscribers, alert deliveries, and SDK methods must continue to work unchanged.
+
+2. Stable keys over client-generated database IDs.
+   Third-party apps should send stable external keys and rerun setup safely.
+
+3. One-call setup should be repeatable.
+   `admin.provisionChannel` must be safe to call on every app load, install, reconnect, or repair flow.
+
+4. Workspace/global subscribers are additive.
+   Channel subscribers remain the default. Workspace subscribers add a convenient fan-out target for app-level callbacks.
+
+5. Connector secrets stay safe.
+   Connector secret is returned only on first creation. Repeat provisioning must not leak stored connector secrets.
+
+6. Foretic support must be generic.
+   No Foretic-only provisioning path unless it is a thin convenience wrapper over the generic API.
+
+## Proposed API
+
+### New Action
+
+```text
+admin.provisionChannel
+```
+
+### Request Shape
+
+```json
+{
+  "workspace": {
+    "workspace_key": "foretic:tenant_123",
+    "name": "Foretic tenant 123",
+    "source_app": "foretic",
+    "external_tenant_id": "tenant_123",
+    "external_user_id": "user_123"
+  },
+  "channel": {
+    "channel_key": "foretic:tenant_123:forecast:job_456",
+    "name": "Revenue forecast",
+    "purpose": "forecast",
+    "metadata": {
+      "forecast_id": "job_456"
+    }
+  },
+  "connector": {
+    "connector_type": "webhook",
+    "connector_key": "ck_foretic_tenant_123_job_456"
+  },
+  "signals": [
+    {
+      "signal_key": "forecast.revenue.pace",
+      "description": "Forecast revenue pace percentage.",
+      "value_mode": "last",
+      "contract": {
+        "dimensions": ["forecast_id", "status"]
+      }
+    }
+  ],
+  "watches": [
+    {
+      "signal_key": "forecast.revenue.pace",
+      "watch_key": "pace_warning",
+      "name": "Forecast pace warning",
+      "watch_type": "LAST_VALUE_LT",
+      "config": { "threshold": 85, "severity": "warning" },
+      "cooldown_seconds": 3600
+    }
+  ],
+  "subscribers": [
+    {
+      "scope": "channel",
+      "subscriber_type": "email",
+      "destination_url": "martin@example.com",
+      "mode": "alert",
+      "config": {
+        "template_id": "forecast_alert_v1"
+      }
+    }
+  ],
+  "workspace_subscribers": [
+    {
+      "subscriber_type": "webhook",
+      "destination_url": "https://app.foretic.io/api/heads-up/alerts",
+      "mode": "alert",
+      "config": {
+        "signing_secret": "foretic-generated-secret"
+      }
+    }
+  ]
+}
+```
+
+### Response Shape
+
+```json
+{
+  "ok": true,
+  "created": {
+    "workspace": false,
+    "channel": true,
+    "connector": true,
+    "signals": 1,
+    "watches": 1,
+    "subscribers": 1,
+    "workspace_subscribers": 0
+  },
+  "reused": {
+    "workspace": true,
+    "channel": false,
+    "connector": false,
+    "signals": 0,
+    "watches": 0,
+    "subscribers": 0,
+    "workspace_subscribers": 1
+  },
+  "workspace": {},
+  "channel": {},
+  "connector": {
+    "connector_key": "ck_foretic_tenant_123_job_456",
+    "connector_secret": "returned-only-if-created"
+  },
+  "secret_returned": true,
+  "signals": [],
+  "watches": [],
+  "subscribers": [],
+  "workspace_subscribers": []
+}
+```
+
+### Stable Key Rules
+
+```text
+workspace.workspace_key
+  Stable per third-party tenant/user/account.
+
+channel.channel_key
+  Stable per source resource, e.g. forecast/job/board/monitor.
+
+connector.connector_key
+  Stable public ingest key for the channel.
+
+signals[].signal_key
+  Stable semantic metric/event key inside the channel.
+
+watches[].watch_key
+  Stable key inside the channel.
+  Implementation can derive watch_id from workspace/channel/signal/watch_key.
+
+subscribers[].subscriber_key
+  Optional stable override.
+  Otherwise derive from scope + channel/workspace + subscriber_type + mode + normalized destination.
+```
+
+## Workspace Subscriber Design
+
+### Problem
+
+Foretic should not have to create one alert callback subscriber for every channel. It should be able to register one workspace/app callback that receives alerts for all channels in the workspace.
+
+### MVP Schema
+
+Add:
+
+```sql
+ALTER TABLE subscribers ADD COLUMN subscriber_scope TEXT NOT NULL DEFAULT 'channel';
+CREATE INDEX IF NOT EXISTS idx_subscribers_workspace_scope
+  ON subscribers(workspace_id, subscriber_scope, mode, subscriber_type);
+```
+
+Because `channel_id` is currently `NOT NULL`, use an internal sentinel for workspace subscribers:
+
+```text
+channel_id = "__workspace__:{workspace_id}"
+subscriber_scope = "workspace"
+```
+
+Public API responses should not expose the sentinel as a real channel. For workspace-scoped subscribers:
+
+```json
+{
+  "subscriber_scope": "workspace",
+  "channel_id": null
+}
+```
+
+### Alert Delivery Query
+
+Update alert subscriber loading to include both channel and workspace subscribers:
+
+```sql
+SELECT *
+FROM subscribers
+WHERE enabled = 1
+  AND mode = 'alert'
+  AND (
+    (COALESCE(subscriber_scope, 'channel') = 'channel' AND channel_id = ?)
+    OR
+    (subscriber_scope = 'workspace' AND workspace_id = ?)
+  )
+```
+
+Use `COALESCE(subscriber_scope, 'channel')` so old rows without the column behave as channel subscribers during migration and in tests.
+
+### Scope Limitation For MVP
+
+Workspace subscribers should support:
+
+```text
+mode = alert
+subscriber_type = webhook
+```
+
+Reason:
+
+- The immediate use case is one Foretic callback per workspace/app.
+- Email alert subscribers should remain channel/recipient-specific for now.
+- Slack workspace-global fanout can be considered later.
+- Quiet summary and aggregate forwarding have different semantics and should not be widened yet.
+
+If the API receives workspace scope for unsupported mode/type, return a clear validation error.
+
+## Backward Compatibility Rules
+
+- Existing subscriber rows without `subscriber_scope` behave as `channel`.
+- Existing `admin.createSubscriber` payloads still require `channel_id` and create channel subscribers.
+- Existing alert delivery rows and consumers are unchanged.
+- Existing email unsubscribe and action links continue to reference subscriber id/channel id as before.
+- Existing SDK methods still work.
+- Existing smoke tests still pass.
+- Existing channel contract materialization still works.
+- Connector secret behavior remains unchanged.
+- No destructive migration or table rebuild.
+
+## Story A1 - Subscriber Scope Migration
+
+As a platform developer, I want subscribers to support an explicit scope so Heads Up can add workspace-level callbacks without breaking channel subscribers.
+
+### Implementation Notes
+
+- Add migration `0007_subscriber_scope.sql` or next available number.
+- Add the same schema update to `migrations/fresh/schema.sql`.
+- Add `subscriber_scope TEXT NOT NULL DEFAULT 'channel'`.
+- Add workspace-scope index.
+- Consider legacy migrations only if this repo requires maintaining that mirror.
+
+### Acceptance Criteria
+
+- Existing subscribers default to `subscriber_scope = "channel"`.
+- New code treats missing/legacy scope as `channel`.
+- No existing API response breaks.
+- Public subscriber response includes `subscriber_scope`.
+- Workspace subscribers hide internal sentinel `channel_id`.
+
+### Unit Tests
+
+- Build subscriber row defaults to channel scope.
+- Existing public subscriber read returns `subscriber_scope = "channel"`.
+- Workspace public subscriber read returns `channel_id = null`.
+- Fresh schema contains `subscriber_scope`.
+
+### Docs
+
+- Update `docs/api/subscribers.md`.
+- Update `docs/api/schema-and-migrations.md`.
+
+## Story A2 - Workspace-Scoped Alert Subscribers
+
+As a third-party app, I want one workspace-level alert callback subscriber so my app receives alerts for all channels in that workspace.
+
+### Implementation Notes
+
+- Add support to `buildSubscriberRow` for `scope` or `subscriber_scope`.
+- Workspace subscribers derive a stable internal channel id:
+
+```text
+__workspace__:{workspace_id}
+```
+
+- Restrict MVP workspace subscribers to:
+
+```text
+subscriber_type = webhook
+mode = alert
+```
+
+- Keep `admin.createSubscriber` backward compatible:
+  - no scope supplied -> channel
+  - channel scope still requires `channel_id`
+  - workspace scope does not require a real channel id
+
+### Acceptance Criteria
+
+- `admin.createSubscriber` can create a workspace-scoped webhook alert subscriber.
+- Workspace subscriber is idempotent by stable derived key or explicit `subscriber_key`.
+- Workspace subscriber config preserves signing secret.
+- Channel subscriber behavior unchanged.
+- Invalid workspace subscriber combinations are rejected with clear errors.
+- Tenant scope is enforced.
+
+### Unit Tests
+
+- Create workspace webhook subscriber without channel id.
+- Repeat create returns `created: false`.
+- Create workspace email subscriber is rejected for MVP.
+- Create workspace quiet-summary subscriber is rejected for MVP.
+- Tenant mismatch is rejected.
+- Existing channel subscriber tests remain unchanged.
+
+### Docs
+
+- `docs/api/subscribers.md`: add workspace subscriber section.
+- `docs/api/webhook-receivers.md`: one callback per workspace/app.
+- `docs/api/reference.md`: subscriber scope props.
+
+## Story A3 - Alert Delivery Includes Workspace Subscribers
+
+As a third-party app, I want workspace subscribers to receive alerts from any channel in the workspace.
+
+### Implementation Notes
+
+- Change `loadAlertSubscribers(db, channelId)` to also know `workspaceId`.
+- Call it from `persistAlertWithDeliveries` using `alert.workspace_id` and `alert.channel_id`.
+- Query both channel and workspace subscribers.
+- Preserve delivery id stability using `alert.id + subscriber.id`.
+
+### Acceptance Criteria
+
+- Channel subscribers still receive channel alerts.
+- Workspace subscribers receive alerts from matching workspace.
+- Workspace subscribers do not receive alerts from another workspace.
+- Disabled workspace subscribers are ignored.
+- Both channel and workspace subscribers can receive the same alert if they are distinct subscriber ids.
+
+### Unit Tests
+
+- `loadAlertSubscribers` returns channel subscriber only.
+- `loadAlertSubscribers` returns workspace subscriber only.
+- `loadAlertSubscribers` returns both.
+- Disabled workspace subscriber is filtered out.
+- Foreign workspace subscriber is filtered out.
+- `persistAlertWithDeliveries` creates expected delivery rows for both subscriber scopes.
+
+### Docs
+
+- `docs/api/alerts-and-deliveries.md`: subscriber fanout now includes channel and workspace alert subscribers.
+- `docs/api/subscribers.md`: explain fanout behavior.
+
+## Story A4 - Bulk Provision Service
+
+As an integrator, I want one setup call that creates or reuses a complete channel runtime so I can integrate quickly and safely.
+
+### New Service
+
+Create:
+
+```text
+apps/headsupp-api/src/services/admin/provision-channel.js
+```
+
+Keep orchestration out of `control-plane.js`.
+
+### Action
+
+Register:
+
+```text
+admin.provisionChannel
+```
+
+in `admin-functions.js`.
+
+### Permissions
+
+Require the union of what is being created:
+
+```text
+workspace:create if workspace needs to be created or workspace object is supplied
+channel:create
+connector:create when connector is supplied
+signal:create when signals are supplied
+watch:create when watches are supplied
+subscriber:create when subscribers are supplied
+```
+
+Simpler MVP: require all six permissions for `admin.provisionChannel`. This is easiest to document and safer for first release.
+
+### Resolution Order
+
+```text
+1. Resolve/create workspace.
+2. Resolve/create channel under workspace.
+3. Optionally create channel contract.
+4. Resolve/create connector.
+5. Resolve/create signals.
+6. Resolve/create watches, resolving watches[].signal_key to signal_id.
+7. Resolve/create channel subscribers.
+8. Resolve/create workspace subscribers.
+9. Return complete setup summary.
+```
+
+### Partial Failure Policy
+
+MVP should not attempt transaction rollback because D1 batch orchestration across conditional creates and secret return is tricky.
+
+Policy:
+
+- Validate as much as possible before writes.
+- Execute in deterministic order.
+- All writes are idempotent.
+- If a later step fails, rerunning the same payload repairs/continues setup.
+- Response errors should include the failing section and index.
+
+Example error:
+
+```json
+{
+  "ok": false,
+  "code": "PROVISION_STEP_FAILED",
+  "message": "watches[1] failed validation.",
+  "details": {
+    "section": "watches",
+    "index": 1,
+    "cause": "signal_key was not found."
+  }
+}
+```
+
+### Acceptance Criteria
+
+- One call can create workspace/channel/connector/signal/watch/subscriber.
+- Repeating the same call does not create duplicates.
+- Existing workspace and channel are reused by stable keys.
+- Connector secret is returned only when connector is newly created.
+- Watches can reference signals by `signal_key`.
+- Channel subscribers and workspace subscribers can be created in one call.
+- Response includes `created` and `reused` counts.
+- Tenant scope is enforced.
+- Existing create actions remain unchanged.
+
+### Unit Tests
+
+- Full happy path creates all resource types.
+- Repeat call returns reused resources and no connector secret.
+- Existing workspace/channel reused by keys.
+- Watch resolves `signal_key` to created signal id.
+- Unknown watch `signal_key` fails cleanly.
+- Missing required nested field fails before writes where possible.
+- Workspace subscriber is created through provisioning.
+- Connector secret not returned on reuse.
+- Tenant mismatch rejected.
+
+## Story A5 - Idempotency Contract Cleanup
+
+As an SDK/API user, I want every create/provision response to clearly tell me whether a resource was created or reused.
+
+### Acceptance Criteria
+
+- Docs define idempotency rules for every stable key.
+- `admin.provisionChannel` response includes `created` and `reused`.
+- Existing individual create actions are documented as fetch-or-create.
+- No breaking response shape changes to existing actions.
+
+### Tests
+
+- Existing create tests assert `created: false` on duplicate paths where test harness supports it.
+- Provision tests assert created/reused summary.
+
+### Docs
+
+- Add `docs/api/provisioning.md`.
+- Update `docs/api/reference.md`.
+- Update `docs/api/admin.md`.
+- Update `docs/api/quickstart.md`.
+
+## Story A6 - SDK Provisioning API
+
+As a JavaScript/Cloudflare Worker integrator, I want a single SDK method for one-call setup.
+
+### SDK API
+
+Add to `packages/headsupp-client/src/client.js`:
+
+```js
+provisionChannel: (payload) =>
+  requestFunction('admin.provisionChannel', payload).then((data) => data)
+```
+
+Do not over-unwrap this response. The caller needs `workspace`, `channel`, `connector`, `signals`, `watches`, `subscribers`, `created`, and `reused`.
+
+### Optional Future SDK Helpers
+
+Do not build first unless needed:
+
+```js
+getOrCreateWorkspace(payload)
+getOrCreateChannel(payload)
+getOrCreateSubscriber(payload)
+```
+
+The first SDK win is `provisionChannel`.
+
+### Acceptance Criteria
+
+- SDK has `provisionChannel`.
+- Unit test verifies action envelope.
+- Existing SDK tests remain green.
+- README and public SDK docs show one-call setup.
+
+### SDK Tests
+
+- `client.provisionChannel(payload)` sends `admin.provisionChannel`.
+- It returns the full `data` object, not only one nested resource.
+- Existing wrappers still pass.
+
+### SDK Docs
+
+Update:
+
+- `packages/headsupp-client/README.md`
+- `docs/public-sdk/client-reference.md`
+- `docs/public-sdk/getting-started.md`
+- `docs/api/node-cloudflare-client.md`
+
+## Story A7 - Provisioning Docs
+
+As an integrator, I want a clear provisioning guide so I can set up Heads Up in minutes.
+
+### New Doc
+
+Create:
+
+```text
+docs/api/provisioning.md
+```
+
+### Required Sections
+
+- Why one-call provisioning exists.
+- Raw API request/response.
+- SDK example.
+- Stable keys and idempotency.
+- Channel subscribers vs workspace subscribers.
+- Connector secret returned once.
+- Partial failure and rerun behavior.
+- Foretic forecast example.
+- Generic third-party example.
+- Troubleshooting.
+
+### Docs To Update
+
+- `docs/api/README.md`: add provisioning guide.
+- `docs/api/quickstart.md`: prefer `provisionChannel` for new apps.
+- `docs/api/reference.md`: add action props.
+- `docs/api/admin.md`: add admin action.
+- `docs/api/subscribers.md`: add workspace/global subscribers.
+- `docs/api/webhook-receivers.md`: one workspace callback pattern.
+- `docs/api/alerts-and-deliveries.md`: workspace subscriber fanout.
+- `docs/api/smoke-test-suite.md`: new smoke commands.
+- `docs/public-sdk/*`: SDK provisioning.
+
+### Acceptance Criteria
+
+- Docs include copy-paste payloads.
+- Docs call out backward compatibility.
+- Docs identify required permissions.
+- Docs describe exact retry/rerun behavior.
+- Docs include Foretic handoff payload shape.
+
+## Story A8 - Smoke Tests
+
+As a platform operator, I want deployed smoke tests that prove one-call setup and workspace callback fanout work end-to-end.
+
+### Scripts
+
+Add:
+
+```text
+apps/headsupp-api/scripts/provision-channel-smoke.mjs
+apps/headsupp-api/scripts/workspace-subscriber-smoke.mjs
+```
+
+Add package scripts:
+
+```json
+{
+  "smoke:provision-channel": "node scripts/provision-channel-smoke.mjs",
+  "smoke:workspace-subscriber": "node scripts/workspace-subscriber-smoke.mjs"
+}
+```
+
+### Provision Channel Smoke
+
+Flow:
+
+```text
+1. Call admin.provisionChannel with workspace/channel/connector/signal/watch/email subscriber.
+2. Send one normal event below threshold.
+3. Send one trigger event.
+4. Poll D1 for alert and email delivery.
+5. Assert delivery reaches sent or expected terminal status depending configured destination.
+6. Rerun same provision payload.
+7. Assert created counts are zero/reused counts increase and no duplicate rows.
+```
+
+### Workspace Subscriber Smoke
+
+Flow:
+
+```text
+1. Create one workspace-scoped webhook alert subscriber.
+2. Provision two channels in same workspace.
+3. Trigger alerts on both channels.
+4. Verify alert_deliveries has delivery rows for same workspace subscriber for both alerts.
+5. Verify no delivery for another workspace.
+```
+
+### Acceptance Criteria
+
+- Smoke output includes setup ids, connector key, created/reused summary, alert counts, delivery counts.
+- Smoke scripts do not print connector secret unless required for debugging and redacted in summaries.
+- Existing smoke scripts still work.
+
+## Story A9 - Foretic Agent Handoff
+
+As the Foretic integration agent, I need a Cursor copy block that tells me exactly how to switch from multi-call setup to one-call provisioning.
+
+### Deliverable After Implementation
+
+Produce a final copy block for Foretic with:
+
+- SDK `provisionChannel` example.
+- Raw API fallback.
+- Workspace subscriber callback example.
+- Forecast email subscriber example.
+- Forecast event payload using rich email fields.
+- Required env vars/secrets.
+- Idempotency rules.
+- Connector secret handling.
+- Migration notes from existing Foretic setup.
+
+### Acceptance Criteria
+
+- Handoff references shipped docs.
+- Handoff avoids Heads Up internals.
+- Handoff is copy-pasteable into the Foretic repo.
+
+## Suggested Build Order
+
+```text
+1. A1 Subscriber Scope Migration
+2. A2 Workspace-Scoped Alert Subscribers
+3. A3 Alert Delivery Includes Workspace Subscribers
+4. A4 Bulk Provision Service
+5. A5 Idempotency Contract Cleanup
+6. A6 SDK Provisioning API
+7. A7 Provisioning Docs
+8. A8 Smoke Tests
+9. Run tests + deploy + smoke
+10. A9 Foretic Agent Handoff
+```
+
+## Test Matrix
+
+### Existing Behavior Must Remain
+
+Run:
+
+```powershell
+cd apps/headsupp-api
+npm run test:unit
+npm run smoke:email-subscriber
+npm run smoke:generic-slack
+npm run smoke:delivery-retry
+npm run smoke:quiet-summary
+```
+
+Also run SDK tests:
+
+```powershell
+cd packages/headsupp-client
+npm test
+```
+
+### New Unit Tests
+
+```text
+admin-control-plane.test.js
+  - workspace subscriber creation
+  - workspace subscriber validation failures
+  - public subscriber scope shaping
+
+alert-persistence.test.js
+  - channel subscriber load unchanged
+  - workspace subscriber load
+  - channel + workspace subscriber fanout
+  - disabled/foreign workspace subscribers ignored
+
+provision-channel.test.js or admin-control-plane.test.js
+  - full one-call provisioning
+  - idempotent repeat
+  - connector secret returned once
+  - watch signal_key resolution
+  - nested validation errors
+  - tenant scope mismatch
+
+packages/headsupp-client/test/client.test.js
+  - provisionChannel action envelope
+  - full response returned
+```
+
+### New Smoke Tests
+
+```text
+npm run smoke:provision-channel
+npm run smoke:workspace-subscriber
+```
+
+## Release Checklist
+
+- [ ] Migration added.
+- [ ] Fresh schema updated.
+- [ ] Unit tests pass.
+- [ ] SDK tests pass.
+- [ ] Existing smoke tests pass.
+- [ ] New smoke tests pass.
+- [ ] Docs updated.
+- [ ] SDK docs updated.
+- [ ] Deployed worker uses new migration-compatible code.
+- [ ] Foretic copy block produced.
+
+## Open Decisions Before Execution
+
+### Decision 1 - Workspace Subscriber MVP Scope
+
+Recommendation:
+
+```text
+Only subscriber_type = webhook and mode = alert for workspace scope.
+```
+
+Reason: this directly solves the Foretic/global callback issue without changing semantics for email, Slack, aggregate forwarding, or quiet summaries.
+
+### Decision 2 - Permission Model For `admin.provisionChannel`
+
+Recommendation:
+
+```text
+Require all create permissions:
+workspace:create
+channel:create
+connector:create
+signal:create
+watch:create
+subscriber:create
+```
+
+Reason: simple, predictable, and safe. We can later make permissions conditional by section.
+
+### Decision 3 - Partial Failure Policy
+
+Recommendation:
+
+```text
+No rollback in MVP.
+Validate early.
+Write idempotently.
+Rerun to repair.
+Return section/index errors.
+```
+
+Reason: fastest reliable implementation with D1 and current service structure.
+
+### Decision 4 - SDK Convenience Wrappers
+
+Recommendation:
+
+```text
+Ship provisionChannel only.
+Do not add getOrCreate* wrappers yet.
+```
+
+Reason: one-call provisioning is the primary setup simplification.
+
+## Definition Of Done
+
+This story batch is complete when:
+
+- A third-party app can provision a complete channel runtime in one SDK call.
+- Foretic can register one workspace callback subscriber instead of one per channel.
+- Repeated provisioning calls do not duplicate resources.
+- Existing channel subscribers and individual create APIs are backward compatible.
+- Unit tests cover new and old behavior.
+- Deployed smoke tests prove one-call setup and workspace subscriber fanout.
+- Docs and SDK docs are updated.
+- A Foretic Cursor copy block is ready for the integration agent.

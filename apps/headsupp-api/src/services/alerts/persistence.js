@@ -32,14 +32,20 @@ export function buildAlert({ watch, evaluation, decision, input, now = new Date(
   };
 }
 
-export async function loadAlertSubscribers(db, channelId) {
+export async function loadAlertSubscribers(db, { workspaceId, channelId }) {
   const result = await db
     .prepare(
       `SELECT *
        FROM subscribers
-       WHERE channel_id = ? AND mode = 'alert' AND enabled = 1`,
+       WHERE enabled = 1
+         AND mode = 'alert'
+         AND (
+           (COALESCE(subscriber_scope, 'channel') = 'channel' AND channel_id = ?)
+           OR
+           (subscriber_scope = 'workspace' AND workspace_id = ?)
+         )`,
     )
-    .bind(channelId)
+    .bind(channelId, workspaceId)
     .all();
 
   return result?.results || [];
@@ -169,7 +175,7 @@ export async function persistAlertWithDeliveries({
   now = new Date().toISOString(),
 }) {
   const alert = buildAlert({ watch, evaluation, decision, input, now });
-  const subscribers = await loadAlertSubscribers(db, alert.channel_id);
+  const subscribers = await loadAlertSubscribers(db, { workspaceId: alert.workspace_id, channelId: alert.channel_id });
   const deliveries = buildAlertDeliveries({ alert, subscribers, now });
   const statements = [alertStatement(db, alert), watchStateStatement(db, { watch, decision, now })];
   statements.push(...deliveries.map((delivery) => deliveryStatement(db, delivery)));

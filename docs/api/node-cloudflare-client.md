@@ -69,6 +69,39 @@ const channel = await headsup.createChannel({ workspace_id: workspace.workspace_
 
 Full flow: [../public-sdk/getting-started.md](../public-sdk/getting-started.md).
 
+For new third-party integrations, prefer one-call setup:
+
+```js
+const setup = await headsup.provisionChannel({
+  workspace: {
+    workspace_key: 'demo:tenant_1',
+    name: 'Demo tenant 1',
+    source_app: 'demo',
+    external_tenant_id: 'tenant_1',
+    external_user_id: 'user_1'
+  },
+  channel: {
+    channel_key: 'demo:tenant_1:forecast:job_123',
+    name: 'Forecast job 123'
+  },
+  connector: {
+    connector_key: 'ck_demo_tenant_1_job_123'
+  },
+  signals: [{ signal_key: 'forecast.revenue.pace' }],
+  watches: [
+    {
+      signal_key: 'forecast.revenue.pace',
+      watch_key: 'pace_warning',
+      name: 'Forecast pace warning',
+      watch_type: 'LAST_VALUE_LT',
+      config: { threshold: 85, severity: 'warning' }
+    }
+  ]
+});
+```
+
+See [provisioning.md](provisioning.md).
+
 ## Cloudflare Workers
 
 Pass the Worker `fetch` binding:

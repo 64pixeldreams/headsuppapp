@@ -49,6 +49,40 @@ const headsup = createHeadsUpClient({
 
 ## 2) Workspace and channel
 
+For production third-party apps, prefer `provisionChannel()` because it creates or reuses the full setup in one idempotent request. The step-by-step calls below remain useful for learning and debugging.
+
+```js
+const setup = await headsup.provisionChannel({
+  workspace: {
+    workspace_key: 'coffee:demo-tenant',
+    name: 'Coffee Demo',
+    source_app: 'headsupp-demo',
+    external_tenant_id: 'demo-tenant',
+    external_user_id: 'demo-user'
+  },
+  channel: {
+    channel_key: 'coffee:demo-tenant:spend',
+    name: 'Coffee spend',
+    purpose: 'Demo coffee alerts'
+  },
+  connector: {
+    connector_key: 'ck_coffee_demo_tenant_spend'
+  },
+  signals: [{ signal_key: 'spend.coffee.usd' }],
+  watches: [
+    {
+      signal_key: 'spend.coffee.usd',
+      watch_key: 'coffee_budget_high',
+      name: 'Coffee budget high',
+      watch_type: 'LAST_VALUE_GT',
+      config: { threshold: 50, severity: 'warning' }
+    }
+  ]
+});
+
+const { workspace, channel, connector } = setup;
+```
+
 ```js
 const workspace = await headsup.createWorkspace({
   name: 'Coffee Demo',

@@ -1,0 +1,309 @@
+import { requirePermission } from '../auth/permissions.js';
+import { stableId } from '../ids/stable-id.js';
+import {
+  createAdminChannel,
+  createAdminChannelContract,
+  createAdminConnector,
+  createAdminSignal,
+  createAdminSubscriber,
+  createAdminWatch,
+  createAdminWorkspace,
+} from './control-plane.js';
+
+function validationError(field, message = `${field} is required.`) {
+  return {
+    ok: false,
+    status: 400,
+    code: 'VALIDATION_ERROR',
+    message,
+    details: { action: 'admin.provisionChannel', field },
+  };
+}
+
+function stepError(section, result, index = null) {
+  return {
+    ok: false,
+    status: result.status || 400,
+    code: 'PROVISION_STEP_FAILED',
+    message: index === null ? `${section} failed.` : `${section}[${index}] failed.`,
+    details: {
+      section,
+      index,
+      cause: {
+        code: result.code,
+        message: result.message,
+        details: result.details || null,
+      },
+    },
+  };
+}
+
+function requireProvisionPermissions(auth) {
+  const permissions = [
+    'workspace:create',
+    'channel:create',
+    'connector:create',
+    'signal:create',
+    'watch:create',
+    'subscriber:create',
+  ];
+  for (const permission of permissions) {
+    const allowed = requirePermission(auth, permission);
+    if (!allowed.ok) return allowed;
+  }
+  return null;
+}
+
+async function firstRow(db, sql, params = []) {
+  const prepared = db.prepare(sql).bind(...params);
+  if (typeof prepared.first === 'function') return prepared.first();
+  return null;
+}
+
+async function loadWorkspace(db, { workspaceId, workspaceKey }) {
+  if (workspaceId) {
+    return firstRow(db, 'SELECT * FROM workspaces WHERE id = ? OR workspace_id = ? LIMIT 1', [workspaceId, workspaceId]);
+  }
+  if (workspaceKey) {
+    return firstRow(db, 'SELECT * FROM workspaces WHERE workspace_key = ? LIMIT 1', [workspaceKey]);
+  }
+  return null;
+}
+
+function createdCounter() {
+  return {
+    workspace: false,
+    channel: false,
+    connector: false,
+    channel_contract: false,
+    signals: 0,
+    watches: 0,
+    subscribers: 0,
+    workspace_subscribers: 0,
+  };
+}
+
+function reusedCounter() {
+  return {
+    workspace: false,
+    channel: false,
+    connector: false,
+    channel_contract: false,
+    signals: 0,
+    watches: 0,
+    subscribers: 0,
+    workspace_subscribers: 0,
+  };
+}
+
+function asArray(value) {
+  if (value === undefined || value === null) return [];
+  return Array.isArray(value) ? value : null;
+}
+
+export async function provisionAdminChannel({ auth, db, env = {}, store, input, now }) {
+  const denied = requireProvisionPermissions(auth);
+  if (denied) return denied;
+
+  const workspaceInput = input.workspace || null;
+  const channelInput = input.channel || null;
+  if (!workspaceInput && !input.workspace_id) return validationError('workspace', 'workspace or workspace_id is required.');
+  if (!channelInput) return validationError('channel');
+
+  const signalsInput = asArray(input.signals);
+  const watchesInput = asArray(input.watches);
+  const subscribersInput = asArray(input.subscribers);
+  const workspaceSubscribersInput = asArray(input.workspace_subscribers);
+  if (!signalsInput) return validationError('signals', 'signals must be an array when provided.');
+  if (!watchesInput) return validationError('watches', 'watches must be an array when provided.');
+  if (!subscribersInput) return validationError('subscribers', 'subscribers must be an array when provided.');
+  if (!workspaceSubscribersInput) {
+    return validationError('workspace_subscribers', 'workspace_subscribers must be an array when provided.');
+  }
+
+  const created = createdCounter();
+  const reused = reusedCounter();
+  let workspace = null;
+
+  if (workspaceInput) {
+    const workspaceResult = await createAdminWorkspace({ auth, db, input: workspaceInput, now });
+    if (!workspaceResult.ok) return stepError('workspace', workspaceResult);
+    workspace = workspaceResult.workspace;
+    created.workspace = workspaceResult.created === true;
+    reused.workspace = workspaceResult.created === false;
+  } else {
+    workspace = await loadWorkspace(db, { workspaceId: input.workspace_id });
+    if (!workspace) return validationError('workspace_id', 'workspace_id was not found.');
+    reused.workspace = true;
+  }
+
+  const channelResult = await createAdminChannel({
+    auth,
+    db,
+    input: {
+      ...channelInput,
+      workspace_id: workspace.workspace_id || workspace.id,
+    },
+    now,
+  });
+  if (!channelResult.ok) return stepError('channel', channelResult);
+  const channel = channelResult.channel;
+  created.channel = channelResult.created === true;
+  reused.channel = channelResult.created === false;
+
+  let channelContract = null;
+  if (input.channel_contract) {
+    const activeContract = await firstRow(
+      db,
+      'SELECT * FROM channel_contracts WHERE channel_id = ? AND status = ? ORDER BY version DESC LIMIT 1',
+      [channel.channel_id || channel.id, 'active'],
+    );
+    if (activeContract) {
+      channelContract = activeContract;
+      reused.channel_contract = true;
+    } else {
+      const contractResult = await createAdminChannelContract({
+        auth,
+        db,
+        input: {
+          ...input.channel_contract,
+          workspace_id: workspace.workspace_id || workspace.id,
+          channel_id: channel.channel_id || channel.id,
+        },
+        now,
+      });
+      if (!contractResult.ok) return stepError('channel_contract', contractResult);
+      channelContract = contractResult.channel_contract;
+      created.channel_contract = true;
+    }
+  }
+
+  let connector = null;
+  let secretReturned = false;
+  if (input.connector) {
+    const connectorResult = await createAdminConnector({
+      auth,
+      db,
+      store,
+      input: {
+        ...input.connector,
+        workspace_id: workspace.workspace_id || workspace.id,
+        channel_id: channel.channel_id || channel.id,
+      },
+      now,
+    });
+    if (!connectorResult.ok) return stepError('connector', connectorResult);
+    connector = connectorResult.connector;
+    secretReturned = connectorResult.secret_returned === true;
+    created.connector = connectorResult.created === true;
+    reused.connector = connectorResult.created === false;
+  }
+
+  const signals = [];
+  const signalByKey = new Map();
+  for (const [index, signalInput] of signalsInput.entries()) {
+    const signalResult = await createAdminSignal({
+      auth,
+      db,
+      input: {
+        ...signalInput,
+        workspace_id: workspace.workspace_id || workspace.id,
+        channel_id: channel.channel_id || channel.id,
+      },
+      now,
+    });
+    if (!signalResult.ok) return stepError('signals', signalResult, index);
+    signals.push(signalResult.signal);
+    signalByKey.set(signalResult.signal.signal_key, signalResult.signal);
+    if (signalResult.created === true) created.signals += 1;
+    if (signalResult.created === false) reused.signals += 1;
+  }
+
+  const watches = [];
+  for (const [index, watchInput] of watchesInput.entries()) {
+    const signal = watchInput.signal_id
+      ? { signal_id: watchInput.signal_id, id: watchInput.signal_id }
+      : signalByKey.get(watchInput.signal_key);
+    if (!signal) {
+      return stepError('watches', {
+        status: 400,
+        code: 'SIGNAL_NOT_FOUND',
+        message: `No signal was found for watches[${index}].signal_key.`,
+      }, index);
+    }
+    const signalId = signal.id || signal.signal_id;
+    const watchId = watchInput.watch_id || (watchInput.watch_key
+      ? stableId('watch', `${channel.channel_id || channel.id}:${signalId}:${watchInput.watch_key}`)
+      : undefined);
+    const watchResult = await createAdminWatch({
+      auth,
+      db,
+      input: {
+        ...watchInput,
+        watch_id: watchId,
+        workspace_id: workspace.workspace_id || workspace.id,
+        channel_id: channel.channel_id || channel.id,
+        signal_id: signalId,
+      },
+      now,
+    });
+    if (!watchResult.ok) return stepError('watches', watchResult, index);
+    watches.push(watchResult.watch);
+    if (watchResult.created === true) created.watches += 1;
+    if (watchResult.created === false) reused.watches += 1;
+  }
+
+  const subscribers = [];
+  for (const [index, subscriberInput] of subscribersInput.entries()) {
+    const subscriberResult = await createAdminSubscriber({
+      auth,
+      db,
+      env,
+      input: {
+        ...subscriberInput,
+        subscriber_scope: 'channel',
+        workspace_id: workspace.workspace_id || workspace.id,
+        channel_id: channel.channel_id || channel.id,
+      },
+      now,
+    });
+    if (!subscriberResult.ok) return stepError('subscribers', subscriberResult, index);
+    subscribers.push(subscriberResult.subscriber);
+    if (subscriberResult.created === true) created.subscribers += 1;
+    if (subscriberResult.created === false) reused.subscribers += 1;
+  }
+
+  const workspaceSubscribers = [];
+  for (const [index, subscriberInput] of workspaceSubscribersInput.entries()) {
+    const subscriberResult = await createAdminSubscriber({
+      auth,
+      db,
+      env,
+      input: {
+        ...subscriberInput,
+        subscriber_scope: 'workspace',
+        workspace_id: workspace.workspace_id || workspace.id,
+      },
+      now,
+    });
+    if (!subscriberResult.ok) return stepError('workspace_subscribers', subscriberResult, index);
+    workspaceSubscribers.push(subscriberResult.subscriber);
+    if (subscriberResult.created === true) created.workspace_subscribers += 1;
+    if (subscriberResult.created === false) reused.workspace_subscribers += 1;
+  }
+
+  return {
+    ok: true,
+    created,
+    reused,
+    workspace,
+    channel,
+    channel_contract: channelContract,
+    connector,
+    secret_returned: secretReturned,
+    signals,
+    watches,
+    subscribers,
+    workspace_subscribers: workspaceSubscribers,
+  };
+}

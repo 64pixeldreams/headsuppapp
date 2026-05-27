@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS subscribers (
   mode TEXT NOT NULL DEFAULT 'alert',
   config_json TEXT,
   enabled INTEGER NOT NULL DEFAULT 1,
+  subscriber_scope TEXT NOT NULL DEFAULT 'channel',
   source_app TEXT,
   external_tenant_id TEXT,
   external_user_id TEXT,
@@ -98,6 +99,7 @@ CREATE TABLE IF NOT EXISTS subscribers (
 
 CREATE INDEX IF NOT EXISTS idx_subscribers_channel_id ON subscribers(channel_id);
 CREATE INDEX IF NOT EXISTS idx_subscribers_lookup ON subscribers(channel_id, mode, subscriber_type, normalized_destination);
+CREATE INDEX IF NOT EXISTS idx_subscribers_workspace_scope ON subscribers(workspace_id, subscriber_scope, mode, subscriber_type);
 
 CREATE TABLE IF NOT EXISTS signals (
   id TEXT PRIMARY KEY,

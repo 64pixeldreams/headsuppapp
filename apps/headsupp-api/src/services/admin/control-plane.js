@@ -11,6 +11,9 @@ import { normalizeAuthorizationConfig, sendAuthorizationEmail } from '../subscri
 import { buildActionControlRow } from '../watches/action-controls.js';
 
 const VALID_SUBSCRIBER_MODES = new Set(['alert', 'aggregate_forward', 'quiet_summary', 'lifecycle']);
+const WORKSPACE_SUBSCRIBER_SCOPE = 'workspace';
+const CHANNEL_SUBSCRIBER_SCOPE = 'channel';
+const WORKSPACE_SUBSCRIBER_CHANNEL_PREFIX = '__workspace__:';
 
 function denyIfNeeded(auth, permission) {
   const allowed = requirePermission(auth, permission);
@@ -70,6 +73,15 @@ function normalizeKey(value) {
     .toLowerCase()
     .replace(/[^a-z0-9:_-]+/g, '_')
     .replace(/^_+|_+$/g, '');
+}
+
+function normalizeSubscriberScope(input = {}) {
+  const scope = cleanString(input.subscriber_scope || input.scope) || CHANNEL_SUBSCRIBER_SCOPE;
+  return scope === WORKSPACE_SUBSCRIBER_SCOPE ? WORKSPACE_SUBSCRIBER_SCOPE : CHANNEL_SUBSCRIBER_SCOPE;
+}
+
+function workspaceSubscriberChannelId(workspaceId) {
+  return `${WORKSPACE_SUBSCRIBER_CHANNEL_PREFIX}${workspaceId}`;
 }
 
 export function buildWorkspaceRow(input, now = new Date().toISOString()) {
@@ -147,6 +159,15 @@ export function buildSubscriberRow(input, now = new Date().toISOString()) {
     };
   }
   const subscriberType = input.subscriber_type || 'webhook';
+  const subscriberScope = normalizeSubscriberScope(input);
+  if (subscriberScope === WORKSPACE_SUBSCRIBER_SCOPE && (subscriberType !== 'webhook' || mode !== 'alert')) {
+    return {
+      ok: false,
+      status: 400,
+      code: 'INVALID_SUBSCRIBER_SCOPE',
+      message: 'Workspace-scoped subscribers currently support subscriber_type webhook with mode alert.',
+    };
+  }
   if (mode === 'lifecycle' && subscriberType !== 'webhook') {
     return {
       ok: false,
@@ -164,7 +185,12 @@ export function buildSubscriberRow(input, now = new Date().toISOString()) {
   const normalizedDestination =
     input.normalized_destination ||
     (subscriberType === 'email' ? normalizeEmailAddress(destinationUrl) : validation.normalized_destination || destinationUrl);
-  const key = input.subscriber_key || `${input.channel_id}:${subscriberType}:${mode}:${normalizedDestination}`;
+  const channelId = subscriberScope === WORKSPACE_SUBSCRIBER_SCOPE ? workspaceSubscriberChannelId(input.workspace_id) : input.channel_id;
+  const key =
+    input.subscriber_key ||
+    (subscriberScope === WORKSPACE_SUBSCRIBER_SCOPE
+      ? `${input.workspace_id}:${subscriberScope}:${subscriberType}:${mode}:${normalizedDestination}`
+      : `${channelId}:${subscriberType}:${mode}:${normalizedDestination}`);
   const id = input.subscriber_id || stableId('sub', key);
   return {
     ok: true,
@@ -172,7 +198,7 @@ export function buildSubscriberRow(input, now = new Date().toISOString()) {
       id,
       subscriber_id: id,
       workspace_id: input.workspace_id,
-      channel_id: input.channel_id,
+      channel_id: channelId,
       subscriber_type: subscriberType,
       name: input.name || input.display_name || 'Webhook subscriber',
       destination_url: destinationUrl,
@@ -182,6 +208,7 @@ export function buildSubscriberRow(input, now = new Date().toISOString()) {
       mode,
       config_json: JSON.stringify(config),
       enabled: authConfig.required ? 0 : input.enabled === false ? 0 : 1,
+      subscriber_scope: subscriberScope,
       source_app: input.source_app || null,
       external_tenant_id: input.external_tenant_id || null,
       external_user_id: input.external_user_id || null,
@@ -356,8 +383,11 @@ function publicChannel(row) {
 
 function publicSubscriber(row) {
   if (!row) return null;
+  const scope = row.subscriber_scope || CHANNEL_SUBSCRIBER_SCOPE;
   return {
     ...row,
+    subscriber_scope: scope,
+    channel_id: scope === WORKSPACE_SUBSCRIBER_SCOPE ? null : row.channel_id,
     destination_url: undefined,
     destination_url_redacted:
       row.destination_url_redacted || redactSubscriberDestination(row.subscriber_type || 'webhook', row.destination_url),
@@ -400,6 +430,7 @@ function publicSubscriberRead(row) {
     display_name: subscriber.name || subscriber.display_name || null,
     workspace_id: subscriber.workspace_id,
     channel_id: subscriber.channel_id,
+    subscriber_scope: subscriber.subscriber_scope || CHANNEL_SUBSCRIBER_SCOPE,
     config: sanitizeSubscriberConfig(subscriber.config || {}),
     created_at: subscriber.created_at,
     updated_at: subscriber.updated_at,
@@ -696,19 +727,31 @@ export async function createAdminSubscriber({ auth, db, input, env = {}, now }) 
   const denied = denyIfNeeded(auth, 'subscriber:create');
   if (denied) return denied;
   const action = 'admin.createSubscriber';
-  for (const field of ['workspace_id', 'channel_id', 'subscriber_type', 'destination_url']) {
+  const subscriberScope = normalizeSubscriberScope(input);
+  for (const field of ['workspace_id', 'subscriber_type', 'destination_url']) {
     const required = requireString(input, field, action);
+    if (!required.ok) return required;
+  }
+  if (subscriberScope === CHANNEL_SUBSCRIBER_SCOPE) {
+    const required = requireString(input, 'channel_id', action);
     if (!required.ok) return required;
   }
   const scopeDeniedForInput = scopedCreateDenied(auth, input, action);
   if (scopeDeniedForInput) return scopeDeniedForInput;
-  const scopeDenied =
-    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
-    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
+  const scopeDenied = subscriberScope === WORKSPACE_SUBSCRIBER_SCOPE
+    ? await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })
+    : (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+      (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
   if (scopeDenied) return scopeDenied;
-  const channel = await loadChannel(db, input.channel_id);
-  if (!channel) return notFound('CHANNEL_NOT_FOUND', 'Channel was not found.');
-  const built = buildSubscriberRow(inheritOwnership(input, channel), now);
+  const parent = subscriberScope === WORKSPACE_SUBSCRIBER_SCOPE
+    ? await loadWorkspace(db, input.workspace_id)
+    : await loadChannel(db, input.channel_id);
+  if (!parent) {
+    return subscriberScope === WORKSPACE_SUBSCRIBER_SCOPE
+      ? notFound('WORKSPACE_NOT_FOUND', 'Workspace was not found.')
+      : notFound('CHANNEL_NOT_FOUND', 'Channel was not found.');
+  }
+  const built = buildSubscriberRow(inheritOwnership({ ...input, subscriber_scope: subscriberScope }, parent), now);
   if (!built.ok) return built;
   const existing = await loadSubscriber(db, built.row.subscriber_id);
   if (existing) return { ok: true, created: false, subscriber: publicSubscriber(existing), authorization: null };
@@ -724,18 +767,20 @@ export async function createAdminSubscriber({ auth, db, input, env = {}, now }) 
   return { ok: true, created: true, subscriber: publicSubscriber(subscriber), authorization };
 }
 
-async function resolveAdminSubscriber({ db, workspaceId, channelId, subscriberId, email, mode }) {
+async function resolveAdminSubscriber({ db, workspaceId, channelId, subscriberScope = CHANNEL_SUBSCRIBER_SCOPE, subscriberId, email, mode }) {
   if (subscriberId) {
     const subscriber = await loadSubscriber(db, subscriberId);
     if (!subscriber) {
       return { ok: false, status: 404, code: 'SUBSCRIBER_NOT_FOUND', message: 'Subscriber was not found.' };
     }
-    if (subscriber.workspace_id !== workspaceId || subscriber.channel_id !== channelId) {
+    const storedScope = subscriber.subscriber_scope || CHANNEL_SUBSCRIBER_SCOPE;
+    const channelMismatch = channelId && subscriber.channel_id !== channelId;
+    if (subscriber.workspace_id !== workspaceId || storedScope !== subscriberScope || channelMismatch) {
       return {
         ok: false,
         status: 404,
         code: 'SUBSCRIBER_SCOPE_MISMATCH',
-        message: 'Subscriber does not belong to workspace and channel.',
+        message: 'Subscriber does not belong to the requested subscriber scope.',
       };
     }
     return { ok: true, subscriber };
@@ -853,22 +898,29 @@ export async function getAdminSubscriber({ auth, db, input }) {
   const denied = denyUnlessSubscriberRead(auth);
   if (denied) return denied;
   const action = 'admin.getSubscriber';
-  for (const field of ['workspace_id', 'channel_id']) {
+  const subscriberScope = normalizeSubscriberScope(input);
+  for (const field of ['workspace_id']) {
     const required = requireString(input, field, action);
+    if (!required.ok) return required;
+  }
+  if (subscriberScope === CHANNEL_SUBSCRIBER_SCOPE) {
+    const required = requireString(input, 'channel_id', action);
     if (!required.ok) return required;
   }
   if (!cleanString(input.subscriber_id) && !cleanString(input.email)) {
     return validationError(action, 'subscriber_id', 'Provide subscriber_id or email.');
   }
-  const scopeDenied =
-    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
-    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
+  const scopeDenied = subscriberScope === WORKSPACE_SUBSCRIBER_SCOPE
+    ? await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })
+    : (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+      (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
   if (scopeDenied) return scopeDenied;
 
   const resolved = await resolveAdminSubscriber({
     db,
     workspaceId: input.workspace_id,
     channelId: input.channel_id,
+    subscriberScope,
     subscriberId: input.subscriber_id,
     email: input.email,
     mode: input.mode,
@@ -884,17 +936,29 @@ export async function listAdminSubscribers({ auth, db, input }) {
   const denied = denyUnlessSubscriberRead(auth);
   if (denied) return denied;
   const action = 'admin.listSubscribers';
-  for (const field of ['workspace_id', 'channel_id']) {
+  const subscriberScope = normalizeSubscriberScope(input);
+  for (const field of ['workspace_id']) {
     const required = requireString(input, field, action);
     if (!required.ok) return required;
   }
-  const scopeDenied =
-    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
-    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
+  if (subscriberScope === CHANNEL_SUBSCRIBER_SCOPE) {
+    const required = requireString(input, 'channel_id', action);
+    if (!required.ok) return required;
+  }
+  const scopeDenied = subscriberScope === WORKSPACE_SUBSCRIBER_SCOPE
+    ? await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })
+    : (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+      (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
   if (scopeDenied) return scopeDenied;
 
-  const params = [input.workspace_id, input.channel_id];
-  let sql = 'SELECT * FROM subscribers WHERE workspace_id = ? AND channel_id = ?';
+  const params =
+    subscriberScope === WORKSPACE_SUBSCRIBER_SCOPE
+      ? [input.workspace_id, WORKSPACE_SUBSCRIBER_SCOPE]
+      : [input.workspace_id, input.channel_id, CHANNEL_SUBSCRIBER_SCOPE];
+  let sql =
+    subscriberScope === WORKSPACE_SUBSCRIBER_SCOPE
+      ? 'SELECT * FROM subscribers WHERE workspace_id = ? AND subscriber_scope = ?'
+      : "SELECT * FROM subscribers WHERE workspace_id = ? AND channel_id = ? AND COALESCE(subscriber_scope, 'channel') = ?";
   if (cleanString(input.subscriber_type)) {
     sql += ' AND subscriber_type = ?';
     params.push(cleanString(input.subscriber_type));

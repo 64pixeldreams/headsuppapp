@@ -118,12 +118,42 @@ Permission: `channel:update`.
 
 Returns `data.channel`.
 
+### `admin.provisionChannel`
+
+Payload props:
+
+- `workspace` (object, optional): create or reuse a workspace.
+- `workspace_id` (string, optional): reuse an existing workspace when `workspace` is omitted.
+- `channel` (object, required): create or reuse a channel.
+- `connector` (object, optional): create or reuse a webhook connector.
+- `channel_contract` (object, optional): create the first active channel contract when none exists.
+- `signals` (array, optional): create or reuse signals.
+- `watches` (array, optional): create or reuse watches. Each watch may reference `signal_key`.
+- `subscribers` (array, optional): create or reuse channel-scoped subscribers.
+- `workspace_subscribers` (array, optional): create or reuse workspace-scoped webhook alert subscribers.
+
+Required permissions:
+
+```text
+workspace:create
+channel:create
+connector:create
+signal:create
+watch:create
+subscriber:create
+```
+
+Returns `data.created`, `data.reused`, and all materialized resources. Connector secrets are returned only when the connector is newly created.
+
+See [provisioning.md](provisioning.md).
+
 ### `admin.createSubscriber`
 
 Payload props:
 
 - `workspace_id` (string, required).
-- `channel_id` (string, required).
+- `channel_id` (string, required for channel scope).
+- `subscriber_scope` (string, optional): `channel` or `workspace`. Defaults to `channel`.
 - `subscriber_type` (string, required): `webhook`, `slack_webhook`, or `email`.
 - `destination_url` (string, required): https URL for webhook/slack, email address for `email`.
 - `display_name` (string, optional).
@@ -132,6 +162,8 @@ Payload props:
 - `enabled` (boolean, optional): defaults to true.
 
 Returns `data.subscriber` (redacted destination only), `data.created`, and optional `data.authorization`.
+
+Workspace-scoped subscribers currently support `subscriber_type = webhook` with `mode = alert`, and return `channel_id: null`.
 
 Email `config` supports formatted notification templates:
 

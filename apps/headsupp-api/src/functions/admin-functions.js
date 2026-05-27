@@ -20,6 +20,7 @@ import {
   updateAdminChannel,
   updateAdminChannelContract,
 } from '../services/admin/control-plane.js';
+import { provisionAdminChannel } from '../services/admin/provision-channel.js';
 import { getAdminWatchState, listAdminAlertTimeline, listAdminChannelAlerts } from '../services/admin/read-models.js';
 import { createKVControlPlaneStore } from '../services/control-plane/kv-store.js';
 import { writeAuditLog } from '../services/audit/control-plane-audit.js';
@@ -120,6 +121,7 @@ export async function registerAdminFunctions(cloudFunction) {
   };
 
   defineAdmin('admin.createWorkspace', createAdminWorkspace);
+  defineAdmin('admin.provisionChannel', provisionAdminChannel);
   defineAdmin('admin.createChannel', createAdminChannel);
   defineAdmin('admin.getChannel', getAdminChannel);
   defineAdmin('admin.updateChannel', updateAdminChannel);

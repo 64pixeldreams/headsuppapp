@@ -10,7 +10,7 @@ For a full receiver implementation guide, including signature verification and r
 
 ## Routing Rule
 
-Subscribers are channel-scoped. When a watch creates output for a channel, Heads Up sends that output to subscribers on the same channel whose `mode` matches the output:
+Subscribers are channel-scoped by default. When a watch creates output for a channel, Heads Up sends that output to subscribers on the same channel whose `mode` matches the output:
 
 ```text
 alert output             -> mode = alert
@@ -19,6 +19,16 @@ quiet summary output     -> mode = quiet_summary
 ```
 
 Lifecycle webhooks use `mode = lifecycle` and receive subscriber opt-in/opt-out events instead of watch output. See [webhook-receivers.md](webhook-receivers.md).
+
+Workspace-scoped subscribers are also available for app-level alert callbacks. They receive `mode = alert` deliveries for every channel in the workspace.
+
+MVP support:
+
+```text
+subscriber_scope = workspace
+subscriber_type = webhook
+mode = alert
+```
 
 ## First Subscriber Types
 
@@ -113,6 +123,21 @@ Request shape:
   "mode": "alert"
 }
 ```
+
+Workspace-scoped alert callback:
+
+```json
+{
+  "workspace_id": "ws_123",
+  "subscriber_scope": "workspace",
+  "subscriber_type": "webhook",
+  "destination_url": "https://example.com/heads-up/workspace-callback",
+  "display_name": "Foretic workspace callback",
+  "mode": "alert"
+}
+```
+
+The response returns `"channel_id": null` for workspace subscribers. Channel-scoped subscriber responses continue to return their channel ID.
 
 Modes:
 
