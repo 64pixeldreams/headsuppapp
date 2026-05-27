@@ -1,7 +1,7 @@
 export async function getActiveWatchesForSignal(db, channelId, signalId) {
   const result = await db
     .prepare(
-      `SELECT id, watch_id, signal_id
+      `SELECT id, watch_id, signal_id, watch_group_id
        FROM watches
        WHERE channel_id = ? AND signal_id = ? AND enabled = 1`,
     )
@@ -38,7 +38,14 @@ export async function invokeAffectedWatchEvaluators({ db, env, aggregateDeltas, 
 
   for (const delta of aggregateDeltas) {
     const watches = await getActiveWatchesForSignal(db, delta.channel_id, delta.signal_id);
+    const invokedGroups = new Set();
     for (const watch of watches) {
+      const groupId = watch.watch_group_id || null;
+      if (groupId) {
+        const groupKey = `${groupId}:${delta.bucket_type}:${delta.bucket_start_at}:${delta.dimensions_hash || 'd0'}`;
+        if (invokedGroups.has(groupKey)) continue;
+        invokedGroups.add(groupKey);
+      }
       const watchId = watch.watch_id || watch.id;
       const invocationKey = `${watchId}:${delta.bucket_type}:${delta.bucket_start_at}:${delta.dimensions_hash || 'd0'}`;
       if (seen.has(invocationKey)) continue;

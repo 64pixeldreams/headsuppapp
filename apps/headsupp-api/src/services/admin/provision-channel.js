@@ -7,6 +7,7 @@ import {
   createAdminSignal,
   createAdminSubscriber,
   createAdminWatch,
+  createAdminWatchGroup,
   createAdminWorkspace,
 } from './control-plane.js';
 
@@ -77,6 +78,7 @@ function createdCounter() {
     connector: false,
     channel_contract: false,
     signals: 0,
+    watch_groups: 0,
     watches: 0,
     subscribers: 0,
     workspace_subscribers: 0,
@@ -90,6 +92,7 @@ function reusedCounter() {
     connector: false,
     channel_contract: false,
     signals: 0,
+    watch_groups: 0,
     watches: 0,
     subscribers: 0,
     workspace_subscribers: 0,
@@ -111,10 +114,12 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
   if (!channelInput) return validationError('channel');
 
   const signalsInput = asArray(input.signals);
+  const watchGroupsInput = asArray(input.watch_groups);
   const watchesInput = asArray(input.watches);
   const subscribersInput = asArray(input.subscribers);
   const workspaceSubscribersInput = asArray(input.workspace_subscribers);
   if (!signalsInput) return validationError('signals', 'signals must be an array when provided.');
+  if (!watchGroupsInput) return validationError('watch_groups', 'watch_groups must be an array when provided.');
   if (!watchesInput) return validationError('watches', 'watches must be an array when provided.');
   if (!subscribersInput) return validationError('subscribers', 'subscribers must be an array when provided.');
   if (!workspaceSubscribersInput) {
@@ -220,6 +225,93 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
   }
 
   const watches = [];
+  const watchGroups = [];
+  for (const [index, groupInput] of watchGroupsInput.entries()) {
+    const signal = groupInput.signal_id
+      ? { signal_id: groupInput.signal_id, id: groupInput.signal_id }
+      : signalByKey.get(groupInput.signal_key);
+    if (!signal) {
+      return stepError('watch_groups', {
+        status: 400,
+        code: 'SIGNAL_NOT_FOUND',
+        message: `No signal was found for watch_groups[${index}].signal_key.`,
+      }, index);
+    }
+    const bands = asArray(groupInput.bands);
+    if (!bands || bands.length === 0) {
+      return stepError('watch_groups', {
+        status: 400,
+        code: 'INVALID_WATCH_GROUP',
+        message: `watch_groups[${index}].bands must be a non-empty array.`,
+      }, index);
+    }
+    const bandKeys = new Set();
+    for (const [bandIndex, band] of bands.entries()) {
+      const bandKey = band.band_key || band.severity || String(bandIndex);
+      if (bandKeys.has(bandKey)) {
+        return stepError('watch_groups', {
+          status: 400,
+          code: 'DUPLICATE_BAND_KEY',
+          message: `watch_groups[${index}].bands[${bandIndex}].band_key duplicates another band.`,
+        }, index);
+      }
+      bandKeys.add(bandKey);
+    }
+    const signalId = signal.id || signal.signal_id;
+    const groupResult = await createAdminWatchGroup({
+      auth,
+      db,
+      input: {
+        ...groupInput,
+        workspace_id: workspace.workspace_id || workspace.id,
+        channel_id: channel.channel_id || channel.id,
+        signal_id: signalId,
+      },
+      now,
+    });
+    if (!groupResult.ok) return stepError('watch_groups', groupResult, index);
+    const watchGroup = groupResult.watch_group;
+    const groupWatches = [];
+    if (groupResult.created === true) created.watch_groups += 1;
+    if (groupResult.created === false) reused.watch_groups += 1;
+
+    for (const [bandIndex, band] of bands.entries()) {
+      const bandKey = band.band_key || band.severity || String(bandIndex);
+      const watchId = band.watch_id || stableId(
+        'watch',
+        `${bandKey}:${channel.channel_id || channel.id}:${signalId}:${watchGroup.watch_group_id || watchGroup.id}`,
+      );
+      const watchResult = await createAdminWatch({
+        auth,
+        db,
+        input: {
+          ...band,
+          watch_id: watchId,
+          workspace_id: workspace.workspace_id || workspace.id,
+          channel_id: channel.channel_id || channel.id,
+          signal_id: signalId,
+          watch_group_id: watchGroup.watch_group_id || watchGroup.id,
+          band_key: bandKey,
+          name: band.name || band.label || `${groupInput.name || groupInput.group_key} ${bandKey}`,
+          config: {
+            ...(band.config || {}),
+            threshold: band.config?.threshold ?? band.threshold,
+            severity: band.config?.severity || band.severity,
+          },
+          recovery: band.recovery || groupInput.recovery,
+          cooldown_seconds: band.cooldown_seconds ?? groupInput.cooldown_seconds,
+        },
+        now,
+      });
+      if (!watchResult.ok) return stepError('watch_groups', watchResult, index);
+      groupWatches.push(watchResult.watch);
+      watches.push(watchResult.watch);
+      if (watchResult.created === true) created.watches += 1;
+      if (watchResult.created === false) reused.watches += 1;
+    }
+    watchGroups.push({ ...watchGroup, watches: groupWatches });
+  }
+
   for (const [index, watchInput] of watchesInput.entries()) {
     const signal = watchInput.signal_id
       ? { signal_id: watchInput.signal_id, id: watchInput.signal_id }
@@ -302,6 +394,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
     connector,
     secret_returned: secretReturned,
     signals,
+    watch_groups: watchGroups,
     watches,
     subscribers,
     workspace_subscribers: workspaceSubscribers,

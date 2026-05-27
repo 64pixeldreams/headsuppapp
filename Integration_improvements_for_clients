@@ -726,6 +726,479 @@ Produce a final copy block for Foretic with:
 - Handoff avoids Heads Up internals.
 - Handoff is copy-pasteable into the Foretic repo.
 
+## Story A10 - Grouped Watch Policies And Winner Selection
+
+As an integrator and alert recipient, I want related watches to evaluate as one policy so users receive the most useful alert once, instead of receiving warning and critical emails for the same signal update.
+
+### Product Problem
+
+Today warning and critical thresholds are often modeled as separate watches:
+
+```text
+pace_warning:
+  watch_type = LAST_VALUE_LT
+  threshold = 85
+  severity = warning
+
+pace_critical:
+  watch_type = LAST_VALUE_LT
+  threshold = 70
+  severity = critical
+```
+
+If pace is `64`, both watches are true:
+
+```text
+64 < 85 -> warning fires
+64 < 70 -> critical fires
+```
+
+That is technically consistent with independent watches, but commercially wrong for common alerting UX. A user who wants warning and critical alerts should get:
+
+```text
+78 -> warning only
+64 -> critical only
+96 after alert -> recovery
+```
+
+This is especially important for Foretic pace alerts, but the feature must be generic for any app that has severity bands, mutually exclusive conditions, or multiple alert routes.
+
+### Product Design
+
+Introduce a grouped watch policy concept. The MVP may be a first-class `watch_groups` table or an additive `watch_group_key`/`group_policy_json` on existing watches. The public product shape should be:
+
+```text
+watch_group_key
+  Stable key for related watches/policy bands.
+
+winner_policy
+  highest_severity_wins
+  lowest_severity_wins
+  first_match_wins, optional later
+
+cooldown_scope
+  group
+  watch, default for legacy watches
+
+recovery
+  Group-level recovery condition.
+```
+
+Recommended default:
+
+```text
+winner_policy = highest_severity_wins
+cooldown_scope = group
+```
+
+Use `highest_severity_wins` for risk/attention alerts:
+
+```text
+critical > warning > info
+```
+
+Use `lowest_severity_wins` for "best/lowest cost/lowest latency" style policies where lower severity or lower band should win. The API should support the policy even if Foretic only needs `highest_severity_wins`.
+
+### API Shape
+
+Add `watch_groups` to `admin.provisionChannel` while keeping `watches` unchanged:
+
+```js
+const setup = await headsup.provisionChannel({
+  workspace: { ... },
+  channel: { ... },
+  connector: { ... },
+  signals: [
+    { signal_key: 'forecast.revenue.pace' }
+  ],
+  watch_groups: [
+    {
+      group_key: 'forecast_pace_health',
+      name: 'Forecast pace health',
+      signal_key: 'forecast.revenue.pace',
+      cooldown_seconds: 3600,
+      winner_policy: 'highest_severity_wins',
+      cooldown_scope: 'group',
+      recovery: {
+        condition: 'value >= 95',
+        severity: 'recovery'
+      },
+      bands: [
+        {
+          band_key: 'critical',
+          severity: 'critical',
+          watch_type: 'LAST_VALUE_LT',
+          condition: 'value < 70',
+          config: { threshold: 70 },
+          label: 'Forecast pace critical'
+        },
+        {
+          band_key: 'warning',
+          severity: 'warning',
+          watch_type: 'LAST_VALUE_LT',
+          condition: 'value < 85',
+          config: { threshold: 85 },
+          label: 'Forecast pace warning'
+        }
+      ]
+    }
+  ]
+});
+```
+
+Response should include created/reused counts and materialized resources:
+
+```json
+{
+  "created": {
+    "watch_groups": 1,
+    "watches": 2
+  },
+  "reused": {
+    "watch_groups": 0,
+    "watches": 0
+  },
+  "watch_groups": [
+    {
+      "watch_group_id": "wg_...",
+      "watch_group_key": "forecast_pace_health",
+      "winner_policy": "highest_severity_wins",
+      "cooldown_scope": "group",
+      "watches": []
+    }
+  ]
+}
+```
+
+### Evaluation Semantics
+
+For watches in the same group, same signal, same bucket, and same dimensions:
+
+1. Evaluate all active group members.
+2. Build the triggered candidate list.
+3. If no candidates trigger and group recovery condition is true, emit one recovery alert if group state was previously triggered.
+4. If candidates trigger, select one winner:
+   - `highest_severity_wins`: highest severity rank wins.
+   - `lowest_severity_wins`: lowest severity rank wins.
+   - Tie breaker: most specific threshold wins, then deterministic `band_key` order.
+5. Persist only the winner alert.
+6. Update group state and group cooldown.
+7. Suppress losing candidates with a clear reason, for observability.
+
+Severity rank:
+
+```text
+recovery is not a triggered candidate
+critical = 300
+warning = 200
+watch/info = 100
+```
+
+Example:
+
+```text
+value = 64
+warning candidate true
+critical candidate true
+winner_policy = highest_severity_wins
+winner = critical
+send only critical
+set group cooldown
+```
+
+```text
+value = 78
+warning candidate true
+critical candidate false
+winner = warning
+send warning
+set group cooldown
+```
+
+```text
+value = 64 during group cooldown after warning
+critical candidate true
+warning candidate true
+critical has higher severity than last group alert
+send critical escalation only
+keep group cooldown/state updated
+```
+
+### Subscriber And Routing Design
+
+Subscribers should not need to subscribe to each individual band. They usually subscribe at channel or workspace scope as they do today.
+
+Add optional subscriber filters later, not required for MVP:
+
+```json
+{
+  "filters": {
+    "severities": ["critical"],
+    "watch_group_keys": ["forecast_pace_health"]
+  }
+}
+```
+
+Use cases this supports:
+
+- User A gets warning and critical, but only one per group evaluation.
+- User B gets critical only.
+- Workspace webhook gets all group winners.
+- PagerDuty subscriber gets critical winners only.
+- Email subscriber avoids duplicate warning and critical emails.
+
+MVP can skip subscriber filters and still solve duplicate alerts, because only the winning alert is persisted and delivered.
+
+### Backward Compatibility
+
+- Existing `watches[]` in `admin.provisionChannel` continue to behave independently.
+- Existing `admin.createWatch` payloads continue to work unchanged.
+- Existing watch state and cooldown behavior remains per-watch unless a group is configured.
+- Existing subscribers receive only persisted alerts, so if only the group winner is persisted, subscriber delivery stays backward compatible.
+- Existing Foretic watch setup can continue until migrated.
+- The first migration should be additive only: new columns/table/indexes, no destructive rewrite.
+
+Recommended storage options:
+
+Option A, preferred long-term:
+
+```text
+watch_groups
+  id
+  watch_group_id
+  workspace_id
+  channel_id
+  signal_id
+  group_key
+  name
+  winner_policy
+  cooldown_scope
+  cooldown_seconds
+  recovery_json
+  config_json
+  created_at
+  updated_at
+
+watches
+  watch_group_id nullable
+  band_key nullable
+```
+
+Option B, smallest MVP:
+
+```text
+watches.watch_group_key nullable
+watches.band_key nullable
+watches.group_policy_json nullable
+watch_states can store group state under a synthetic group id
+```
+
+Recommendation: use Option A if this is becoming a public API concept. It is cleaner for docs, SDKs, state, observability, and future UI.
+
+### Implementation Notes
+
+- Add group loading beside `getActiveWatchesForSignal`.
+- For affected aggregate deltas, group watch invocations by:
+
+```text
+channel_id
+signal_id
+bucket_type
+bucket_start_at
+dimensions_hash
+watch_group_id
+```
+
+- Evaluate independent watches through the existing path.
+- Evaluate grouped watches through a new `evaluateWatchGroupRequest`.
+- Add group-level state, either in a new `watch_group_states` table or `watch_states` with a group target id.
+- Persist the winning alert using the existing alert/delivery path so downstream delivery remains unchanged.
+- Include `watch_group_id`, `watch_group_key`, `band_key`, and `winner_policy` in alert payload JSON for observability and webhooks.
+- Record suppressed candidates in state JSON or observability logs:
+
+```json
+{
+  "suppressed_candidates": [
+    {
+      "watch_id": "watch_warning",
+      "band_key": "warning",
+      "reason": "GROUP_WINNER_SELECTED",
+      "winner_watch_id": "watch_critical"
+    }
+  ]
+}
+```
+
+### SDK Updates
+
+Add support in the SDK without breaking existing methods:
+
+```js
+await headsup.provisionChannel({
+  ...,
+  watch_groups: [
+    {
+      group_key: 'forecast_pace_health',
+      signal_key: 'forecast.revenue.pace',
+      winner_policy: 'highest_severity_wins',
+      cooldown_seconds: 3600,
+      recovery: { condition: 'value >= 95', severity: 'recovery' },
+      bands: [
+        { band_key: 'critical', severity: 'critical', watch_type: 'LAST_VALUE_LT', config: { threshold: 70 } },
+        { band_key: 'warning', severity: 'warning', watch_type: 'LAST_VALUE_LT', config: { threshold: 85 } }
+      ]
+    }
+  ]
+});
+```
+
+If first-class APIs are added:
+
+```text
+headsup.createWatchGroup(payload)
+headsup.getWatchGroup(payload)
+headsup.listWatchGroups(payload)
+headsup.updateWatchGroup(payload)
+```
+
+MVP can ship only `provisionChannel.watch_groups` if we want to reduce API surface.
+
+### API Docs Updates
+
+Update:
+
+- `docs/api/provisioning.md`
+  - Add `watch_groups` request and response examples.
+  - Explain when to use `watch_groups` vs independent `watches`.
+
+- `docs/api/watch-types.md`
+  - Add "Grouped Severity Policies".
+  - Explain `highest_severity_wins`, `lowest_severity_wins`, group cooldown, and recovery.
+  - Include Foretic pace examples: 78 sends warning, 64 sends critical only.
+
+- `docs/api/reference.md`
+  - Add canonical `watch_groups` schema.
+  - Document validation errors.
+
+- `docs/api/openapi.yaml`
+  - Add examples for `admin.provisionChannel` with `watch_groups`.
+
+- `docs/public-sdk/concepts/watch-types.md`
+  - Mirror grouped policy guidance.
+
+- `docs/public-sdk/client-reference.md`
+  - Show SDK payload shape.
+
+### Test Requirements
+
+Unit tests:
+
+```text
+evaluate-watch-group.test.js
+  - value 78 with warning/critical bands sends warning only
+  - value 64 with warning/critical bands sends critical only
+  - highest_severity_wins chooses critical over warning
+  - lowest_severity_wins chooses lower-ranked candidate
+  - tie breaker is deterministic
+  - group cooldown suppresses same/lower severity repeats
+  - higher severity can escalate during cooldown
+  - recovery emits once when group was triggered
+  - no candidates produces no alert
+
+admin-control-plane.test.js
+  - provisionChannel creates watch group and bands
+  - repeat provision reuses group and bands
+  - invalid winner_policy rejected
+  - duplicate band_key rejected
+  - unknown signal_key rejected with section/index details
+
+alert-persistence.test.js
+  - alert payload records watch_group_id/watch_group_key/band_key
+  - only winning alert creates deliveries
+
+packages/headsupp-client/test/client.test.js
+  - provisionChannel accepts watch_groups payload and returns full response
+```
+
+Smoke tests:
+
+```text
+npm run smoke:watch-groups
+```
+
+Smoke behavior:
+
+```text
+1. Provision one grouped pace policy with warning 85 and critical 70.
+2. Send value 78.
+   Expect one warning delivery.
+3. Send value 64.
+   Expect one critical delivery, not warning + critical.
+4. Send value 96.
+   Expect one recovery delivery if previous group state was triggered.
+```
+
+### Foretic Migration Guidance
+
+Replace separate pace warning/critical default watches with one grouped policy:
+
+```js
+watch_groups: [
+  {
+    group_key: 'forecast_pace_health',
+    name: 'Forecast pace health',
+    signal_key: 'forecast.revenue.pace',
+    winner_policy: 'highest_severity_wins',
+    cooldown_scope: 'group',
+    cooldown_seconds: 3600,
+    recovery: {
+      condition: 'value >= 95',
+      severity: 'recovery'
+    },
+    bands: [
+      {
+        band_key: 'critical',
+        severity: 'critical',
+        watch_type: 'LAST_VALUE_LT',
+        config: { threshold: 70 },
+        label: 'Forecast pace critical'
+      },
+      {
+        band_key: 'warning',
+        severity: 'warning',
+        watch_type: 'LAST_VALUE_LT',
+        config: { threshold: 85 },
+        label: 'Forecast pace warning'
+      }
+    ]
+  }
+]
+```
+
+Expected Foretic recipient behavior:
+
+```text
+pace 90 -> no alert
+pace 78 -> warning email
+pace 64 -> critical email only
+pace 64 again during cooldown -> no duplicate
+pace 96 after triggered -> recovery email
+```
+
+### Acceptance Criteria
+
+- `watch_groups` are optional and do not affect independent watches.
+- Grouped watches can be provisioned idempotently through `admin.provisionChannel`.
+- For one signal/bucket/dimension evaluation, only one grouped candidate persists an alert.
+- `highest_severity_wins` and `lowest_severity_wins` are both supported.
+- Group cooldown suppresses same/lower severity repeats.
+- Higher severity escalation during group cooldown can still notify once.
+- Recovery clears group state.
+- Alert payloads and webhook/email rendering have enough metadata to explain the selected group/band.
+- API docs, SDK docs, and OpenAPI examples are updated.
+- Existing tests and smoke tests continue to pass.
+- New unit and smoke tests prove Foretic pace no longer double-fires warning + critical.
+
 ## Suggested Build Order
 
 ```text
@@ -739,6 +1212,7 @@ Produce a final copy block for Foretic with:
 8. A8 Smoke Tests
 9. Run tests + deploy + smoke
 10. A9 Foretic Agent Handoff
+11. A10 Grouped Watch Policies And Winner Selection
 ```
 
 ## Test Matrix
@@ -788,6 +1262,13 @@ provision-channel.test.js or admin-control-plane.test.js
 packages/headsupp-client/test/client.test.js
   - provisionChannel action envelope
   - full response returned
+
+evaluate-watch-group.test.js
+  - warning-only band result
+  - critical-only winner over warning
+  - lowest severity winner policy
+  - group cooldown and escalation
+  - group recovery
 ```
 
 ### New Smoke Tests
@@ -795,6 +1276,7 @@ packages/headsupp-client/test/client.test.js
 ```text
 npm run smoke:provision-channel
 npm run smoke:workspace-subscriber
+npm run smoke:watch-groups
 ```
 
 ## Release Checklist
@@ -807,6 +1289,8 @@ npm run smoke:workspace-subscriber
 - [ ] New smoke tests pass.
 - [ ] Docs updated.
 - [ ] SDK docs updated.
+- [ ] Watch group docs updated when A10 ships.
+- [ ] Watch group SDK examples updated when A10 ships.
 - [ ] Deployed worker uses new migration-compatible code.
 - [ ] Foretic copy block produced.
 

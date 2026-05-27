@@ -128,6 +128,7 @@ Payload props:
 - `connector` (object, optional): create or reuse a webhook connector.
 - `channel_contract` (object, optional): create the first active channel contract when none exists.
 - `signals` (array, optional): create or reuse signals.
+- `watch_groups` (array, optional): create grouped policy bands. Each group references `signal_key` or `signal_id`, has a stable `group_key`, a `winner_policy`, optional group cooldown/recovery, and `bands`.
 - `watches` (array, optional): create or reuse watches. Each watch may reference `signal_key`.
 - `subscribers` (array, optional): create or reuse channel-scoped subscribers.
 - `workspace_subscribers` (array, optional): create or reuse workspace-scoped webhook alert subscribers.
@@ -143,7 +144,9 @@ watch:create
 subscriber:create
 ```
 
-Returns `data.created`, `data.reused`, and all materialized resources. Connector secrets are returned only when the connector is newly created.
+Returns `data.created`, `data.reused`, and all materialized resources, including `watch_groups` when provided. Connector secrets are returned only when the connector is newly created.
+
+Use `watch_groups` for related warning/critical bands that should produce one alert. `highest_severity_wins` is the default policy for avoiding duplicate warning plus critical alerts.
 
 See [provisioning.md](provisioning.md).
 

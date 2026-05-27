@@ -6,6 +6,8 @@ export function buildAlert({ watch, evaluation, decision, input, now = new Date(
   const payload = {
     watch_id: watch.id || watch.watch_id,
     signal_id: watch.signal_id || input.signalId,
+    watch_group_id: input.watchGroupId || watch.watch_group_id || null,
+    band_key: watch.band_key || null,
     bucket_type: input.bucketType,
     bucket_start_at: input.bucketStartAt,
     current_value: decision.current_value,

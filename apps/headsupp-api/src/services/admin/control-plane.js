@@ -11,6 +11,7 @@ import { normalizeAuthorizationConfig, sendAuthorizationEmail } from '../subscri
 import { buildActionControlRow } from '../watches/action-controls.js';
 
 const VALID_SUBSCRIBER_MODES = new Set(['alert', 'aggregate_forward', 'quiet_summary', 'lifecycle']);
+const VALID_WATCH_GROUP_WINNER_POLICIES = new Set(['highest_severity_wins', 'lowest_severity_wins']);
 const WORKSPACE_SUBSCRIBER_SCOPE = 'workspace';
 const CHANNEL_SUBSCRIBER_SCOPE = 'channel';
 const WORKSPACE_SUBSCRIBER_CHANNEL_PREFIX = '__workspace__:';
@@ -245,12 +246,35 @@ export function buildWatchRow(input, now = new Date().toISOString()) {
     workspace_id: input.workspace_id,
     channel_id: input.channel_id,
     signal_id: input.signal_id,
+    watch_group_id: input.watch_group_id || null,
+    band_key: input.band_key || null,
     name: input.name,
     watch_type: input.watch_type,
     config_json: JSON.stringify(input.config || {}),
     cooldown_seconds: Number(input.cooldown_seconds ?? 86400),
     escalation_json: input.escalation ? JSON.stringify(input.escalation) : null,
     recovery_json: input.recovery ? JSON.stringify(input.recovery) : null,
+    enabled: input.enabled === false ? 0 : 1,
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+export function buildWatchGroupRow(input, now = new Date().toISOString()) {
+  const id = input.watch_group_id || stableId('wg', `${input.channel_id}:${input.signal_id}:${input.group_key}`);
+  return {
+    id,
+    watch_group_id: id,
+    workspace_id: input.workspace_id,
+    channel_id: input.channel_id,
+    signal_id: input.signal_id,
+    group_key: input.group_key,
+    name: input.name || input.group_key,
+    winner_policy: input.winner_policy || 'highest_severity_wins',
+    cooldown_scope: input.cooldown_scope || 'group',
+    cooldown_seconds: Number(input.cooldown_seconds ?? 86400),
+    recovery_json: input.recovery ? JSON.stringify(input.recovery) : null,
+    config_json: JSON.stringify(input.config || {}),
     enabled: input.enabled === false ? 0 : 1,
     created_at: now,
     updated_at: now,
@@ -496,6 +520,15 @@ async function loadSignal(db, signalId) {
 
 async function loadWatch(db, watchId) {
   return firstRow(db, 'SELECT * FROM watches WHERE id = ? OR watch_id = ? LIMIT 1', [watchId, watchId]);
+}
+
+async function loadWatchGroup(db, watchGroupId) {
+  return firstRow(db, 'SELECT * FROM watch_groups WHERE id = ? OR watch_group_id = ? LIMIT 1', [watchGroupId, watchGroupId]);
+}
+
+async function findWatchGroupByChannelKey(db, channelId, groupKey) {
+  if (!channelId || !groupKey) return null;
+  return firstRow(db, 'SELECT * FROM watch_groups WHERE channel_id = ? AND group_key = ? LIMIT 1', [channelId, groupKey]);
 }
 
 async function loadAlert(db, alertId) {
@@ -1047,6 +1080,42 @@ export async function createAdminWatch({ auth, db, input, now }) {
   if (existing) return { ok: true, created: false, watch: existing };
   await insertRow(db, 'watches', row);
   return { ok: true, created: true, watch: (await loadWatch(db, row.watch_id)) || row };
+}
+
+export async function createAdminWatchGroup({ auth, db, input, now }) {
+  const denied = denyIfNeeded(auth, 'watch:create');
+  if (denied) return denied;
+  const action = 'admin.createWatchGroup';
+  for (const field of ['workspace_id', 'channel_id', 'signal_id', 'group_key']) {
+    const required = requireString(input, field, action);
+    if (!required.ok) return required;
+  }
+  const winnerPolicy = input.winner_policy || 'highest_severity_wins';
+  if (!VALID_WATCH_GROUP_WINNER_POLICIES.has(winnerPolicy)) {
+    return validationError(action, 'winner_policy', 'winner_policy must be highest_severity_wins or lowest_severity_wins.');
+  }
+  const cooldownScope = input.cooldown_scope || 'group';
+  if (cooldownScope !== 'group') {
+    return validationError(action, 'cooldown_scope', 'cooldown_scope must be group.');
+  }
+  const scopeDeniedForInput = scopedCreateDenied(auth, input, action);
+  if (scopeDeniedForInput) return scopeDeniedForInput;
+  const scopeDenied =
+    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id })) ||
+    (await requireSignalScope({
+      db,
+      auth,
+      workspaceId: input.workspace_id,
+      channelId: input.channel_id,
+      signalId: input.signal_id,
+    }));
+  if (scopeDenied) return scopeDenied;
+  const row = buildWatchGroupRow({ ...input, winner_policy: winnerPolicy, cooldown_scope: cooldownScope }, now);
+  const existing = await findWatchGroupByChannelKey(db, row.channel_id, row.group_key);
+  if (existing) return { ok: true, created: false, watch_group: existing };
+  await insertRow(db, 'watch_groups', row);
+  return { ok: true, created: true, watch_group: (await loadWatchGroup(db, row.watch_group_id)) || row };
 }
 
 function buildSignalContract(explicitContract, channelContract) {

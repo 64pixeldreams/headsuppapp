@@ -65,7 +65,7 @@ const channel = await headsup.createChannel({
 
 ### provisionChannel(payload) → setup
 
-Creates or reuses a complete channel setup in one idempotent call: workspace, channel, connector, signals, watches, channel subscribers, and workspace subscribers.
+Creates or reuses a complete channel setup in one idempotent call: workspace, channel, connector, signals, watch groups, watches, channel subscribers, and workspace subscribers.
 
 ```js
 const setup = await headsup.provisionChannel({
@@ -84,13 +84,28 @@ const setup = await headsup.provisionChannel({
     connector_key: 'ck_demo_tenant_1_job_123'
   },
   signals: [{ signal_key: 'forecast.revenue.pace' }],
-  watches: [
+  watch_groups: [
     {
       signal_key: 'forecast.revenue.pace',
-      watch_key: 'pace_warning',
-      name: 'Forecast pace warning',
-      watch_type: 'LAST_VALUE_LT',
-      config: { threshold: 85, severity: 'warning' }
+      group_key: 'forecast_pace_health',
+      name: 'Forecast pace health',
+      winner_policy: 'highest_severity_wins',
+      cooldown_seconds: 3600,
+      recovery: { condition: 'value >= 95', severity: 'recovery' },
+      bands: [
+        {
+          band_key: 'warning',
+          severity: 'warning',
+          watch_type: 'LAST_VALUE_LT',
+          config: { threshold: 85, bucket_type: 'minute' }
+        },
+        {
+          band_key: 'critical',
+          severity: 'critical',
+          watch_type: 'LAST_VALUE_LT',
+          config: { threshold: 70, bucket_type: 'minute' }
+        }
+      ]
     }
   ],
   workspace_subscribers: [
@@ -106,6 +121,8 @@ const setup = await headsup.provisionChannel({
 // setup.created / setup.reused explain what changed
 // setup.connector.connector_secret is returned only when the connector is new
 ```
+
+Use `watch_groups` for related bands such as warning and critical. With `highest_severity_wins`, a critical value sends only the critical alert; the warning band is suppressed for that evaluation. Keep `watches` for independent policies that should alert separately.
 
 ### getChannel(payload) → channel
 

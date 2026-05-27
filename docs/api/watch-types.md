@@ -70,6 +70,10 @@ snooze / mute
 PERCENT_CHANGE_* / SPIKE_GT
   Better for movement-based signals, such as market prices, than raw LAST_VALUE_GT.
   Example: "price jumped 8% in an hour" is usually more useful than "price is still above 100" on every tick.
+
+watch_groups
+  Best when warning and critical are bands of the same policy. The group evaluates all matching bands and sends only the winner.
+  Example: forecast pace at 64% should send critical, not both warning and critical.
 ```
 
 Practical choices:
@@ -121,6 +125,70 @@ once_until_recovered
 on_escalation_only
   Planned, not implemented yet. It would alert first trigger and later higher-severity escalation, but not same-severity repeats.
 ```
+
+## Grouped Watch Policies
+
+Use a grouped watch policy when multiple thresholds describe the same thing. This is the recommended shape for warning/critical pairs.
+
+```json
+{
+  "watch_groups": [
+    {
+      "signal_key": "forecast.revenue.pace",
+      "group_key": "forecast_pace_health",
+      "name": "Forecast pace health",
+      "winner_policy": "highest_severity_wins",
+      "cooldown_seconds": 3600,
+      "recovery": {
+        "condition": "value >= 95",
+        "severity": "recovery"
+      },
+      "bands": [
+        {
+          "band_key": "warning",
+          "severity": "warning",
+          "watch_type": "LAST_VALUE_LT",
+          "config": { "threshold": 85, "bucket_type": "minute" }
+        },
+        {
+          "band_key": "critical",
+          "severity": "critical",
+          "watch_type": "LAST_VALUE_LT",
+          "config": { "threshold": 70, "bucket_type": "minute" }
+        }
+      ]
+    }
+  ]
+}
+```
+
+Behavior:
+
+```text
+value = 78
+  warning matches, critical does not, so warning alerts.
+
+value = 64
+  warning and critical both match, so critical alerts and warning is suppressed.
+
+warning already alerted, value later becomes critical during group cooldown
+  critical alerts as an escalation.
+
+critical already alerted, value later becomes warning during group cooldown
+  warning is suppressed.
+```
+
+Supported policies:
+
+```text
+highest_severity_wins
+  Default for warning/critical bands.
+
+lowest_severity_wins
+  Available for policies where the least severe matching band should be shown.
+```
+
+Grouped alerts include the winning `band_key` and `watch_group_id` in the alert payload. Existing ungrouped watches are unchanged and still alert independently.
 
 ## Watch Type Index
 

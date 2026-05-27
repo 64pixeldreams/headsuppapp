@@ -85,6 +85,7 @@ function provisionDb(calls = []) {
     connectors: [],
     signals: [],
     watches: [],
+    watch_groups: [],
     subscribers: [],
     signal_contracts: [],
     channel_contracts: [],
@@ -107,6 +108,12 @@ function provisionDb(calls = []) {
     }
     if (/FROM watches/.test(sql)) {
       return tables.watches.find((row) => row.id === params[0] || row.watch_id === params[0]) || null;
+    }
+    if (/FROM watch_groups/.test(sql)) {
+      if (/channel_id = \? AND group_key = \?/.test(sql)) {
+        return tables.watch_groups.find((row) => row.channel_id === params[0] && row.group_key === params[1]) || null;
+      }
+      return tables.watch_groups.find((row) => row.id === params[0] || row.watch_group_id === params[0]) || null;
     }
     if (/FROM subscribers/.test(sql)) {
       return tables.subscribers.find((row) => row.id === params[0] || row.subscriber_id === params[0]) || null;
@@ -408,6 +415,130 @@ test('admin provisionChannel creates a complete idempotent channel setup', async
   assert.equal(db.tables.signals.length, 1);
   assert.equal(db.tables.watches.length, 1);
   assert.equal(db.tables.subscribers.length, 2);
+});
+
+test('admin provisionChannel creates grouped watch policy bands idempotently', async () => {
+  const db = provisionDb();
+  const permissions = [
+    'workspace:create',
+    'channel:create',
+    'connector:create',
+    'signal:create',
+    'watch:create',
+    'subscriber:create',
+  ];
+  const payload = {
+    workspace: {
+      workspace_key: 'demo:tenant_group',
+      name: 'Grouped Tenant',
+      source_app: 'demo',
+      external_tenant_id: 'tenant_group',
+      external_user_id: 'user_group',
+    },
+    channel: {
+      channel_key: 'demo:tenant_group:forecast:one',
+      name: 'Forecast One',
+    },
+    signals: [{ signal_key: 'forecast.revenue.pace' }],
+    watch_groups: [
+      {
+        group_key: 'forecast_pace_health',
+        name: 'Forecast pace health',
+        signal_key: 'forecast.revenue.pace',
+        winner_policy: 'highest_severity_wins',
+        cooldown_seconds: 3600,
+        recovery: { condition: 'value >= 95', severity: 'recovery' },
+        bands: [
+          {
+            band_key: 'critical',
+            severity: 'critical',
+            watch_type: 'LAST_VALUE_LT',
+            config: { threshold: 70 },
+          },
+          {
+            band_key: 'warning',
+            severity: 'warning',
+            watch_type: 'LAST_VALUE_LT',
+            config: { threshold: 85 },
+          },
+        ],
+      },
+    ],
+  };
+
+  const first = await provisionAdminChannel({
+    auth: { user_id: 'user_admin', permissions },
+    db,
+    input: payload,
+    now: '2026-05-24T10:00:00.000Z',
+  });
+  const second = await provisionAdminChannel({
+    auth: { user_id: 'user_admin', permissions },
+    db,
+    input: payload,
+    now: '2026-05-24T10:01:00.000Z',
+  });
+
+  assert.equal(first.ok, true);
+  assert.equal(first.created.watch_groups, 1);
+  assert.equal(first.created.watches, 2);
+  assert.equal(first.watch_groups[0].group_key, 'forecast_pace_health');
+  assert.equal(first.watch_groups[0].watches.length, 2);
+  assert.equal(first.watch_groups[0].watches[0].watch_group_id, first.watch_groups[0].watch_group_id);
+  assert.equal(first.watch_groups[0].watches[0].band_key, 'critical');
+  assert.equal(second.ok, true);
+  assert.equal(second.created.watch_groups, 0);
+  assert.equal(second.reused.watch_groups, 1);
+  assert.equal(second.created.watches, 0);
+  assert.equal(second.reused.watches, 2);
+  assert.equal(db.tables.watch_groups.length, 1);
+  assert.equal(db.tables.watches.length, 2);
+});
+
+test('admin provisionChannel rejects duplicate watch group band keys', async () => {
+  const db = provisionDb();
+  const permissions = [
+    'workspace:create',
+    'channel:create',
+    'connector:create',
+    'signal:create',
+    'watch:create',
+    'subscriber:create',
+  ];
+  const result = await provisionAdminChannel({
+    auth: { user_id: 'user_admin', permissions },
+    db,
+    input: {
+      workspace: {
+        workspace_key: 'demo:tenant_dup_group',
+        name: 'Grouped Tenant',
+        source_app: 'demo',
+        external_tenant_id: 'tenant_dup_group',
+        external_user_id: 'user_group',
+      },
+      channel: {
+        channel_key: 'demo:tenant_dup_group:forecast:one',
+        name: 'Forecast One',
+      },
+      signals: [{ signal_key: 'forecast.revenue.pace' }],
+      watch_groups: [
+        {
+          group_key: 'forecast_pace_health',
+          signal_key: 'forecast.revenue.pace',
+          bands: [
+            { band_key: 'warning', severity: 'warning', watch_type: 'LAST_VALUE_LT', config: { threshold: 85 } },
+            { band_key: 'warning', severity: 'critical', watch_type: 'LAST_VALUE_LT', config: { threshold: 70 } },
+          ],
+        },
+      ],
+    },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'PROVISION_STEP_FAILED');
+  assert.equal(result.details.section, 'watch_groups');
+  assert.equal(result.details.cause.code, 'DUPLICATE_BAND_KEY');
 });
 
 test('admin provisionChannel reports unknown watch signal_key with section details', async () => {

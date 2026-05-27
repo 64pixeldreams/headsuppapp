@@ -12,6 +12,7 @@ channel
 connector
 channel contract, optional
 signals
+watch groups, optional
 watches
 channel subscribers
 workspace subscribers
@@ -58,14 +59,28 @@ const setup = await headsup.provisionChannel({
       description: 'Forecast revenue pace percentage.'
     }
   ],
-  watches: [
+  watch_groups: [
     {
       signal_key: 'forecast.revenue.pace',
-      watch_key: 'pace_warning',
-      name: 'Forecast pace warning',
-      watch_type: 'LAST_VALUE_LT',
-      config: { threshold: 85, severity: 'warning' },
-      cooldown_seconds: 3600
+      group_key: 'forecast_pace_health',
+      name: 'Forecast pace health',
+      winner_policy: 'highest_severity_wins',
+      cooldown_seconds: 3600,
+      recovery: { condition: 'value >= 95', severity: 'recovery' },
+      bands: [
+        {
+          band_key: 'warning',
+          severity: 'warning',
+          watch_type: 'LAST_VALUE_LT',
+          config: { threshold: 85, bucket_type: 'minute' }
+        },
+        {
+          band_key: 'critical',
+          severity: 'critical',
+          watch_type: 'LAST_VALUE_LT',
+          config: { threshold: 70, bucket_type: 'minute' }
+        }
+      ]
     }
   ],
   subscribers: [
@@ -113,13 +128,28 @@ console.log(setup.connector.connector_secret); // shown only when connector is n
     "signals": [
       { "signal_key": "revenue.pace" }
     ],
-    "watches": [
+    "watch_groups": [
       {
         "signal_key": "revenue.pace",
-        "watch_key": "pace_warning",
-        "name": "Revenue pace warning",
-        "watch_type": "LAST_VALUE_LT",
-        "config": { "threshold": 85, "severity": "warning" }
+        "group_key": "revenue_pace_health",
+        "name": "Revenue pace health",
+        "winner_policy": "highest_severity_wins",
+        "cooldown_seconds": 3600,
+        "recovery": { "condition": "value >= 95", "severity": "recovery" },
+        "bands": [
+          {
+            "band_key": "warning",
+            "severity": "warning",
+            "watch_type": "LAST_VALUE_LT",
+            "config": { "threshold": 85, "bucket_type": "minute" }
+          },
+          {
+            "band_key": "critical",
+            "severity": "critical",
+            "watch_type": "LAST_VALUE_LT",
+            "config": { "threshold": 70, "bucket_type": "minute" }
+          }
+        ]
       }
     ]
   }
@@ -136,7 +166,8 @@ console.log(setup.connector.connector_secret); // shown only when connector is n
     "channel": true,
     "connector": true,
     "signals": 1,
-    "watches": 1,
+    "watch_groups": 1,
+    "watches": 2,
     "subscribers": 1,
     "workspace_subscribers": 1
   },
@@ -145,6 +176,7 @@ console.log(setup.connector.connector_secret); // shown only when connector is n
     "channel": false,
     "connector": false,
     "signals": 0,
+    "watch_groups": 0,
     "watches": 0,
     "subscribers": 0,
     "workspace_subscribers": 0
@@ -154,6 +186,7 @@ console.log(setup.connector.connector_secret); // shown only when connector is n
   "connector": {},
   "secret_returned": true,
   "signals": [],
+  "watch_groups": [],
   "watches": [],
   "subscribers": [],
   "workspace_subscribers": []
@@ -167,11 +200,47 @@ workspace_key   stable per third-party tenant/account
 channel_key     stable per external resource
 connector_key   stable ingest key
 signal_key      stable signal inside a channel
+group_key       stable watch group inside a channel
+band_key        stable severity/condition band inside a group
 watch_key       stable watch inside a channel
 subscriber_key  optional stable subscriber override
 ```
 
 Rerun the same payload to repair partial setup or confirm all resources still exist.
+
+## Watch Groups
+
+Use `watch_groups` when several watches describe one logical policy, such as forecast pace warning and critical bands. Heads Up evaluates every enabled band in the group, selects one winner, and suppresses the other matching bands for that evaluation.
+
+Supported MVP policies:
+
+```text
+highest_severity_wins
+  Default. If warning and critical both match, only critical alerts.
+
+lowest_severity_wins
+  Use when lower severity should be the customer-facing winner and higher bands are only internal guardrails.
+```
+
+The group owns cooldown by default. If a warning was sent and the value later moves into critical during the group cooldown, the critical band can still alert because it is a higher severity escalation. If critical already alerted, a later warning is suppressed until the group recovers or cooldown expires.
+
+Alerts produced from a group still point at the winning watch, and the payload includes:
+
+```json
+{
+  "watch_group_id": "wg_...",
+  "band_key": "critical",
+  "fields": {
+    "watch_group": {
+      "watch_group_key": "forecast_pace_health",
+      "winner_policy": "highest_severity_wins",
+      "candidate_count": 2
+    }
+  }
+}
+```
+
+Keep using `watches` for independent policies that should be allowed to alert separately.
 
 ## Workspace Subscribers
 

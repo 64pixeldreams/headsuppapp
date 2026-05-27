@@ -65,6 +65,44 @@ Forward a closed aggregate bucket         AGGREGATE_FORWARD
 
 There is no `WINDOW_MAX_GT` watch type. If you need the highest value in a closed bucket, use `AGGREGATE_FORWARD` and read `values.max`, or model a spike/threshold watch depending on the product need.
 
+## Grouped Watch Policies
+
+When warning and critical are bands of one policy, create them through `provisionChannel.watch_groups` instead of separate independent watches.
+
+```js
+await headsup.provisionChannel({
+  workspace,
+  channel,
+  signals: [{ signal_key: 'forecast.revenue.pace' }],
+  watch_groups: [
+    {
+      signal_key: 'forecast.revenue.pace',
+      group_key: 'forecast_pace_health',
+      name: 'Forecast pace health',
+      winner_policy: 'highest_severity_wins',
+      cooldown_seconds: 3600,
+      recovery: { condition: 'value >= 95', severity: 'recovery' },
+      bands: [
+        {
+          band_key: 'warning',
+          severity: 'warning',
+          watch_type: 'LAST_VALUE_LT',
+          config: { threshold: 85, bucket_type: 'minute' },
+        },
+        {
+          band_key: 'critical',
+          severity: 'critical',
+          watch_type: 'LAST_VALUE_LT',
+          config: { threshold: 70, bucket_type: 'minute' },
+        },
+      ],
+    },
+  ],
+});
+```
+
+With `highest_severity_wins`, a value of `78` sends warning, while a value of `64` sends only critical even though the warning threshold also matches. The group owns cooldown, so a later higher-severity band can still escalate during cooldown, while equal or lower severity repeats stay quiet.
+
 ## Watch Type Index
 
 Use these stable anchors when linking from references and SDK docs.

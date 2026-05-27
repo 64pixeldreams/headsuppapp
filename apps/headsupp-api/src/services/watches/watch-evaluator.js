@@ -3,6 +3,7 @@ import { decideAlertAction } from './alert-decision.js';
 import { loadActiveWatchActionControls } from './action-controls.js';
 import { recordWatchEvaluationState } from './state.js';
 import { persistAlertWithDeliveries } from '../alerts/persistence.js';
+import { evaluateWatchGroupRequest, loadWatchGroup } from './watch-groups.js';
 
 export async function loadWatch(db, watchId) {
   return db.prepare('SELECT * FROM watches WHERE id = ? OR watch_id = ? LIMIT 1').bind(watchId, watchId).first();
@@ -71,6 +72,26 @@ export async function evaluateWatchRequest({ db, env = {}, input, now = input.no
       evaluated: false,
       reason: 'WATCH_DISABLED',
     };
+  }
+
+  if (watch.watch_group_id) {
+    const group = await loadWatchGroup(db, watch.watch_group_id);
+    if (group?.enabled === 0 || group?.enabled === false) {
+      return {
+        evaluated: false,
+        reason: 'WATCH_GROUP_DISABLED',
+      };
+    }
+    if (group) {
+      return evaluateWatchGroupRequest({
+        db,
+        env,
+        group,
+        input,
+        loadAggregatesForWatch,
+        now,
+      });
+    }
   }
 
   const [state, aggregates, actionControls] = await Promise.all([
