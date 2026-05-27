@@ -224,6 +224,24 @@ subscriber.channel_id belongs to subscriber.workspace_id
 
 Current admin create actions enforce these relationships before writes where a referenced resource already exists. Missing ownership context fails closed when authenticated API-key metadata includes tenant fields.
 
+For server-to-server integrations that manage many end-customer tenants, create the service API key with:
+
+```text
+source_app = <integration app id, for example foretic>
+external_tenant_id = omitted/null
+external_user_id = omitted/null
+```
+
+Then put the end-customer or Foretic user on each Heads Up resource:
+
+```text
+resource.source_app = foretic
+resource.external_tenant_id = user:mkfoxvxgoyfbtd
+resource.external_user_id = user:mkfoxvxgoyfbtd
+```
+
+If a service API key itself has `external_tenant_id`, it is treated as scoped to that single tenant. Requests that try to create or mutate resources for a different `external_tenant_id` fail with `TENANT_SCOPE_MISMATCH` before the write. The error details include the expected and received tenant values where available.
+
 Do not rely on channel names, forecast names, Slack labels, or request body ownership fields for authorization.
 
 The deployed tenant isolation smoke proves the current API behaviour with two workspaces that intentionally share the same `signal_key`:

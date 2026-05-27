@@ -69,6 +69,20 @@ watch:control
 
 Integration service keys should include only the permissions required by the actions they call.
 
+## Tenant Scope For Integration Service Keys
+
+A service key can be scoped broadly to an integration app or narrowly to one tenant.
+
+For a backend integration such as Foretic that manages many Foretic users, use a service API key with `source_app = foretic` and no key-level `external_tenant_id`. Each created workspace/channel then supplies the Foretic user as `external_tenant_id` and `external_user_id`.
+
+If the service API key has `external_tenant_id`, Heads Up treats the key as single-tenant. A create or update request for a different `external_tenant_id` returns `TENANT_SCOPE_MISMATCH` before writing.
+
+## Validation And Idempotent Creates
+
+Generic admin create actions validate required fields before D1 writes and return `VALIDATION_ERROR` for missing/invalid request shapes. Optional values are normalized before binding to D1.
+
+When a stable unique key already exists, create actions return the canonical stored row with `created: false`. Connector secrets are returned only on a true first create; duplicate connector creates return the existing connector without `connector_secret`.
+
 ## Operator Functions
 
 Bootstrap and key lifecycle functions:

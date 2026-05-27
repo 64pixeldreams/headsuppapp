@@ -35,25 +35,48 @@ All control-plane requests use:
 
 ## Action Props
 
+## Validation And Idempotency
+
+Admin create actions validate required fields before writing to D1. Missing required fields return a structured error:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "external_user_id is required.",
+    "status": 400,
+    "details": {
+      "action": "admin.createWorkspace",
+      "field": "external_user_id"
+    }
+  }
+}
+```
+
+Optional values are normalized to `null` before D1 writes; integrator payload mistakes should not surface as `D1_TYPE_ERROR`.
+
+Generic create actions are fetch-or-create when a stable unique key is supplied or derivable. Duplicate creates return the canonical stored row with `created: false`. Connector secrets are returned only when the connector is newly created.
+
 ### `admin.createWorkspace`
 
 Payload props:
 
-- `name` (string, required): workspace display name.
+- `name` (string, required): workspace display name. `display_name` is accepted as an alias.
 - `workspace_key` (string, optional): stable external key.
-- `source_app` (string, optional): producer app label.
-- `external_tenant_id` (string, optional): tenant scoping key.
-- `external_user_id` (string, optional): user scoping key.
+- `source_app` (string, required): producer app label.
+- `external_tenant_id` (string, required): tenant scoping key.
+- `external_user_id` (string, required): user scoping key.
 - `status` (string, optional): defaults to `active`.
 
-Returns `data.workspace`.
+Returns `data.workspace` and `data.created`.
 
 ### `admin.createChannel`
 
 Payload props:
 
 - `workspace_id` (string, required): parent workspace.
-- `name` (string, required): channel display name.
+- `name` (string, required): channel display name. `display_name` is accepted as an alias.
 - `channel_key` (string, optional): stable external key.
 - `purpose` (string, optional): business purpose.
 - `status` (string, optional): defaults to `active`.
@@ -63,7 +86,7 @@ Payload props:
 - `external_resource_id` (string, optional): external entity ID.
 - `metadata` (object, optional): user-defined context echoed in callbacks.
 
-Returns `data.channel` with:
+Returns `data.channel` and `data.created` with:
 
 - channel identity fields.
 - ownership fields.
@@ -108,7 +131,7 @@ Payload props:
 - `config` (object, optional): receiver settings (`signing_secret` for webhook, `template_id`/`value_format`/`locale`/template labels/standard action buttons for email).
 - `enabled` (boolean, optional): defaults to true.
 
-Returns `data.subscriber` (redacted destination only).
+Returns `data.subscriber` (redacted destination only), `data.created`, and optional `data.authorization`.
 
 Email `config` supports formatted notification templates:
 
@@ -236,13 +259,13 @@ Payload props:
 - `signal_id` (string, required).
 - `name` (string, required).
 - `watch_type` (string, required).
-- `config` (object, required): watch-specific config. Supports `renotify_policy` for repeat-notification behavior.
+- `config` (object, optional): watch-specific config. Supports `renotify_policy` for repeat-notification behavior.
 - `cooldown_seconds` (number, optional).
 - `escalation` (object, optional).
 - `recovery` (object, optional).
 - `enabled` (boolean, optional).
 
-Returns `data.watch`.
+Returns `data.watch` and `data.created`.
 
 Noise-control props:
 

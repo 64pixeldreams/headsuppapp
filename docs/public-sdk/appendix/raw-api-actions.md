@@ -37,25 +37,31 @@ All control-plane requests use:
 
 ## Action Props
 
+## Validation And Idempotency
+
+Admin create actions validate required fields before writing to D1. Missing required fields return a structured `VALIDATION_ERROR`. Optional values are normalized before D1 writes.
+
+Generic create actions are fetch-or-create when a stable unique key is supplied or derivable. Duplicate creates return the canonical stored row with `created: false`. Connector secrets are returned only when the connector is newly created.
+
 ### `admin.createWorkspace`
 
 Payload props:
 
-- `name` (string, required): workspace display name.
+- `name` (string, required): workspace display name. `display_name` is accepted as an alias.
 - `workspace_key` (string, optional): stable external key.
-- `source_app` (string, optional): producer app label.
-- `external_tenant_id` (string, optional): tenant scoping key.
-- `external_user_id` (string, optional): user scoping key.
+- `source_app` (string, required): producer app label.
+- `external_tenant_id` (string, required): tenant scoping key.
+- `external_user_id` (string, required): user scoping key.
 - `status` (string, optional): defaults to `active`.
 
-Returns `data.workspace`.
+Returns `data.workspace` and `data.created`.
 
 ### `admin.createChannel`
 
 Payload props:
 
 - `workspace_id` (string, required): parent workspace.
-- `name` (string, required): channel display name.
+- `name` (string, required): channel display name. `display_name` is accepted as an alias.
 - `channel_key` (string, optional): stable external key.
 - `purpose` (string, optional): business purpose.
 - `status` (string, optional): defaults to `active`.
@@ -65,7 +71,7 @@ Payload props:
 - `external_resource_id` (string, optional): external entity ID.
 - `metadata` (object, optional): user-defined context echoed in callbacks.
 
-Returns `data.channel` with:
+Returns `data.channel` and `data.created` with:
 
 - channel identity fields.
 - ownership fields.
@@ -103,14 +109,14 @@ Payload props:
 
 - `workspace_id` (string, required).
 - `channel_id` (string, required).
-- `subscriber_type` (string, required): `webhook` or `slack_webhook`.
-- `destination_url` (string, required, https).
+- `subscriber_type` (string, required): `webhook`, `slack_webhook`, or `email`.
+- `destination_url` (string, required): https URL for webhook/slack, email address for `email`.
 - `display_name` (string, optional).
 - `mode` (string, optional): `alert`, `aggregate_forward`, `quiet_summary`. Defaults to `alert`.
-- `config` (object, optional): receiver settings (for example `signing_secret`).
+- `config` (object, optional): receiver settings (for example `signing_secret`, email templates, or authorization).
 - `enabled` (boolean, optional): defaults to true.
 
-Returns `data.subscriber` (redacted destination only).
+Returns `data.subscriber` (redacted destination only), `data.created`, and optional `data.authorization`.
 
 ### `admin.createSignal`
 
@@ -137,13 +143,13 @@ Payload props:
 - `signal_id` (string, required).
 - `name` (string, required).
 - `watch_type` (string, required).
-- `config` (object, required): watch-specific config.
+- `config` (object, optional): watch-specific config.
 - `cooldown_seconds` (number, optional).
 - `escalation` (object, optional).
 - `recovery` (object, optional).
 - `enabled` (boolean, optional).
 
-Returns `data.watch`.
+Returns `data.watch` and `data.created`.
 
 Supported watch types (explained in [watch-types.md](watch-types.md)):
 

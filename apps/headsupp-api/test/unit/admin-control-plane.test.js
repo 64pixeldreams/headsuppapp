@@ -56,6 +56,7 @@ function scopedDb(rows = {}, calls = []) {
             async first() {
               if (/FROM workspaces/.test(sql)) return rows.workspace || null;
               if (/FROM channels/.test(sql)) return rows.channel || null;
+              if (/FROM connectors/.test(sql)) return rows.connector || null;
               if (/FROM subscribers/.test(sql)) return rows.subscriber || null;
               if (/FROM signals/.test(sql)) return rows.signal || null;
               if (/FROM watches/.test(sql)) return rows.watch || null;
@@ -84,13 +85,13 @@ test('admin workspace creation requires permission and inserts D1 row', async ()
   const result = await createAdminWorkspace({
     auth,
     db: dbRecorder(calls),
-    input: { name: 'Foretic Demo', source_app: 'foretic', external_tenant_id: 'user:123' },
+    input: { name: 'Foretic Demo', source_app: 'foretic', external_tenant_id: 'user:123', external_user_id: 'user:123' },
     now: '2026-05-24T10:00:00.000Z',
   });
 
   assert.equal(result.ok, true);
   assert.equal(result.workspace.source_app, 'foretic');
-  assert.match(calls[0].sql, /INSERT OR IGNORE INTO workspaces/);
+  assert.match(calls.find((call) => /INSERT OR IGNORE INTO workspaces/.test(call.sql)).sql, /INSERT OR IGNORE INTO workspaces/);
 });
 
 test('admin workspace creation rejects missing permission', async () => {
@@ -102,6 +103,50 @@ test('admin workspace creation rejects missing permission', async () => {
 
   assert.equal(result.ok, false);
   assert.equal(result.code, 'PERMISSION_DENIED');
+});
+
+test('admin workspace creation validates required fields before D1 writes', async () => {
+  const calls = [];
+  const result = await createAdminWorkspace({
+    auth,
+    db: dbRecorder(calls),
+    input: {
+      workspace_key: 'foretic:user:123',
+      display_name: 'Foretic',
+      source_app: 'foretic',
+      external_tenant_id: 'user:123',
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'VALIDATION_ERROR');
+  assert.equal(result.details.field, 'external_user_id');
+  assert.equal(calls.length, 0);
+});
+
+test('admin workspace creation rejects API-key tenant scope mismatch before insert', async () => {
+  const calls = [];
+  const result = await createAdminWorkspace({
+    auth: {
+      user_id: 'service:foretic-temp',
+      permissions: ['workspace:create'],
+      source_app: 'foretic',
+      external_tenant_id: 'internal-temp',
+    },
+    db: dbRecorder(calls),
+    input: {
+      name: 'Foretic user',
+      source_app: 'foretic',
+      external_tenant_id: 'user:123',
+      external_user_id: 'user:123',
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'TENANT_SCOPE_MISMATCH');
+  assert.equal(result.details.expected, 'internal-temp');
+  assert.equal(result.details.received, 'user:123');
+  assert.equal(calls.length, 0);
 });
 
 test('channel row serializes metadata JSON', () => {
@@ -195,7 +240,13 @@ test('admin signal creation can persist a contract', async () => {
   const calls = [];
   const result = await createAdminSignal({
     auth,
-    db: dbRecorder(calls),
+    db: scopedDb(
+      {
+        workspace: { id: 'ws_123', workspace_id: 'ws_123' },
+        channel: { id: 'ch_123', channel_id: 'ch_123', workspace_id: 'ws_123' },
+      },
+      calls,
+    ),
     input: {
       workspace_id: 'ws_123',
       channel_id: 'ch_123',
@@ -433,6 +484,40 @@ test('admin connector writes connector metadata to KV store', async () => {
   assert.equal(result.ok, true);
   assert.equal(writes[0].type, 'connector_by_key');
   assert.equal(writes[0].value.connector_secret, 'hu_sec_test');
+});
+
+test('admin connector duplicate create returns existing connector without a fresh secret', async () => {
+  const result = await createAdminConnector({
+    auth: { user_id: 'user_admin', permissions: ['connector:create'] },
+    db: scopedDb({
+      workspace: { id: 'ws_123', workspace_id: 'ws_123', source_app: 'demo', external_tenant_id: 'tenant_1' },
+      channel: {
+        id: 'ch_123',
+        channel_id: 'ch_123',
+        workspace_id: 'ws_123',
+        source_app: 'demo',
+        external_tenant_id: 'tenant_1',
+      },
+      connector: {
+        id: 'conn_123',
+        connector_id: 'conn_123',
+        workspace_id: 'ws_123',
+        channel_id: 'ch_123',
+        connector_type: 'webhook',
+        connector_key: 'ck_existing',
+        connector_secret: 'hu_sec_existing',
+        enabled: 1,
+      },
+    }),
+    input: { workspace_id: 'ws_123', channel_id: 'ch_123', connector_type: 'webhook', connector_key: 'ck_existing' },
+    secretFactory: () => 'hu_sec_new_should_not_return',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.created, false);
+  assert.equal(result.secret_returned, false);
+  assert.equal(result.connector.connector_key, 'ck_existing');
+  assert.equal(result.connector.connector_secret, undefined);
 });
 
 test('admin subscriber rejects channel from another workspace', async () => {

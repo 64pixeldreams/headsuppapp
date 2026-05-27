@@ -30,6 +30,7 @@ function resultToResponse(result) {
       code: result.code,
       message: result.message,
       status: result.status,
+      details: result.details || null,
     },
   };
 }

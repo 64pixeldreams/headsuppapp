@@ -30,8 +30,12 @@ export function buildAuditRow({
   const sourceApp = input.source_app || auth?.source_app || null;
   const externalTenantId = input.external_tenant_id || auth?.external_tenant_id || null;
   const actorId = auth?.key_id || auth?.user_id || 'operator-bootstrap';
+  const uniqueId =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? `audit_${crypto.randomUUID().replace(/-/g, '')}`
+      : stableId('audit', `${action}:${actorId}:${targetId || 'none'}:${requestId || 'no-request'}:${now}:${Math.random()}`);
   return {
-    id: stableId('audit', `${action}:${actorId}:${targetId || 'none'}:${now}`),
+    id: uniqueId,
     action,
     actor_user_id: auth?.user_id || null,
     actor_key_id: auth?.key_id || null,

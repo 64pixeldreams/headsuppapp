@@ -30,3 +30,21 @@ test('control-plane audit rows redact secret fields', () => {
   assert.equal(metadata.nested.api_key, '[redacted]');
   assert.equal(row.success, 1);
 });
+
+test('control-plane audit row ids include request id to avoid same-second collisions', () => {
+  const base = {
+    action: 'admin.createWorkspace',
+    auth: { user_id: 'service:foretic', key_id: 'key_hash' },
+    targetType: null,
+    targetId: null,
+    input: { source_app: 'foretic' },
+    success: false,
+    errorCode: 'VALIDATION_ERROR',
+    now: '2026-05-24T10:00:00.000Z',
+  };
+
+  const first = buildAuditRow({ ...base, requestId: 'req_one' });
+  const second = buildAuditRow({ ...base, requestId: 'req_two' });
+
+  assert.notEqual(first.id, second.id);
+});

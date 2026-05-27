@@ -16,6 +16,53 @@ function denyIfNeeded(auth, permission) {
   return allowed.ok ? null : allowed;
 }
 
+function cleanString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function validationError(action, field, message = `${field} is required.`) {
+  return {
+    ok: false,
+    status: 400,
+    code: 'VALIDATION_ERROR',
+    message,
+    details: { action, field },
+  };
+}
+
+function requireString(input, field, action, { aliases = [] } = {}) {
+  const value = cleanString(input?.[field]) || aliases.map((alias) => cleanString(input?.[alias])).find(Boolean);
+  if (!value) return validationError(action, field);
+  return { ok: true, value };
+}
+
+function scopedCreateDenied(auth, input, action) {
+  if (auth?.source_app && input.source_app && auth.source_app !== input.source_app) {
+    return {
+      ok: false,
+      status: 403,
+      code: 'TENANT_SCOPE_MISMATCH',
+      message: 'Requested source_app is outside the authenticated API key scope.',
+      details: { action, field: 'source_app', expected: auth.source_app, received: input.source_app },
+    };
+  }
+  if (auth?.external_tenant_id && input.external_tenant_id && auth.external_tenant_id !== input.external_tenant_id) {
+    return {
+      ok: false,
+      status: 403,
+      code: 'TENANT_SCOPE_MISMATCH',
+      message: 'Requested external_tenant_id is outside the authenticated API key scope.',
+      details: {
+        action,
+        field: 'external_tenant_id',
+        expected: auth.external_tenant_id,
+        received: input.external_tenant_id,
+      },
+    };
+  }
+  return null;
+}
+
 function normalizeKey(value) {
   return String(value || '')
     .trim()
@@ -25,13 +72,14 @@ function normalizeKey(value) {
 }
 
 export function buildWorkspaceRow(input, now = new Date().toISOString()) {
-  const workspaceKey = input.workspace_key || `${input.source_app || 'headsupp'}:${normalizeKey(input.name)}`;
+  const name = input.name || input.display_name;
+  const workspaceKey = input.workspace_key || `${input.source_app || 'headsupp'}:${normalizeKey(name)}`;
   const id = input.workspace_id || stableId('ws', workspaceKey);
   return {
     id,
     workspace_id: id,
     workspace_key: workspaceKey,
-    name: input.name,
+    name,
     source_app: input.source_app || 'headsupp',
     external_tenant_id: input.external_tenant_id || id,
     external_user_id: input.external_user_id || null,
@@ -42,13 +90,14 @@ export function buildWorkspaceRow(input, now = new Date().toISOString()) {
 }
 
 export function buildChannelRow(input, now = new Date().toISOString()) {
-  const channelKey = input.channel_key || `${input.workspace_id}:${normalizeKey(input.name)}`;
+  const name = input.name || input.display_name;
+  const channelKey = input.channel_key || `${input.workspace_id}:${normalizeKey(name)}`;
   const id = input.channel_id || stableId('ch', channelKey);
   return {
     id,
     channel_id: id,
     workspace_id: input.workspace_id,
-    name: input.name,
+    name,
     channel_key: channelKey,
     purpose: input.purpose || null,
     status: input.status || 'active',
@@ -312,7 +361,7 @@ async function insertRow(db, table, row) {
   const placeholders = columns.map(() => '?').join(', ');
   await db
     .prepare(`INSERT OR IGNORE INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`)
-    .bind(...columns.map((column) => row[column]))
+    .bind(...columns.map((column) => (row[column] === undefined ? null : row[column])))
     .run();
   return row;
 }
@@ -375,6 +424,30 @@ async function loadActiveChannelContract(db, channelId) {
 
 function ownershipError(code, message) {
   return { ok: false, status: 403, code, message };
+}
+
+function notFound(code, message) {
+  return { ok: false, status: 404, code, message };
+}
+
+async function findWorkspaceByKey(db, workspaceKey) {
+  if (!workspaceKey) return null;
+  return firstRow(db, 'SELECT * FROM workspaces WHERE workspace_key = ? LIMIT 1', [workspaceKey]);
+}
+
+async function findChannelByKey(db, channelKey) {
+  if (!channelKey) return null;
+  return firstRow(db, 'SELECT * FROM channels WHERE channel_key = ? LIMIT 1', [channelKey]);
+}
+
+async function findConnectorByKey(db, connectorKey) {
+  if (!connectorKey) return null;
+  return firstRow(db, 'SELECT * FROM connectors WHERE connector_key = ? LIMIT 1', [connectorKey]);
+}
+
+async function findSignalByChannelKey(db, channelId, signalKey) {
+  if (!channelId || !signalKey) return null;
+  return firstRow(db, 'SELECT * FROM signals WHERE channel_id = ? AND signal_key = ? LIMIT 1', [channelId, signalKey]);
 }
 
 async function requireWorkspaceScope({ db, auth, workspaceId }) {
@@ -446,20 +519,45 @@ function inheritOwnership(input, parent = {}) {
 export async function createAdminWorkspace({ auth, db, input, now }) {
   const denied = denyIfNeeded(auth, 'workspace:create');
   if (denied) return denied;
+  const action = 'admin.createWorkspace';
+  const name = requireString(input, 'name', action, { aliases: ['display_name'] });
+  if (!name.ok) return name;
+  for (const field of ['source_app', 'external_tenant_id', 'external_user_id']) {
+    const required = requireString(input, field, action);
+    if (!required.ok) return required;
+  }
+  const scopeDenied = scopedCreateDenied(auth, input, action);
+  if (scopeDenied) return scopeDenied;
   const row = buildWorkspaceRow(input, now);
-  return { ok: true, workspace: await insertRow(db, 'workspaces', row) };
+  const existing = await findWorkspaceByKey(db, row.workspace_key);
+  if (existing) return { ok: true, created: false, workspace: existing };
+  await insertRow(db, 'workspaces', row);
+  return { ok: true, created: true, workspace: (await loadWorkspace(db, row.workspace_id)) || row };
 }
 
 export async function createAdminChannel({ auth, db, input, now }) {
   const denied = denyIfNeeded(auth, 'channel:create');
   if (denied) return denied;
+  const action = 'admin.createChannel';
+  for (const field of ['workspace_id']) {
+    const required = requireString(input, field, action);
+    if (!required.ok) return required;
+  }
+  const name = requireString(input, 'name', action, { aliases: ['display_name'] });
+  if (!name.ok) return name;
+  const scopeDeniedForInput = scopedCreateDenied(auth, input, action);
+  if (scopeDeniedForInput) return scopeDeniedForInput;
   const normalizedMetadata = normalizeChannelMetadata(input.metadata);
   if (!normalizedMetadata.ok) return normalizedMetadata;
   const scopeDenied = await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id });
   if (scopeDenied) return scopeDenied;
   const workspace = await loadWorkspace(db, input.workspace_id);
+  if (!workspace) return notFound('WORKSPACE_NOT_FOUND', 'Workspace was not found.');
   const row = buildChannelRow(inheritOwnership({ ...input, metadata: normalizedMetadata.value }, workspace), now);
-  return { ok: true, channel: publicChannel(await insertRow(db, 'channels', row)) };
+  const existing = await findChannelByKey(db, row.channel_key);
+  if (existing) return { ok: true, created: false, channel: publicChannel(existing) };
+  await insertRow(db, 'channels', row);
+  return { ok: true, created: true, channel: publicChannel((await loadChannel(db, row.channel_id)) || row) };
 }
 
 export async function getAdminChannel({ auth, db, input }) {
@@ -515,28 +613,50 @@ export async function updateAdminChannel({ auth, db, input, now }) {
 export async function createAdminConnector({ auth, db, input, now, secretFactory, store }) {
   const denied = denyIfNeeded(auth, 'connector:create');
   if (denied) return denied;
+  const action = 'admin.createConnector';
+  for (const field of ['workspace_id', 'channel_id']) {
+    const required = requireString(input, field, action);
+    if (!required.ok) return required;
+  }
+  const scopeDeniedForInput = scopedCreateDenied(auth, input, action);
+  if (scopeDeniedForInput) return scopeDeniedForInput;
   const scopeDenied =
     (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
     (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
   if (scopeDenied) return scopeDenied;
   const channel = await loadChannel(db, input.channel_id);
+  if (!channel) return notFound('CHANNEL_NOT_FOUND', 'Channel was not found.');
   const row = buildConnectorRow(inheritOwnership(input, channel), now, secretFactory);
+  const existing = await findConnectorByKey(db, row.connector_key);
+  if (existing) return { ok: true, created: false, connector: publicConnector(existing, { includeSecret: false }), secret_returned: false };
   await insertRow(db, 'connectors', row);
-  if (store) await store.put('connector_by_key', row.connector_key, row);
-  return { ok: true, connector: publicConnector(row, { includeSecret: true }) };
+  const stored = (await findConnectorByKey(db, row.connector_key)) || row;
+  if (store) await store.put('connector_by_key', stored.connector_key, stored);
+  return { ok: true, created: true, connector: publicConnector(stored, { includeSecret: true }), secret_returned: true };
 }
 
 export async function createAdminSubscriber({ auth, db, input, env = {}, now }) {
   const denied = denyIfNeeded(auth, 'subscriber:create');
   if (denied) return denied;
+  const action = 'admin.createSubscriber';
+  for (const field of ['workspace_id', 'channel_id', 'subscriber_type', 'destination_url']) {
+    const required = requireString(input, field, action);
+    if (!required.ok) return required;
+  }
+  const scopeDeniedForInput = scopedCreateDenied(auth, input, action);
+  if (scopeDeniedForInput) return scopeDeniedForInput;
   const scopeDenied =
     (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
     (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
   if (scopeDenied) return scopeDenied;
   const channel = await loadChannel(db, input.channel_id);
+  if (!channel) return notFound('CHANNEL_NOT_FOUND', 'Channel was not found.');
   const built = buildSubscriberRow(inheritOwnership(input, channel), now);
   if (!built.ok) return built;
-  const subscriber = await insertRow(db, 'subscribers', built.row);
+  const existing = await loadSubscriber(db, built.row.subscriber_id);
+  if (existing) return { ok: true, created: false, subscriber: publicSubscriber(existing), authorization: null };
+  await insertRow(db, 'subscribers', built.row);
+  const subscriber = (await loadSubscriber(db, built.row.subscriber_id)) || built.row;
   let authorization = null;
   if (subscriber.subscriber_type === 'email') {
     const config = parseJsonField(subscriber.config_json, {});
@@ -544,7 +664,7 @@ export async function createAdminSubscriber({ auth, db, input, env = {}, now }) 
       authorization = await sendAuthorizationEmail({ env, subscriber, now });
     }
   }
-  return { ok: true, subscriber: publicSubscriber(subscriber), authorization };
+  return { ok: true, created: true, subscriber: publicSubscriber(subscriber), authorization };
 }
 
 async function resolveAdminSubscriber({ db, workspaceId, channelId, subscriberId, email, mode }) {
@@ -656,20 +776,32 @@ export async function deleteAdminSubscriber({ auth, db, input }) {
 export async function createAdminSignal({ auth, db, input, now }) {
   const denied = denyIfNeeded(auth, 'signal:create');
   if (denied) return denied;
+  const action = 'admin.createSignal';
+  for (const field of ['workspace_id', 'channel_id', 'signal_key']) {
+    const required = requireString(input, field, action);
+    if (!required.ok) return required;
+  }
+  const scopeDeniedForInput = scopedCreateDenied(auth, input, action);
+  if (scopeDeniedForInput) return scopeDeniedForInput;
   const scopeDenied =
     (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
     (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
   if (scopeDenied) return scopeDenied;
+  const channel = await loadChannel(db, input.channel_id);
+  if (!channel) return notFound('CHANNEL_NOT_FOUND', 'Channel was not found.');
   const activeChannelContract = await loadActiveChannelContract(db, input.channel_id);
   const inheritedContract = activeChannelContract ? publicChannelContract(activeChannelContract) : null;
   const signalContract = buildSignalContract(input.contract, inheritedContract);
   const row = buildSignalRow(input, now);
+  const existing = await findSignalByChannelKey(db, row.channel_id, row.signal_key);
+  if (existing) return { ok: true, created: false, signal: existing, signal_contract: signalContract, materialized_watches: [] };
   await insertRow(db, 'signals', row);
+  const storedSignal = (await loadSignal(db, row.signal_id)) || row;
   if (signalContract) {
     await insertRow(db, 'signal_contracts', {
-      id: input.signal_contract_id || stableId('sigct', row.id),
-      signal_contract_id: input.signal_contract_id || stableId('sigct', row.id),
-      signal_id: row.id,
+      id: input.signal_contract_id || stableId('sigct', storedSignal.id || storedSignal.signal_id),
+      signal_contract_id: input.signal_contract_id || stableId('sigct', storedSignal.id || storedSignal.signal_id),
+      signal_id: storedSignal.id || storedSignal.signal_id,
       contract_json: JSON.stringify(signalContract),
       created_at: now,
       updated_at: now,
@@ -678,13 +810,23 @@ export async function createAdminSignal({ auth, db, input, now }) {
   const materialized_watches =
     input.materialize_watch_templates === false
       ? []
-      : await materializeWatchTemplates({ db, input, signal: row, channelContract: inheritedContract, now });
-  return { ok: true, signal: row, signal_contract: signalContract, materialized_watches };
+      : await materializeWatchTemplates({ db, input, signal: storedSignal, channelContract: inheritedContract, now });
+  return { ok: true, created: true, signal: storedSignal, signal_contract: signalContract, materialized_watches };
 }
 
 export async function createAdminWatch({ auth, db, input, now }) {
   const denied = denyIfNeeded(auth, 'watch:create');
   if (denied) return denied;
+  const action = 'admin.createWatch';
+  for (const field of ['workspace_id', 'channel_id', 'signal_id', 'name', 'watch_type']) {
+    const required = requireString(input, field, action);
+    if (!required.ok) return required;
+  }
+  const scopeDeniedForInput = scopedCreateDenied(auth, input, action);
+  if (scopeDeniedForInput) return scopeDeniedForInput;
+  if (input.config !== undefined && (typeof input.config !== 'object' || Array.isArray(input.config) || input.config === null)) {
+    return validationError(action, 'config', 'config must be an object when provided.');
+  }
   const scopeDenied =
     (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
     (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id })) ||
@@ -697,7 +839,10 @@ export async function createAdminWatch({ auth, db, input, now }) {
     }));
   if (scopeDenied) return scopeDenied;
   const row = buildWatchRow(input, now);
-  return { ok: true, watch: await insertRow(db, 'watches', row) };
+  const existing = await loadWatch(db, row.watch_id);
+  if (existing) return { ok: true, created: false, watch: existing };
+  await insertRow(db, 'watches', row);
+  return { ok: true, created: true, watch: (await loadWatch(db, row.watch_id)) || row };
 }
 
 function buildSignalContract(explicitContract, channelContract) {
