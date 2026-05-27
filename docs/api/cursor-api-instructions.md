@@ -11,7 +11,7 @@ All examples use fake IDs and fake secrets. Never commit real API keys, connecto
 PowerShell:
 
 ```powershell
-$env:HEADSUPP_BASE_URL = "https://headsupp_app.martin-598.workers.dev"
+$env:HEADSUPP_BASE_URL = "https://api.headsupp.io"
 $env:HEADSUPP_API_KEY = "<service api key>"
 $env:HEADSUPP_BOOTSTRAP_TOKEN = "<operator bootstrap token>"
 $env:CONNECTOR_SECRET = "<connector secret>"

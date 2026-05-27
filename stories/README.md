@@ -166,3 +166,18 @@ commercialization/06 Customer onboarding documentation
 ```
 
 Deferred until a later batch: usage metering, billing, event detail ledger, full dashboard UI.
+
+## Foretic Pilot Hardening Batch
+
+Generic control-plane hardening needed for the first Foretic pace-alerts-by-email pilot. Build from [foretic-pilot-hardening/README.md](foretic-pilot-hardening/README.md) in numeric order.
+
+```text
+foretic-pilot-hardening/01 Generic resource lookup APIs
+foretic-pilot-hardening/02 Idempotent admin provisioning semantics
+foretic-pilot-hardening/03 Subscriber read and email authorization status APIs
+foretic-pilot-hardening/04 Watch update disable and cleanup API
+foretic-pilot-hardening/05 Test alert delivery API
+foretic-pilot-hardening/06 Foretic pilot integration docs and smoke
+```
+
+These stories improve the standalone admin API and are not Foretic-only product scope. Deferred: dashboard UI, billing, raw event ledger, visual watch builder.

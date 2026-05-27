@@ -15,7 +15,7 @@ If you need full action-by-action property definitions, use [reference.md](refer
 ## Prerequisites
 
 ```bash
-HEADSUPP_BASE_URL=https://headsupp_app.martin-598.workers.dev
+HEADSUPP_BASE_URL=https://api.headsupp.io
 HEADSUPP_BOOTSTRAP_TOKEN=<bootstrap token>
 ```
 

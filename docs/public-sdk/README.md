@@ -32,7 +32,7 @@ The `docs/` folder ships in the published package.
 ## Environment
 
 ```bash
-HEADSUPP_BASE_URL=https://your-worker.example
+HEADSUPP_BASE_URL=https://api.headsupp.io
 HEADSUPP_API_KEY=hu_api_...
 HEADSUPP_BOOTSTRAP_TOKEN=...   # first API key only
 HEADSUPP_CONNECTOR_KEY=ck_...

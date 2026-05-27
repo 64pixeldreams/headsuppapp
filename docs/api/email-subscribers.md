@@ -29,7 +29,7 @@ Recommended vars:
 [vars]
 HEADSUPP_EMAIL_FROM = "alerts@headsupp.io"
 HEADSUPP_EMAIL_REPLY_TO = "alerts@headsupp.io"
-HEADSUPP_PUBLIC_BASE_URL = "https://headsupp.io"
+HEADSUPP_PUBLIC_BASE_URL = "https://api.headsupp.io"
 HEADSUPP_EMAIL_ACTION_TTL_SECONDS = "604800"
 HEADSUPP_UNSUBSCRIBE_TTL_SECONDS = "604800"
 ```

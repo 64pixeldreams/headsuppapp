@@ -7,7 +7,7 @@ info:
     actions through POST /api/function. Event ingest uses connector HMAC and
     returns 202 after validation and queueing.
 servers:
-  - url: https://headsupp_app.martin-598.workers.dev
+  - url: https://api.headsupp.io
     description: Deployed development Worker
   - url: http://localhost:8787
     description: Local Wrangler dev

@@ -62,7 +62,7 @@ After schema-changing stories, apply the remote migration before running deploye
 ## Observability Check
 
 ```bash
-curl -H "Authorization: Bearer <operator token>" https://headsupp_app.martin-598.workers.dev/api/v1/observability/overview
+curl -H "Authorization: Bearer <operator token>" https://api.headsupp.io/api/v1/observability/overview
 ```
 
 Expected:

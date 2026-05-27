@@ -1,7 +1,7 @@
 export const DEFAULT_ACCOUNT_ID = '55987b6602e8ac9db46e14dcc7ad2c79';
 export const DEFAULT_D1_DATABASE_ID = '715838d2-00c0-436f-a878-3a079f9e49f2';
 export const DEFAULT_KV_NAMESPACE_ID = '32193cc252084002bedf07caa8c5996c';
-export const DEFAULT_BASE_URL = 'https://headsupp_app.martin-598.workers.dev';
+export const DEFAULT_BASE_URL = 'https://api.headsupp.io';
 
 export function requireEnv(name, value) {
   if (!String(value || '').trim()) {

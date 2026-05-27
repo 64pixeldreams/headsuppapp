@@ -16,7 +16,7 @@ npm install @64pixeldreams/headsupp-client@0.1.1
 ## Environment
 
 ```bash
-export HEADSUPP_BASE_URL=https://your-headsupp-worker.example
+export HEADSUPP_BASE_URL=https://api.headsupp.io
 export HEADSUPP_API_KEY=hu_api_...
 export HEADSUPP_CONNECTOR_KEY=ck_...      # after setup
 export HEADSUPP_CONNECTOR_SECRET=hu_sec_... # shown once at connector create

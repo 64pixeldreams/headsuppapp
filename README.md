@@ -84,7 +84,7 @@ KV: HEADSUPP_* namespaces
 The deployed development Worker is:
 
 ```text
-https://headsupp_app.martin-598.workers.dev
+https://api.headsupp.io
 ```
 
 ## Important Docs

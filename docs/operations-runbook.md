@@ -23,8 +23,8 @@ npm run load:smoke
 Then inspect deployed health:
 
 ```powershell
-curl https://headsupp_app.martin-598.workers.dev/health
-curl -H "Authorization: Bearer <operator token>" https://headsupp_app.martin-598.workers.dev/api/v1/observability/overview
+curl https://api.headsupp.io/health
+curl -H "Authorization: Bearer <operator token>" https://api.headsupp.io/api/v1/observability/overview
 ```
 
 The observability response is safe for operators. It must not include raw event payloads, connector secrets, API keys, or full webhook URLs.

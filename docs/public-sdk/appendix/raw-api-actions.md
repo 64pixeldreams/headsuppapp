@@ -14,7 +14,7 @@ This file is the canonical property reference for integration work. It covers:
 ## Service
 
 ```text
-Base URL (deployed): https://headsupp_app.martin-598.workers.dev
+Base URL (deployed): https://api.headsupp.io
 Base URL (local):    http://localhost:8787
 Content-Type:        application/json
 ```
