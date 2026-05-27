@@ -1,3 +1,5 @@
+import { ctaVariantStyle, normalizeCtaVariant } from './cta-variants.js';
+
 function parseJson(value, fallback = {}) {
   if (!value) return fallback;
   if (typeof value === 'object') return value;
@@ -210,17 +212,34 @@ function buildSpendRows(context) {
 }
 
 const DEFAULT_COMPANY_LINE = 'INC64 LLC. 30N St Ste N, Sheridan, WY 82801.';
+const DEFAULT_FOOTER_BRAND_NAME = 'headsupp.io';
+const DEFAULT_FOOTER_BRAND_URL = 'https://headsupp.io';
 
 function normalizeBranding(config = {}, defaults = {}) {
   const branding = config.branding && typeof config.branding === 'object' ? config.branding : {};
   const icons = branding.icons && typeof branding.icons === 'object' ? branding.icons : {};
   return {
     brand_name: branding.brand_name || config.brand_name || 'Heads Up',
+    brand_url: safeUrl(branding.brand_url || config.brand_url || null),
     title: branding.title || branding.brand_name || config.brand_name || 'Heads Up',
     subtitle: branding.subtitle || null,
     logo_url: safeUrl(branding.logo_url || config.logo_url || null),
     accent_color: safeColor(branding.accent_color || config.accent_color),
+    cta_variant: normalizeCtaVariant(branding.cta_variant || branding.cta_color_class || config.cta_variant || null),
     footer_text: branding.footer_text || defaults.footer_text || 'Fewer surprises. Just a heads up.',
+    footer_brand_name:
+      branding.footer_brand_name
+      || branding.brand_name
+      || config.brand_name
+      || defaults.footer_brand_name
+      || DEFAULT_FOOTER_BRAND_NAME,
+    footer_brand_url: safeUrl(
+      branding.footer_brand_url
+      || branding.brand_url
+      || config.brand_url
+      || defaults.footer_brand_url
+      || DEFAULT_FOOTER_BRAND_URL,
+    ),
     company_line: branding.company_line || branding.company_info || defaults.company_line || DEFAULT_COMPANY_LINE,
     icons: {
       alert: safeUrl(icons.alert_url || icons.alert || branding.icon_url || null),
@@ -309,7 +328,8 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
   const actionLinks = Array.isArray(context.action_links) ? context.action_links : [];
   const actionTextLines = actionLinks.map((action) => `${action.label}: ${action.url}`);
   const ctaUrl = safeUrl(context.cta_url);
-  const accent = safeColor(brand.accent_color);
+  const ctaVariant = normalizeCtaVariant(context.cta_variant || brand.cta_variant || 'dark');
+  const ctaStyle = ctaVariantStyle(ctaVariant);
   const escapedBrand = escapeHtml(brand.brand_name);
   const headerTitle = brand.title ? escapeHtml(brand.title) : null;
   const headerSubtitle = brand.subtitle ? escapeHtml(brand.subtitle) : null;
@@ -319,6 +339,13 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
   const escapedSummary = escapeHtml(context.summary);
   const escapedDetail = escapeHtml(context.detail || '');
   const escapedFooter = escapeHtml(brand.footer_text || 'Fewer surprises. Just a heads up.');
+  const footerBrandName = String(brand.footer_brand_name || '').trim();
+  const footerBrandUrl = safeUrl(brand.footer_brand_url);
+  const footerBrandHtml = footerBrandName
+    ? footerBrandUrl
+      ? `<a href="${escapeHtml(footerBrandUrl)}" style="color:#0969da;text-decoration:none;">${escapeHtml(footerBrandName)}</a>`
+      : escapeHtml(footerBrandName)
+    : null;
   const companyLine = brand.company_line ? escapeHtml(brand.company_line) : null;
   const metricsHtml = renderMetricsTable(metrics);
   const actionHtml = renderActionControls(actionLinks);
@@ -343,6 +370,7 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
     context.unsubscribe_url ? '' : null,
     context.unsubscribe_url ? `Unsubscribe: ${context.unsubscribe_url}` : null,
     '',
+    footerBrandName ? `From ${footerBrandName}` : null,
     brand.footer_text || 'Fewer surprises. Just a heads up.',
     brand.company_line || null,
   ].filter((line) => line !== null).join('\n');
@@ -370,8 +398,8 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
             </tr>`
     : '';
   const heroIconHtml = heroIconUrl
-    ? `<img src="${escapeHtml(heroIconUrl)}" width="64" height="64" alt="" style="display:block;border:0;border-radius:16px;margin:0 auto 14px auto;">`
-    : `<div style="width:52px;height:52px;border-radius:16px;background:${icon.bg};color:#ffffff;font-size:24px;line-height:52px;text-align:center;font-weight:800;margin:0 auto 14px auto;">${icon.label}</div>`;
+    ? `<img src="${escapeHtml(heroIconUrl)}" width="128" height="128" alt="" style="display:block;border:0;border-radius:24px;margin:0 auto 18px auto;">`
+    : `<div style="width:104px;height:104px;border-radius:24px;background:${icon.bg};color:#ffffff;font-size:42px;line-height:104px;text-align:center;font-weight:800;margin:0 auto 18px auto;">${icon.label}</div>`;
 
   const html = `<!doctype html>
 <html>
@@ -396,7 +424,7 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
                       ${context.detail ? `<p style="margin:10px auto 0 auto;max-width:440px;font-size:13px;line-height:1.55;color:#57606a;">${escapedDetail}</p>` : ''}
                       ${
                         ctaUrl
-                          ? `<p style="margin:18px 0 0 0;"><a href="${escapeHtml(ctaUrl)}" style="display:inline-block;min-width:148px;background:${accent};color:#ffffff;text-align:center;text-decoration:none;padding:11px 18px;border:1px solid ${accent};border-radius:6px;font-size:14px;font-weight:700;">${escapeHtml(context.cta_label || 'View details')}</a></p>`
+                          ? `<p style="margin:18px 0 0 0;"><a href="${escapeHtml(ctaUrl)}" data-cta-variant="${escapeHtml(ctaVariant)}" style="display:inline-block;min-width:148px;background:${ctaStyle.bg};color:${ctaStyle.text};text-align:center;text-decoration:none;padding:11px 18px;border:1px solid ${ctaStyle.border};border-radius:6px;font-size:14px;font-weight:700;">${escapeHtml(context.cta_label || 'View details')}</a></p>`
                           : ''
                       }
                     </td>
@@ -419,7 +447,8 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
                           ? `<p style="margin:0 0 10px 0;font-size:12px;color:#57606a;">If you no longer want these emails, <a href="${escapeHtml(context.unsubscribe_url)}" style="color:#0969da;">unsubscribe</a>.</p>`
                           : ''
                       }
-                      <p style="margin:14px 0 0 0;font-size:12px;color:#57606a;">${escapedFooter}</p>
+                      ${footerBrandHtml ? `<p style="margin:14px 0 0 0;font-size:12px;color:#57606a;">From ${footerBrandHtml}</p>` : ''}
+                      <p style="margin:${footerBrandHtml ? '6px' : '14px'} 0 0 0;font-size:12px;color:#57606a;">${escapedFooter}</p>
                     </td>
                   </tr>
                 </table>
@@ -540,6 +569,15 @@ export function renderAlertEmail({ alert, subscriber, channel, unsubscribe_url =
     fields?.display?.threshold_value || formatNumericValue(alert.threshold_value, { profile: valueFormat, locale });
   const ctaUrl = safeUrl(alert.cta_url || payload?.cta?.url || subscriberConfig?.defaults?.cta_url || null);
   const ctaLabel = payload?.cta?.label || alert.cta_label || subscriberConfig?.defaults?.cta_label || 'View details';
+  const ctaVariant =
+    payload?.cta?.variant
+    || payload?.cta?.color_class
+    || payload?.cta?.color
+    || fields?.cta?.variant
+    || fields?.cta?.color_class
+    || subscriberConfig?.defaults?.cta_variant
+    || subscriberConfig?.defaults?.cta_color_class
+    || null;
   const configuredRecipientName = subscriberConfig?.recipient_name || subscriberConfig?.name || null;
   const subscriberName = subscriber.name || subscriber.display_name || null;
   const fallbackRecipientFromEmail = humanizeEmailRecipient(subscriber.destination_url);
@@ -593,6 +631,7 @@ export function renderAlertEmail({ alert, subscriber, channel, unsubscribe_url =
     recipient_name: recipientName,
     cta_url: ctaUrl,
     cta_label: ctaLabel,
+    cta_variant: ctaVariant,
     unsubscribe_url,
     action_links,
     fields,

@@ -178,12 +178,41 @@ Forecast emails are generic. They do not require `source_app = "foretic"`.
   },
   "cta": {
     "label": "View forecast",
-    "url": "https://example.com/forecasts/rb-sales"
+    "url": "https://example.com/forecasts/rb-sales",
+    "variant": "success"
   }
 }
 ```
 
 The same shape works for any forecast or goal integration.
+
+## CTA Button Variants
+
+Use `cta.variant` or `cta.color_class` to set the semantic CTA color without custom HTML.
+
+```json
+{
+  "cta": {
+    "label": "View details",
+    "url": "https://example.com/details",
+    "color_class": "primary"
+  }
+}
+```
+
+Supported values:
+
+```text
+primary
+success
+warning
+danger
+info
+dark
+light
+```
+
+Invalid or missing values fall back to `dark`. Colors follow Bootstrap/Material-style semantic colors. For most alerts, use `primary` for neutral navigation, `success` for recovered/positive state, `warning` for attention, `danger` for critical/error, and `dark` for the default Heads Up style.
 
 ## Spend Events
 
@@ -207,7 +236,8 @@ Spend emails can use explicit metrics or conventional spend fields.
   },
   "cta": {
     "label": "View coffee spend",
-    "url": "https://example.com/coffee/spend"
+    "url": "https://example.com/coffee/spend",
+    "color_class": "warning"
   }
 }
 ```

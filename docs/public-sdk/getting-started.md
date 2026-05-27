@@ -189,7 +189,7 @@ const accepted = await headsup.sendEvent({
     occurred_at: new Date().toISOString(),
     value: { num: 56.75 },
     fields: { vendor: 'local_shop', currency: 'USD' },
-    cta: { label: 'Open coffee ledger', url: 'https://example.com/coffee' },
+    cta: { label: 'Open coffee ledger', url: 'https://example.com/coffee', color_class: 'warning' },
   },
 });
 

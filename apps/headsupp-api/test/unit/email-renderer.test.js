@@ -42,7 +42,7 @@ test('renders fallback template with formatting profile', () => {
   assert.match(rendered.html, /Critical/);
   assert.match(rendered.html, /background:#FEE2E2/);
   assert.match(rendered.html, /View coffee spend/);
-  assert.match(rendered.html, /min-width:148px;background:#1f883d;color:#ffffff/);
+  assert.match(rendered.html, /min-width:148px;background:#212529;color:#ffffff/);
   assert.match(rendered.html, /max-width:560px/);
   assert.match(rendered.html, /border:1px solid #d0d7de/);
   assert.doesNotMatch(rendered.html, /<strong>Severity:<\/strong>/);
@@ -210,12 +210,92 @@ test('renders generic metric alert with branding and event-supplied metric rows'
   assert.match(rendered.html, /https:\/\/example\.com\/logo\.png/);
   assert.match(rendered.html, /width="48" height="48"/);
   assert.match(rendered.html, /https:\/\/example\.com\/alert\.svg/);
-  assert.match(rendered.html, /width="64" height="64"/);
-  assert.match(rendered.html, /border-radius:16px/);
+  assert.match(rendered.html, /width="128" height="128"/);
+  assert.match(rendered.html, /border-radius:24px/);
   assert.match(rendered.html, /RB sales history/);
   assert.match(rendered.html, /Actual/);
   assert.match(rendered.html, /\$7,500/);
   assert.match(rendered.html, /Foretic Ltd/);
+});
+
+test('renders CTA variant colors from event payload', () => {
+  const rendered = renderAlertEmail({
+    alert: {
+      ...baseAlert,
+      payload_json: JSON.stringify({
+        cta: {
+          label: 'View forecast',
+          url: 'https://example.com/forecast',
+          variant: 'success',
+        },
+        fields: {
+          notification: {
+            title: 'Forecast is back on track',
+            summary: 'The forecast recovered above target pace.',
+          },
+        },
+      }),
+    },
+    subscriber: { config_json: '{}' },
+    channel: {},
+  });
+
+  assert.match(rendered.html, /data-cta-variant="success"/);
+  assert.match(rendered.html, /background:#198754;color:#ffffff/);
+  assert.match(rendered.html, /border:1px solid #198754/);
+});
+
+test('falls back to dark CTA variant for invalid color class', () => {
+  const rendered = renderAlertEmail({
+    alert: {
+      ...baseAlert,
+      payload_json: JSON.stringify({
+        cta: {
+          label: 'View forecast',
+          url: 'https://example.com/forecast',
+          color_class: 'neon',
+        },
+      }),
+    },
+    subscriber: { config_json: '{}' },
+    channel: {},
+  });
+
+  assert.match(rendered.html, /data-cta-variant="dark"/);
+  assert.match(rendered.html, /background:#212529;color:#ffffff/);
+});
+
+test('renders default linked footer brand', () => {
+  const rendered = renderAlertEmail({
+    alert: baseAlert,
+    subscriber: { config_json: '{}' },
+    channel: {},
+  });
+
+  assert.match(rendered.text, /From headsupp\.io/);
+  assert.match(rendered.html, /From <a href="https:\/\/headsupp\.io\/"/);
+  assert.match(rendered.html, />headsupp\.io<\/a>/);
+});
+
+test('renders configured linked footer brand override', () => {
+  const rendered = renderAlertEmail({
+    alert: baseAlert,
+    subscriber: {
+      config_json: JSON.stringify({
+        branding: {
+          brand_name: 'Foretic',
+          brand_url: 'https://foretic.io',
+          footer_text: 'Forecast intelligence from Foretic.',
+        },
+      }),
+    },
+    channel: {},
+  });
+
+  assert.match(rendered.text, /From Foretic/);
+  assert.match(rendered.html, /From <a href="https:\/\/foretic\.io\/"/);
+  assert.match(rendered.html, />Foretic<\/a>/);
+  assert.match(rendered.html, /Forecast intelligence from Foretic\./);
 });
 
 test('renders brand header without placeholder logo when logo is absent', () => {

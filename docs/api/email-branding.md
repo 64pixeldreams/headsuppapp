@@ -23,6 +23,8 @@ Worker vars:
 ```toml
 [vars]
 HEADSUPP_EMAIL_FOOTER_TEXT = "Fewer surprises. Just a heads up."
+HEADSUPP_EMAIL_FOOTER_BRAND_NAME = "headsupp.io"
+HEADSUPP_EMAIL_FOOTER_BRAND_URL = "https://headsupp.io"
 HEADSUPP_EMAIL_COMPANY_LINE = "INC64 LLC. 30N St Ste N, Sheridan, WY 82801."
 ```
 
@@ -42,6 +44,20 @@ subscriber.config.branding.company_line
 -> "INC64 LLC. 30N St Ste N, Sheridan, WY 82801."
 ```
 
+Default footer brand resolution:
+
+```text
+subscriber.config.branding.footer_brand_name
+subscriber.config.branding.brand_name
+-> env.HEADSUPP_EMAIL_FOOTER_BRAND_NAME
+-> "headsupp.io"
+
+subscriber.config.branding.footer_brand_url
+subscriber.config.branding.brand_url
+-> env.HEADSUPP_EMAIL_FOOTER_BRAND_URL
+-> "https://headsupp.io"
+```
+
 ## Subscriber Branding Config
 
 ```json
@@ -50,9 +66,13 @@ subscriber.config.branding.company_line
     "title": "Foretic",
     "subtitle": "Forecast alerts",
     "brand_name": "Foretic",
+    "brand_url": "https://foretic.io",
     "logo_url": "https://cdn.example.com/foretic-logo.png",
     "accent_color": "#1f883d",
+    "cta_variant": "success",
     "footer_text": "Fewer surprises. Just a heads up.",
+    "footer_brand_name": "Foretic",
+    "footer_brand_url": "https://foretic.io",
     "company_line": "INC64 LLC. 30N St Ste N, Sheridan, WY 82801.",
     "icons": {
       "alert_url": "https://cdn.example.com/alert-icon.png",
@@ -70,12 +90,22 @@ Supported fields:
 title          Header title. Optional.
 subtitle       Header subtitle. Optional.
 brand_name     Brand fallback name and image alt text.
+brand_url      Brand homepage URL. Used by the footer link when no footer_brand_url is set.
 logo_url       Header logo URL. Optional.
-accent_color   Hex color for primary CTA and fallback styling.
+accent_color   Hex brand accent for template styling. CTA colors use cta_variant.
+cta_variant    Default semantic CTA color class when an event does not specify one.
 footer_text    Small footer message.
+footer_brand_name Brand name in the footer. Defaults to brand_name, then env, then headsupp.io.
+footer_brand_url  Footer brand link URL. Defaults to brand_url, then env, then https://headsupp.io.
 company_line   Legal/company line below the card.
 icons          Hero icon URLs by severity or generic alert.
 ```
+
+Footer behavior:
+
+- If `footer_brand_url` or `brand_url` is a safe `http`/`https` URL, the footer brand name renders as a link.
+- If no URL is provided, the brand name renders as plain text.
+- Default unbranded emails render `headsupp.io` linked to `https://headsupp.io`.
 
 ## Header Rendering
 
@@ -103,7 +133,7 @@ subscriber.config.branding.icons.alert_url
 fallback severity badge
 ```
 
-All icon URLs must be public `http` or `https` URLs.
+All icon URLs must be public `http` or `https` URLs. Hero icons render at 128x128px in the built-in templates.
 
 Example event override:
 
@@ -176,7 +206,9 @@ Planned shape:
   "subtitle": "Forecast alerts",
   "logo_url": "https://cdn.example.com/foretic-logo.png",
   "accent_color": "#1f883d",
+  "cta_variant": "success",
   "footer_text": "Fewer surprises. Just a heads up.",
+  "brand_url": "https://foretic.io",
   "company_line": "Foretic Ltd.",
   "icons": {
     "forecast_url": "https://cdn.example.com/forecast-icon.png",

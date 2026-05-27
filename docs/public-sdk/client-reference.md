@@ -188,9 +188,15 @@ Event shape:
   "occurred_at": "ISO-8601 (required)",
   "value": { "num": 0 },
   "fields": {},
-  "cta": { "label": "Open", "url": "https://..." }
+  "cta": {
+    "label": "Open",
+    "url": "https://...",
+    "variant": "primary"
+  }
 }
 ```
+
+Email CTA variants can be passed as `cta.variant` or `cta.color_class`. Supported values are `primary`, `success`, `warning`, `danger`, `info`, `dark`, and `light`; invalid values fall back to `dark`.
 
 ### sendEvents({ connectorKey, connectorSecret, events, timestamp? })
 

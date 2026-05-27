@@ -18,6 +18,13 @@ const emailSubscriber = await headsup.createSubscriber({
     value_format: 'money_usd_2',
     locale: 'en-US',
     timezone: 'UTC',
+    branding: {
+      brand_name: 'Coffee Ops',
+      brand_url: 'https://example.com',
+      footer_brand_name: 'Coffee Ops',
+      footer_brand_url: 'https://example.com',
+      cta_variant: 'warning',
+    },
     labels: {
       title_template: 'Highest coffee purchase: {value}',
       summary_template: 'Reached {value}; threshold is {threshold}.',
@@ -63,6 +70,11 @@ await headsup.sendEvent({
     signal_key: 'spend.coffee.usd',
     occurred_at: new Date().toISOString(),
     value: { num: 9.5 },
+    cta: {
+      label: 'Open coffee ledger',
+      url: 'https://example.com/coffee',
+      color_class: 'warning',
+    },
   },
 });
 ```
@@ -72,4 +84,6 @@ await headsup.sendEvent({
 - Subject/heading use formatted `{value}` (for example `$9.50`)
 - Severity shown as styled badge in HTML template
 - Optional action buttons when `config.actions` is set
+- CTA buttons use `cta.variant` or `cta.color_class` (`primary`, `success`, `warning`, `danger`, `info`, `dark`, `light`)
+- Footer brand links use `branding.footer_brand_name`/`footer_brand_url`, falling back to `brand_name`/`brand_url`
 - Confirmation email first when authorization is required

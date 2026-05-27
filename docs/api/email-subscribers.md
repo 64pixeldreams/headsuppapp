@@ -77,9 +77,14 @@ Use one subscriber row per recipient (best for per-user pause/remove control).
       "branding": {
         "title": "Heads Up",
         "subtitle": "Coffee spend alerts",
+        "brand_name": "Heads Up",
+        "brand_url": "https://headsupp.io",
         "logo_url": "https://example.com/brand-logo.png",
         "accent_color": "#1f883d",
+        "cta_variant": "dark",
         "footer_text": "Fewer surprises. Just a heads up.",
+        "footer_brand_name": "headsupp.io",
+        "footer_brand_url": "https://headsupp.io",
         "company_line": "INC64 LLC. 30N St Ste N, Sheridan, WY 82801.",
         "icons": {
           "alert_url": "https://example.com/alert-icon.svg"
@@ -198,6 +203,16 @@ MVP branding comes from environment defaults and subscriber config:
 subscriber.config.branding.company_line
 -> env.HEADSUPP_EMAIL_COMPANY_LINE
 -> INC64 LLC. 30N St Ste N, Sheridan, WY 82801.
+
+subscriber.config.branding.footer_brand_name
+subscriber.config.branding.brand_name
+-> env.HEADSUPP_EMAIL_FOOTER_BRAND_NAME
+-> headsupp.io
+
+subscriber.config.branding.footer_brand_url
+subscriber.config.branding.brand_url
+-> env.HEADSUPP_EMAIL_FOOTER_BRAND_URL
+-> https://headsupp.io
 ```
 
 Header behavior:
@@ -212,6 +227,13 @@ Hero icon behavior:
 - Event-specific icon: `fields.notification.icon_url`, `fields.icon_url`, or `fields.email.icon_url`.
 - Subscriber default icon: `subscriber.config.branding.icons.alert_url`, `warning_url`, `critical_url`, or `recovered_url`.
 - URLs must be `http` or `https`; unsafe URLs are omitted.
+- Built-in hero icons render at 128x128px.
+
+CTA button behavior:
+
+- Events can pass `cta.variant` or `cta.color_class`.
+- Supported values are `primary`, `success`, `warning`, `danger`, `info`, `dark`, and `light`.
+- Invalid or missing values fall back to `dark`.
 
 Example icon URLs used by the design smoke:
 
@@ -232,7 +254,11 @@ Planned brand model:
   "subtitle": "Forecast alerts",
   "logo_url": "https://cdn.example.com/foretic-logo.png",
   "accent_color": "#1f883d",
+  "brand_url": "https://foretic.io",
+  "cta_variant": "success",
   "footer_text": "Fewer surprises. Just a heads up.",
+  "footer_brand_name": "Foretic",
+  "footer_brand_url": "https://foretic.io",
   "company_line": "Foretic Ltd.",
   "icons": {
     "forecast_url": "https://cdn.example.com/forecast-icon.svg",
@@ -296,7 +322,8 @@ Keep events lean; send changing facts only:
   },
   "cta": {
     "label": "View coffee spend",
-    "url": "https://example.com/coffee/spend"
+    "url": "https://example.com/coffee/spend",
+    "color_class": "warning"
   }
 }
 ```
@@ -327,7 +354,8 @@ Rich generic alert example:
   },
   "cta": {
     "label": "View details",
-    "url": "https://example.com/details"
+    "url": "https://example.com/details",
+    "variant": "primary"
   }
 }
 ```
