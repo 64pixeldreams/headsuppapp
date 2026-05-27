@@ -107,10 +107,13 @@ export async function dispatchEmailAlertDelivery({
       unsubscribe_url: unsubscribeUrl,
       action_links: actionLinks,
       defaults: {
+        logo_url: env.HEADSUPP_EMAIL_LOGO_URL,
         footer_text: env.HEADSUPP_EMAIL_FOOTER_TEXT,
         footer_brand_name: env.HEADSUPP_EMAIL_FOOTER_BRAND_NAME,
         footer_brand_url: env.HEADSUPP_EMAIL_FOOTER_BRAND_URL,
         company_line: env.HEADSUPP_EMAIL_COMPANY_LINE,
+        powered_by_name: env.HEADSUPP_EMAIL_POWERED_BY_NAME,
+        powered_by_url: env.HEADSUPP_EMAIL_POWERED_BY_URL,
       },
     });
   } catch (caught) {

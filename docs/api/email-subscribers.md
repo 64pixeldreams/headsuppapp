@@ -215,6 +215,8 @@ subscriber.config.branding.brand_url
 -> https://headsupp.io
 ```
 
+Those Heads Up card-footer defaults apply when no integrator branding is present. If an email subscriber includes integrator branding, missing `footer_text` and `company_line` stay blank inside the card instead of falling back to Heads Up legal copy. A Heads Up-controlled `Powered by headsupp.io` link and platform company/address line still render below the card and are not controlled by Foretic/integrator config.
+
 Header behavior:
 
 - `branding.logo_url` renders a logo beside the header text.
@@ -234,6 +236,12 @@ CTA button behavior:
 - Events can pass `cta.variant` or `cta.color_class`.
 - Supported values are `primary`, `success`, `warning`, `danger`, `info`, `dark`, and `light`.
 - Invalid or missing values fall back to `dark`.
+
+Footer behavior:
+
+- `branding.brand_name` and `branding.brand_url` are enough to create a linked integrator footer brand.
+- `branding.footer_text` and `branding.company_line` are optional; if missing in an integrator-branded email, they stay blank inside the card.
+- `Powered by headsupp.io` and the Heads Up platform address render below the card and are always controlled by Heads Up runtime policy.
 
 Example icon URLs used by the design smoke:
 

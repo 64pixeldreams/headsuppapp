@@ -22,13 +22,46 @@ Worker vars:
 
 ```toml
 [vars]
+HEADSUPP_EMAIL_LOGO_URL = "https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/8235abd3-01d4-4c36-9c44-8955f77cc500/public"
 HEADSUPP_EMAIL_FOOTER_TEXT = "Fewer surprises. Just a heads up."
 HEADSUPP_EMAIL_FOOTER_BRAND_NAME = "headsupp.io"
 HEADSUPP_EMAIL_FOOTER_BRAND_URL = "https://headsupp.io"
+HEADSUPP_EMAIL_POWERED_BY_NAME = "headsupp.io"
+HEADSUPP_EMAIL_POWERED_BY_URL = "https://headsupp.io"
 HEADSUPP_EMAIL_COMPANY_LINE = "INC64 LLC. 30N St Ste N, Sheridan, WY 82801."
 ```
 
-Default footer resolution:
+## Brand Fallback Modes
+
+Heads Up has two footer modes.
+
+No integrator branding:
+
+```text
+Header/title/footer use Heads Up defaults.
+Header logo uses HEADSUPP_EMAIL_LOGO_URL when configured.
+Footer brand defaults to headsupp.io -> https://headsupp.io.
+Footer text defaults to "Fewer surprises. Just a heads up."
+Company line defaults to the INC64 legal/address line.
+Powered-by renders as a Heads Up-controlled headsupp.io link.
+```
+
+Integrator branding detected:
+
+```text
+Header/logo/footer brand use integrator branding.
+Missing logo_url stays blank; it does not inherit the Heads Up logo.
+Missing integrator footer_text stays blank inside the card.
+Missing integrator company_line stays blank inside the card.
+Powered-by still renders below the card as a Heads Up-controlled headsupp.io link.
+Heads Up company/address still renders below the card as the platform footer.
+```
+
+Integrator branding is detected when `subscriber.config.branding` includes any visible brand field such as `brand_name`, `brand_url`, `title`, `subtitle`, `logo_url`, `footer_brand_name`, `footer_brand_url`, `footer_text`, `company_line`, or `icons`.
+
+This avoids mixed-brand card content where the header says Foretic but the card footer silently says INC64. Heads Up platform attribution and legal/address copy live below the card.
+
+Default Heads Up footer resolution, when no integrator branding is present:
 
 ```text
 subscriber.config.branding.footer_text
@@ -44,7 +77,7 @@ subscriber.config.branding.company_line
 -> "INC64 LLC. 30N St Ste N, Sheridan, WY 82801."
 ```
 
-Default footer brand resolution:
+Default footer brand resolution, when no integrator branding is present:
 
 ```text
 subscriber.config.branding.footer_brand_name
@@ -58,6 +91,15 @@ subscriber.config.branding.brand_url
 -> "https://headsupp.io"
 ```
 
+Powered-by resolution is controlled by Heads Up runtime configuration, not integrator branding, and renders below the card:
+
+```text
+env.HEADSUPP_EMAIL_POWERED_BY_NAME -> "headsupp.io"
+env.HEADSUPP_EMAIL_POWERED_BY_URL -> "https://headsupp.io"
+```
+
+Treat powered-by as a commercial/billing policy. Integrators should not try to disable it in subscriber config.
+
 ## Subscriber Branding Config
 
 ```json
@@ -70,10 +112,10 @@ subscriber.config.branding.brand_url
     "logo_url": "https://cdn.example.com/foretic-logo.png",
     "accent_color": "#1f883d",
     "cta_variant": "success",
-    "footer_text": "Fewer surprises. Just a heads up.",
+    "footer_text": "Forecast intelligence from Foretic.",
     "footer_brand_name": "Foretic",
     "footer_brand_url": "https://foretic.io",
-    "company_line": "INC64 LLC. 30N St Ste N, Sheridan, WY 82801.",
+    "company_line": "Foretic Ltd.",
     "icons": {
       "alert_url": "https://cdn.example.com/alert-icon.png",
       "warning_url": "https://cdn.example.com/warning-icon.png",
@@ -106,6 +148,8 @@ Footer behavior:
 - If `footer_brand_url` or `brand_url` is a safe `http`/`https` URL, the footer brand name renders as a link.
 - If no URL is provided, the brand name renders as plain text.
 - Default unbranded emails render `headsupp.io` linked to `https://headsupp.io`.
+- Partial integrator branding does not inherit the Heads Up footer text or INC64 company line inside the card.
+- A Heads Up-controlled `Powered by headsupp.io` link and platform company/address line render below the card.
 
 ## Header Rendering
 

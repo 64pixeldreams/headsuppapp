@@ -293,6 +293,57 @@ Smoke test:
 
 - Design smoke output includes the selected `template_id`; engineer verifies inbox subject.
 
+### A9 - Brand Fallback Modes And Heads Up Powered-By
+
+As Heads Up and integrator operators, we want predictable brand fallback rules so partially branded emails do not accidentally mix integrator identity with Heads Up legal/footer copy, while Heads Up can still control commercial powered-by attribution.
+
+Product rule:
+
+```text
+No integrator branding:
+  Heads Up default mode.
+  Footer brand, footer text, company line, and powered-by all use Heads Up defaults.
+
+Integrator branding detected:
+  Integrator mode.
+  Header/logo/footer brand come from the integrator branding fields.
+  Missing integrator footer_text and company_line stay blank inside the card unless explicitly provided.
+  Heads Up still renders a controlled "Powered by headsupp.io" link below the card.
+  Heads Up company/address renders below the card as platform legal copy.
+```
+
+Integrator branding is detected when subscriber branding includes any of:
+
+```text
+brand_name
+brand_url
+title
+subtitle
+logo_url
+footer_brand_name
+footer_brand_url
+footer_text
+company_line
+icons
+```
+
+Acceptance criteria:
+
+- Heads Up controls powered-by display from environment/default policy, not from integrator payload.
+- Powered-by renders below the card as a `headsupp.io` link to `https://headsupp.io` by default.
+- Integrators cannot disable powered-by through `subscriber.config.branding`.
+- No branding renders Heads Up card-footer defaults and INC64 platform company line below the card.
+- Partial integrator branding does not inherit `INC64 LLC. 30N St Ste N, Sheridan, WY 82801.` inside the card unless `branding.company_line` is explicitly supplied.
+- Partial integrator branding does not inherit `Fewer surprises. Just a heads up.` inside the card unless `branding.footer_text` is explicitly supplied.
+- `branding.brand_name` and `branding.brand_url` still feed the integrator footer brand line.
+- Heads Up platform company/address still renders below the card.
+- Unit tests cover no brand, partial brand with logo/title only, explicit integrator footer/company fields, and powered-by rendering.
+
+Commercial notes:
+
+- Powered-by is billing/plan controlled in the future, so the renderer should accept trusted defaults from Heads Up configuration rather than integrator-controlled flags.
+- Tier 2 stored brand records should reuse the same fallback mode rules.
+
 ## Epic B - Tier 2 Brand Records
 
 ### B1 - Workspace Brand Storage Model

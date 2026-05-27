@@ -214,33 +214,66 @@ function buildSpendRows(context) {
 const DEFAULT_COMPANY_LINE = 'INC64 LLC. 30N St Ste N, Sheridan, WY 82801.';
 const DEFAULT_FOOTER_BRAND_NAME = 'headsupp.io';
 const DEFAULT_FOOTER_BRAND_URL = 'https://headsupp.io';
+const DEFAULT_POWERED_BY_NAME = 'headsupp.io';
+const DEFAULT_POWERED_BY_URL = 'https://headsupp.io';
+
+function hasBrandingValue(value) {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (typeof value === 'object') return Object.keys(value).length > 0;
+  return Boolean(value);
+}
+
+function hasIntegratorBranding(branding = {}, config = {}) {
+  return [
+    branding.brand_name,
+    branding.brand_url,
+    branding.title,
+    branding.subtitle,
+    branding.logo_url,
+    branding.footer_brand_name,
+    branding.footer_brand_url,
+    branding.footer_text,
+    branding.company_line,
+    branding.company_info,
+    branding.icons,
+    config.brand_name,
+    config.brand_url,
+    config.logo_url,
+  ].some(hasBrandingValue);
+}
 
 function normalizeBranding(config = {}, defaults = {}) {
   const branding = config.branding && typeof config.branding === 'object' ? config.branding : {};
   const icons = branding.icons && typeof branding.icons === 'object' ? branding.icons : {};
+  const integratorBranding = hasIntegratorBranding(branding, config);
+  const footerBrandName = integratorBranding
+    ? branding.footer_brand_name || branding.brand_name || config.brand_name || branding.title || null
+    : defaults.footer_brand_name || DEFAULT_FOOTER_BRAND_NAME;
+  const footerBrandUrl = integratorBranding
+    ? branding.footer_brand_url || branding.brand_url || config.brand_url || null
+    : defaults.footer_brand_url || DEFAULT_FOOTER_BRAND_URL;
   return {
-    brand_name: branding.brand_name || config.brand_name || 'Heads Up',
+    brand_name: branding.brand_name || branding.title || config.brand_name || (integratorBranding ? 'Alert' : 'Heads Up'),
     brand_url: safeUrl(branding.brand_url || config.brand_url || null),
-    title: branding.title || branding.brand_name || config.brand_name || 'Heads Up',
+    title: branding.title || branding.brand_name || config.brand_name || (integratorBranding ? null : 'Heads Up'),
     subtitle: branding.subtitle || null,
-    logo_url: safeUrl(branding.logo_url || config.logo_url || null),
+    logo_url: safeUrl(branding.logo_url || config.logo_url || (!integratorBranding ? defaults.logo_url : null)),
     accent_color: safeColor(branding.accent_color || config.accent_color),
     cta_variant: normalizeCtaVariant(branding.cta_variant || branding.cta_color_class || config.cta_variant || null),
-    footer_text: branding.footer_text || defaults.footer_text || 'Fewer surprises. Just a heads up.',
-    footer_brand_name:
-      branding.footer_brand_name
-      || branding.brand_name
-      || config.brand_name
-      || defaults.footer_brand_name
-      || DEFAULT_FOOTER_BRAND_NAME,
-    footer_brand_url: safeUrl(
-      branding.footer_brand_url
-      || branding.brand_url
-      || config.brand_url
-      || defaults.footer_brand_url
-      || DEFAULT_FOOTER_BRAND_URL,
-    ),
-    company_line: branding.company_line || branding.company_info || defaults.company_line || DEFAULT_COMPANY_LINE,
+    footer_text: integratorBranding
+      ? branding.footer_text || null
+      : defaults.footer_text || 'Fewer surprises. Just a heads up.',
+    footer_brand_name: footerBrandName,
+    footer_brand_url: safeUrl(footerBrandUrl),
+    company_line: integratorBranding
+      ? branding.company_line || branding.company_info || null
+      : defaults.company_line || DEFAULT_COMPANY_LINE,
+    powered_by_name: defaults.powered_by_name || DEFAULT_POWERED_BY_NAME,
+    powered_by_url: safeUrl(defaults.powered_by_url || DEFAULT_POWERED_BY_URL),
+    show_powered_by: defaults.show_powered_by !== false,
+    platform_company_line: defaults.company_line || DEFAULT_COMPANY_LINE,
+    is_integrator_branding: integratorBranding,
     icons: {
       alert: safeUrl(icons.alert_url || icons.alert || branding.icon_url || null),
       warning: safeUrl(icons.warning_url || icons.warning || icons.alert_url || icons.alert || branding.icon_url || null),
@@ -338,7 +371,7 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
   const escapedTitle = escapeHtml(context.title);
   const escapedSummary = escapeHtml(context.summary);
   const escapedDetail = escapeHtml(context.detail || '');
-  const escapedFooter = escapeHtml(brand.footer_text || 'Fewer surprises. Just a heads up.');
+  const escapedFooter = brand.footer_text ? escapeHtml(brand.footer_text) : null;
   const footerBrandName = String(brand.footer_brand_name || '').trim();
   const footerBrandUrl = safeUrl(brand.footer_brand_url);
   const footerBrandHtml = footerBrandName
@@ -346,7 +379,16 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
       ? `<a href="${escapeHtml(footerBrandUrl)}" style="color:#0969da;text-decoration:none;">${escapeHtml(footerBrandName)}</a>`
       : escapeHtml(footerBrandName)
     : null;
+  const poweredByName = String(brand.powered_by_name || '').trim();
+  const poweredByUrl = safeUrl(brand.powered_by_url);
+  const poweredByHtml = brand.show_powered_by && poweredByName
+    ? poweredByUrl
+      ? `Powered by <a href="${escapeHtml(poweredByUrl)}" style="color:#0969da;text-decoration:none;">${escapeHtml(poweredByName)}</a>`
+      : `Powered by ${escapeHtml(poweredByName)}`
+    : null;
+  const poweredByText = brand.show_powered_by && poweredByName ? `Powered by ${poweredByName}` : null;
   const companyLine = brand.company_line ? escapeHtml(brand.company_line) : null;
+  const platformCompanyLine = brand.platform_company_line ? escapeHtml(brand.platform_company_line) : null;
   const metricsHtml = renderMetricsTable(metrics);
   const actionHtml = renderActionControls(actionLinks);
 
@@ -371,8 +413,10 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
     context.unsubscribe_url ? `Unsubscribe: ${context.unsubscribe_url}` : null,
     '',
     footerBrandName ? `From ${footerBrandName}` : null,
-    brand.footer_text || 'Fewer surprises. Just a heads up.',
+    brand.footer_text || null,
     brand.company_line || null,
+    poweredByText,
+    brand.platform_company_line || null,
   ].filter((line) => line !== null).join('\n');
 
   const logoHtml = brand.logo_url
@@ -448,13 +492,21 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
                           : ''
                       }
                       ${footerBrandHtml ? `<p style="margin:14px 0 0 0;font-size:12px;color:#57606a;">From ${footerBrandHtml}</p>` : ''}
-                      <p style="margin:${footerBrandHtml ? '6px' : '14px'} 0 0 0;font-size:12px;color:#57606a;">${escapedFooter}</p>
+                      ${escapedFooter ? `<p style="margin:${footerBrandHtml ? '6px' : '14px'} 0 0 0;font-size:12px;color:#57606a;">${escapedFooter}</p>` : ''}
+                      ${companyLine ? `<p style="margin:${footerBrandHtml || escapedFooter ? '6px' : '14px'} 0 0 0;font-size:12px;color:#57606a;">${companyLine}</p>` : ''}
                     </td>
                   </tr>
                 </table>
               </td>
             </tr>
-            ${companyLine ? `<tr><td align="center" style="padding:14px 10px 0 10px;font-size:11px;line-height:1.5;color:#6e7781;">${companyLine}</td></tr>` : ''}
+            ${
+              poweredByHtml || platformCompanyLine
+                ? `<tr><td align="center" style="padding:14px 10px 0 10px;font-size:11px;line-height:1.5;color:#6e7781;">
+                    ${poweredByHtml ? `<div>${poweredByHtml}</div>` : ''}
+                    ${platformCompanyLine ? `<div style="margin-top:4px;">${platformCompanyLine}</div>` : ''}
+                  </td></tr>`
+                : ''
+            }
           </table>
         </td>
       </tr>

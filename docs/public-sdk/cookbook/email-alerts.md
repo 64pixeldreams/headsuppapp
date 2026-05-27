@@ -21,8 +21,6 @@ const emailSubscriber = await headsup.createSubscriber({
     branding: {
       brand_name: 'Coffee Ops',
       brand_url: 'https://example.com',
-      footer_brand_name: 'Coffee Ops',
-      footer_brand_url: 'https://example.com',
       cta_variant: 'warning',
     },
     labels: {
@@ -86,4 +84,5 @@ await headsup.sendEvent({
 - Optional action buttons when `config.actions` is set
 - CTA buttons use `cta.variant` or `cta.color_class` (`primary`, `success`, `warning`, `danger`, `info`, `dark`, `light`)
 - Footer brand links use `branding.footer_brand_name`/`footer_brand_url`, falling back to `brand_name`/`brand_url`
+- Partial integrator branding does not inherit Heads Up legal/footer text; `Powered by headsupp.io` is controlled by Heads Up
 - Confirmation email first when authorization is required

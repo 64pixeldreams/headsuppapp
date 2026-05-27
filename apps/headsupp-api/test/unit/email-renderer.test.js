@@ -270,14 +270,22 @@ test('renders default linked footer brand', () => {
     alert: baseAlert,
     subscriber: { config_json: '{}' },
     channel: {},
+    defaults: {
+      logo_url: 'https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/8235abd3-01d4-4c36-9c44-8955f77cc500/public',
+    },
   });
 
+  assert.match(rendered.html, /https:\/\/imagedelivery\.net\/qt9RmNSrfrSKuYiyxWVj5A\/8235abd3-01d4-4c36-9c44-8955f77cc500\/public/);
+  assert.match(rendered.html, /width="48" height="48" alt="Heads Up"/);
   assert.match(rendered.text, /From headsupp\.io/);
+  assert.match(rendered.text, /Powered by headsupp\.io/);
   assert.match(rendered.html, /From <a href="https:\/\/headsupp\.io\/"/);
   assert.match(rendered.html, />headsupp\.io<\/a>/);
+  assert.match(rendered.html, /Powered by <a href="https:\/\/headsupp\.io\/"/);
+  assert.match(rendered.html, /INC64 LLC\. 30N St Ste N, Sheridan, WY 82801\./);
 });
 
-test('renders configured linked footer brand override', () => {
+test('renders configured linked footer brand override with platform footer below card', () => {
   const rendered = renderAlertEmail({
     alert: baseAlert,
     subscriber: {
@@ -293,9 +301,78 @@ test('renders configured linked footer brand override', () => {
   });
 
   assert.match(rendered.text, /From Foretic/);
+  assert.match(rendered.text, /Powered by headsupp\.io/);
   assert.match(rendered.html, /From <a href="https:\/\/foretic\.io\/"/);
   assert.match(rendered.html, />Foretic<\/a>/);
+  assert.match(rendered.html, /Powered by <a href="https:\/\/headsupp\.io\/"/);
   assert.match(rendered.html, /Forecast intelligence from Foretic\./);
+  assert.match(rendered.html, /INC64 LLC\. 30N St Ste N, Sheridan, WY 82801\./);
+  assert.doesNotMatch(rendered.html, /Fewer surprises\. Just a heads up\./);
+});
+
+test('partial integrator branding does not inherit Heads Up footer defaults', () => {
+  const rendered = renderAlertEmail({
+    alert: baseAlert,
+    subscriber: {
+      config_json: JSON.stringify({
+        branding: {
+          title: 'Foretic Alerts',
+          logo_url: 'https://example.com/foretic-logo.png',
+        },
+      }),
+    },
+    channel: {},
+  });
+
+  assert.match(rendered.html, /Foretic Alerts/);
+  assert.match(rendered.html, /https:\/\/example\.com\/foretic-logo\.png/);
+  assert.match(rendered.text, /Powered by headsupp\.io/);
+  assert.match(rendered.html, /Powered by <a href="https:\/\/headsupp\.io\/"/);
+  assert.doesNotMatch(rendered.html, /Fewer surprises\. Just a heads up\./);
+  assert.match(rendered.html, /INC64 LLC\. 30N St Ste N, Sheridan, WY 82801\./);
+});
+
+test('partial integrator branding without logo does not inherit Heads Up logo', () => {
+  const rendered = renderAlertEmail({
+    alert: baseAlert,
+    subscriber: {
+      config_json: JSON.stringify({
+        branding: {
+          brand_name: 'Foretic',
+          brand_url: 'https://foretic.io',
+        },
+      }),
+    },
+    channel: {},
+    defaults: {
+      logo_url: 'https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/8235abd3-01d4-4c36-9c44-8955f77cc500/public',
+    },
+  });
+
+  assert.match(rendered.html, /Foretic/);
+  assert.doesNotMatch(rendered.html, /8235abd3-01d4-4c36-9c44-8955f77cc500/);
+  assert.match(rendered.html, /Powered by <a href="https:\/\/headsupp\.io\/"/);
+});
+
+test('explicit integrator company line renders when provided', () => {
+  const rendered = renderAlertEmail({
+    alert: baseAlert,
+    subscriber: {
+      config_json: JSON.stringify({
+        branding: {
+          brand_name: 'Foretic',
+          brand_url: 'https://foretic.io',
+          footer_text: 'Forecast intelligence from Foretic.',
+          company_line: 'Foretic Ltd.',
+        },
+      }),
+    },
+    channel: {},
+  });
+
+  assert.match(rendered.html, /Forecast intelligence from Foretic\./);
+  assert.match(rendered.html, /Foretic Ltd\./);
+  assert.match(rendered.html, /Powered by <a href="https:\/\/headsupp\.io\/"/);
 });
 
 test('renders brand header without placeholder logo when logo is absent', () => {
@@ -318,6 +395,7 @@ test('renders brand header without placeholder logo when logo is absent', () => 
   assert.match(rendered.html, /Production monitors/);
   assert.doesNotMatch(rendered.html, /width:32px;height:32px;border-radius:7px;background/);
   assert.match(rendered.html, /INC64 LLC\. 30N St Ste N, Sheridan, WY 82801\./);
+  assert.match(rendered.html, /Powered by <a href="https:\/\/headsupp\.io\/"/);
 });
 
 test('infers forecast alert from generic forecast fields without Foretic-specific config', () => {

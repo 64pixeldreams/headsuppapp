@@ -61,7 +61,7 @@ await client.d1Query('UPDATE subscribers SET config_json = ?, destination_url_re
       subtitle: process.env.HEADSUPP_SMOKE_EMAIL_SUBTITLE || null,
       logo_url: process.env.HEADSUPP_SMOKE_EMAIL_LOGO_URL || null,
       accent_color: process.env.HEADSUPP_SMOKE_EMAIL_ACCENT || '#1f883d',
-      footer_text: 'Fewer surprises. Just a heads up.',
+      footer_text: process.env.HEADSUPP_SMOKE_EMAIL_FOOTER_TEXT || undefined,
     },
     labels: {
       current_label: 'Current score',
