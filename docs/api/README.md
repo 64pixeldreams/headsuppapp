@@ -19,6 +19,8 @@ Everything else in this folder is supporting context and should link back to tho
 [node-cloudflare-client.md](node-cloudflare-client.md)     wrapper install and usage guide
 [webhook-receivers.md](webhook-receivers.md)          Slack and generic callback receiver guide
 [email-subscribers.md](email-subscribers.md)          outbound email subscriber and unsubscribe guide
+[email-rendering.md](email-rendering.md)             email template selection and event rendering contract
+[email-branding.md](email-branding.md)              email logo/footer/icon branding guide
 [aggregate-forwarding.md](aggregate-forwarding.md)       closed aggregate bucket forwarding guide
 [watch-types.md](watch-types.md)                plain-English feature and watch catalog
 [getting-started-api-keys.md](getting-started-api-keys.md)   first-run bootstrap and service API keys
@@ -34,6 +36,8 @@ admin.md
 connectors-and-ingest.md
 subscribers.md
 email-subscribers.md
+email-rendering.md
+email-branding.md
 webhook-receivers.md
 watch-types.md
 alerts-and-deliveries.md

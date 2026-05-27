@@ -28,6 +28,7 @@
     "smoke:advanced-watches": "node scripts/advanced-watches-smoke.mjs",
     "smoke:operator-observability": "node scripts/operator-observability-smoke.mjs",
     "smoke:email-subscriber": "node scripts/email-subscriber-smoke.mjs",
+    "smoke:email-design": "node scripts/email-design-smoke.mjs",
     "smoke:subscriber-lifecycle": "node scripts/subscriber-lifecycle-smoke.mjs",
     "release:verify-env": "node scripts/verify-release-env.mjs --slack-required",
     "release:verify-schema": "node scripts/verify-d1-schema.mjs",

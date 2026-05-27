@@ -3,6 +3,11 @@
 Primary docs: start with [quickstart.md](quickstart.md) and [reference.md](reference.md).  
 Use this guide for end-to-end email alert delivery setup, unsubscribe behavior, and troubleshooting.
 
+Detailed email docs:
+
+- [email-rendering.md](email-rendering.md): built-in templates, event fields, metric rows, CTA rendering, and action-control layout.
+- [email-branding.md](email-branding.md): logo, title, subtitle, footer/company line, icon URLs, and the future brand model.
+
 ## What This Adds
 
 Heads Up supports `subscriber_type: "email"` on the same delivery pipeline used for webhook subscribers:
@@ -30,6 +35,8 @@ Recommended vars:
 HEADSUPP_EMAIL_FROM = "alerts@headsupp.io"
 HEADSUPP_EMAIL_REPLY_TO = "alerts@headsupp.io"
 HEADSUPP_PUBLIC_BASE_URL = "https://api.headsupp.io"
+HEADSUPP_EMAIL_FOOTER_TEXT = "Fewer surprises. Just a heads up."
+HEADSUPP_EMAIL_COMPANY_LINE = "INC64 LLC. 30N St Ste N, Sheridan, WY 82801."
 HEADSUPP_EMAIL_ACTION_TTL_SECONDS = "604800"
 HEADSUPP_UNSUBSCRIBE_TTL_SECONDS = "604800"
 ```
@@ -67,6 +74,17 @@ Use one subscriber row per recipient (best for per-user pause/remove control).
         "name": "Heads Up"
       },
       "reply_to": "alerts@headsupp.io",
+      "branding": {
+        "title": "Heads Up",
+        "subtitle": "Coffee spend alerts",
+        "logo_url": "https://example.com/brand-logo.png",
+        "accent_color": "#1f883d",
+        "footer_text": "Fewer surprises. Just a heads up.",
+        "company_line": "INC64 LLC. 30N St Ste N, Sheridan, WY 82801.",
+        "icons": {
+          "alert_url": "https://example.com/alert-icon.svg"
+        }
+      },
       "labels": {
         "signal_label": "Coffee spend",
         "threshold_label": "Weekly budget",
@@ -158,6 +176,73 @@ Threshold editing is not part of this MVP. Use a future `manage_alert` page for 
 Email subscribers can define lightweight text templates once in `config.labels` or directly on `config`.
 Heads Up renders these templates at delivery time using formatted values. This keeps events small while still producing useful subject lines and headings.
 
+For the full rendering contract, see [email-rendering.md](email-rendering.md). For branding and icon behavior, see [email-branding.md](email-branding.md).
+
+Tier 1 templates are generic and reusable across integrations:
+
+```text
+brand_alert_v1     Default branded alert shell with CTA and metric rows.
+metric_alert_v1    Uses fields.metrics[] as the primary content block.
+forecast_alert_v1  Forecast/goal pace layout driven by generic forecast fields.
+spend_alert_v1     Spend-oriented defaults for amount/budget style alerts.
+base_alert_v1      Compatibility alias for the branded fallback layout.
+```
+
+These templates are not Foretic-specific. Any integration can shape the email by sending `fields.notification`, `fields.display`, `fields.metrics`, and `cta`.
+
+### Branding and Icons
+
+MVP branding comes from environment defaults and subscriber config:
+
+```text
+subscriber.config.branding.company_line
+-> env.HEADSUPP_EMAIL_COMPANY_LINE
+-> INC64 LLC. 30N St Ste N, Sheridan, WY 82801.
+```
+
+Header behavior:
+
+- `branding.logo_url` renders a logo beside the header text.
+- If no logo is set, no placeholder image or letter box is rendered.
+- `branding.title` and `branding.subtitle` are optional.
+- If `title`, `subtitle`, and logo are absent, the header collapses cleanly.
+
+Hero icon behavior:
+
+- Event-specific icon: `fields.notification.icon_url`, `fields.icon_url`, or `fields.email.icon_url`.
+- Subscriber default icon: `subscriber.config.branding.icons.alert_url`, `warning_url`, `critical_url`, or `recovered_url`.
+- URLs must be `http` or `https`; unsafe URLs are omitted.
+
+Example icon URLs used by the design smoke:
+
+```text
+Coffee:   https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/3e0d7a3c-74f7-4092-c84b-fcb59cb03e00/public
+Forecast: https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/129ca8d6-1dcd-4148-aac2-5e2a698fd200/public
+Alert:    https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/7c0fd57e-0771-4b56-19bd-0df9263c1300/public
+```
+
+Future brand records should store image URLs and metadata, not binary image content. Integrators can keep assets in Cloudflare Images, their own CDN, or another stable public HTTPS asset host.
+
+Planned brand model:
+
+```json
+{
+  "brand_id": "foretic_default",
+  "title": "Foretic",
+  "subtitle": "Forecast alerts",
+  "logo_url": "https://cdn.example.com/foretic-logo.png",
+  "accent_color": "#1f883d",
+  "footer_text": "Fewer surprises. Just a heads up.",
+  "company_line": "Foretic Ltd.",
+  "icons": {
+    "forecast_url": "https://cdn.example.com/forecast-icon.svg",
+    "alert_url": "https://cdn.example.com/alert-icon.svg"
+  }
+}
+```
+
+The future resolution order should be event `fields.email.brand_id`, subscriber `config.brand_id`, subscriber inline `config.branding`, then workspace/env defaults.
+
 Supported placeholders:
 
 ```text
@@ -218,6 +303,35 @@ Keep events lean; send changing facts only:
 
 Optional override (rare): `fields.notification` with custom title/summary/detail.
 
+Rich generic alert example:
+
+```json
+{
+  "signal_key": "business.metric.health",
+  "occurred_at": "2026-05-25T12:00:00Z",
+  "value": { "num": 64 },
+  "fields": {
+    "resource_name": "Generic integration design check",
+    "notification": {
+      "title": "Generic alert template design check",
+      "summary": "This alert is shaped by event metadata and subscriber branding.",
+      "detail": "Use this for professional content without custom HTML.",
+      "icon_url": "https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/7c0fd57e-0771-4b56-19bd-0df9263c1300/public"
+    },
+    "metrics": [
+      { "label": "Current value", "value": "64" },
+      { "label": "Target", "value": "50" },
+      { "label": "Business impact", "value": "$7,500 at risk" },
+      { "label": "Time left", "value": "3 days" }
+    ]
+  },
+  "cta": {
+    "label": "View details",
+    "url": "https://example.com/details"
+  }
+}
+```
+
 ### Trigger A Test Email
 
 Run the deployed smoke when you want to prove the full email path:
@@ -232,6 +346,23 @@ Remove-Item Env:HEADSUPP_SMOKE_EMAIL_DESTINATION
 ```
 
 The smoke provisions an email subscriber, sends normal coffee events that stay silent, then sends one `coffee.highest_purchase` trigger event. Passing output means one alert row was created and the latest email delivery reached `sent`.
+
+For design review, send a single rich event that triggers immediately:
+
+```powershell
+cd apps/headsupp-api
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+$env:HEADSUPP_SMOKE_EMAIL_DESTINATION='martin@example.com'
+$env:HEADSUPP_SMOKE_EMAIL_TEMPLATE='metric_alert_v1'
+$env:HEADSUPP_SMOKE_EMAIL_ICON_URL='https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/7c0fd57e-0771-4b56-19bd-0df9263c1300/public'
+npm run smoke:email-design
+Remove-Item Env:CLOUDFLARE_API_TOKEN
+Remove-Item Env:HEADSUPP_SMOKE_EMAIL_DESTINATION
+Remove-Item Env:HEADSUPP_SMOKE_EMAIL_TEMPLATE
+Remove-Item Env:HEADSUPP_SMOKE_EMAIL_ICON_URL
+```
+
+Use `HEADSUPP_SMOKE_EMAIL_TEMPLATE` with `brand_alert_v1`, `metric_alert_v1`, `forecast_alert_v1`, or `spend_alert_v1` to inspect built-in variants in a real inbox.
 
 ## 3) What Email Gets Sent
 

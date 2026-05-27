@@ -106,6 +106,10 @@ export async function dispatchEmailAlertDelivery({
       channel,
       unsubscribe_url: unsubscribeUrl,
       action_links: actionLinks,
+      defaults: {
+        footer_text: env.HEADSUPP_EMAIL_FOOTER_TEXT,
+        company_line: env.HEADSUPP_EMAIL_COMPANY_LINE,
+      },
     });
   } catch (caught) {
     const state = classifyEmailResult({

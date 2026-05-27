@@ -41,8 +41,10 @@ test('renders fallback template with formatting profile', () => {
   assert.match(rendered.html, /href="https:\/\/headsupp\.io\/v1\/subscribers\/unsubscribe\?token=test"/);
   assert.match(rendered.html, /Critical/);
   assert.match(rendered.html, /background:#FEE2E2/);
-  assert.match(rendered.html, /VIEW COFFEE SPEND/);
-  assert.match(rendered.html, /min-width:148px;background:#f1f5f9;color:#111827/);
+  assert.match(rendered.html, /View coffee spend/);
+  assert.match(rendered.html, /min-width:148px;background:#1f883d;color:#ffffff/);
+  assert.match(rendered.html, /max-width:560px/);
+  assert.match(rendered.html, /border:1px solid #d0d7de/);
   assert.doesNotMatch(rendered.html, /<strong>Severity:<\/strong>/);
   assert.doesNotMatch(rendered.text, /Severity:/);
 });
@@ -65,7 +67,7 @@ test('renders notification overrides and escapes HTML content', () => {
     channel: {},
   });
 
-  assert.match(rendered.subject, /Coffee <Budget> exceeded: 126\.40/);
+  assert.equal(rendered.subject, 'Critical: Coffee <Budget> exceeded');
   assert.match(rendered.html, /Coffee &lt;Budget&gt; exceeded/);
   assert.doesNotMatch(rendered.html, /<b>126\.40<\/b>/);
 });
@@ -161,6 +163,126 @@ test('renders configured alert action links in html and text', () => {
   assert.match(rendered.html, /Alert controls/);
   assert.match(rendered.html, /SNOOZE 1H/);
   assert.match(rendered.html, /STOP WATCHING/);
-  assert.match(rendered.html, /min-width:104px/);
+  assert.match(rendered.html, /width="50%"/);
+  assert.match(rendered.html, /border-radius:8px/);
   assert.match(rendered.html, /font-weight:600/);
+});
+
+test('renders generic metric alert with branding and event-supplied metric rows', () => {
+  const rendered = renderAlertEmail({
+    alert: {
+      ...baseAlert,
+      severity: 'warning',
+      payload_json: JSON.stringify({
+        fields: {
+          notification: {
+            title: 'Revenue forecast needs attention',
+            summary: 'You are $2,500 behind expected pace with 3 days left.',
+            icon_url: 'https://example.com/alert.svg',
+          },
+          resource_name: 'RB sales history',
+          metrics: [
+            { label: 'Actual', value: '$7,500' },
+            { label: 'Target', value: '$10,000' },
+            { label: 'Time left', value: '3 days' },
+          ],
+        },
+      }),
+    },
+    subscriber: {
+      destination_url: 'martin@inc64.com',
+      config_json: JSON.stringify({
+        template_id: 'metric_alert_v1',
+        branding: {
+          brand_name: 'Foretic',
+          logo_url: 'https://example.com/logo.png',
+          accent_color: '#0969da',
+          company_line: 'Foretic Ltd',
+        },
+      }),
+    },
+    channel: { name: 'Revenue pace' },
+  });
+
+  assert.equal(rendered.template_id, 'metric_alert_v1');
+  assert.equal(rendered.subject, 'Warning: Revenue forecast needs attention');
+  assert.match(rendered.html, /Foretic/);
+  assert.match(rendered.html, /https:\/\/example\.com\/logo\.png/);
+  assert.match(rendered.html, /width="48" height="48"/);
+  assert.match(rendered.html, /https:\/\/example\.com\/alert\.svg/);
+  assert.match(rendered.html, /width="64" height="64"/);
+  assert.match(rendered.html, /border-radius:16px/);
+  assert.match(rendered.html, /RB sales history/);
+  assert.match(rendered.html, /Actual/);
+  assert.match(rendered.html, /\$7,500/);
+  assert.match(rendered.html, /Foretic Ltd/);
+});
+
+test('renders brand header without placeholder logo when logo is absent', () => {
+  const rendered = renderAlertEmail({
+    alert: baseAlert,
+    subscriber: {
+      destination_url: 'martin@inc64.com',
+      config_json: JSON.stringify({
+        template_id: 'brand_alert_v1',
+        branding: {
+          title: 'Acme Alerts',
+          subtitle: 'Production monitors',
+        },
+      }),
+    },
+    channel: {},
+  });
+
+  assert.match(rendered.html, /Acme Alerts/);
+  assert.match(rendered.html, /Production monitors/);
+  assert.doesNotMatch(rendered.html, /width:32px;height:32px;border-radius:7px;background/);
+  assert.match(rendered.html, /INC64 LLC\. 30N St Ste N, Sheridan, WY 82801\./);
+});
+
+test('infers forecast alert from generic forecast fields without Foretic-specific config', () => {
+  const rendered = renderAlertEmail({
+    alert: {
+      ...baseAlert,
+      severity: 'warning',
+      current_value: 64,
+      threshold_value: 85,
+      payload_json: JSON.stringify({
+        fields: {
+          event_type: 'forecast_state',
+          forecast_name: 'RB sales history (stripe)',
+          notification: {
+            summary: 'You are behind pace with 3 days left in the period.',
+          },
+          display: {
+            actual_to_date: '$7,500',
+            target: '$10,000',
+            gap: '$2,500 behind',
+            days_remaining: '3 days',
+            pace_percent: '64%',
+            threshold_value: '85%',
+          },
+        },
+      }),
+      cta_label: 'View forecast',
+      cta_url: 'https://app.example.com/forecast/123',
+    },
+    subscriber: {
+      destination_url: 'martin@inc64.com',
+      config_json: JSON.stringify({
+        branding: {
+          brand_name: 'Acme Forecasts',
+        },
+      }),
+    },
+    channel: { name: 'Revenue pace' },
+  });
+
+  assert.equal(rendered.template_id, 'forecast_alert_v1');
+  assert.equal(rendered.subject, 'Warning: RB sales history (stripe)');
+  assert.match(rendered.html, /Acme Forecasts/);
+  assert.match(rendered.html, /RB sales history \(stripe\)/);
+  assert.match(rendered.html, /Actual to date/);
+  assert.match(rendered.html, /\$7,500/);
+  assert.match(rendered.html, /View forecast/);
 });

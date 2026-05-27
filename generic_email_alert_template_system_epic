@@ -1,0 +1,472 @@
+# Generic Email Alert Template System Epic
+
+## Product Goal
+
+Build the best developer-friendly email alert system for Heads Up without sandboxing the implementation to Foretic.
+
+The system has two tiers:
+
+- Tier 1: high-quality built-in templates that any integrator can shape with event metadata, subscriber labels, and branding.
+- Tier 2: API-created custom templates with tags, for integrations that need their own layout and copy.
+
+Foretic is the first serious consumer, but the event contract and renderer must stay generic.
+
+## How Tier 1 Works
+
+Tier 1 keeps templates inside Heads Up and lets the integrator shape content.
+
+Flow:
+
+```text
+Integrator event -> watch fires -> alert row -> email subscriber
+                                           |
+                                           v
+                    renderAlertEmail selects a built-in template
+                                           |
+                                           v
+              merge alert + fields + subscriber config + branding
+                                           |
+                                           v
+                         send through existing email delivery path
+```
+
+Integrator controls:
+
+- `fields.notification.title`
+- `fields.notification.summary`
+- `fields.notification.detail`
+- `fields.display`
+- `fields.metrics[]`
+- `fields.resource_name`
+- `cta.label`
+- `cta.url`
+- `subscriber.config.branding`
+- `subscriber.config.labels`
+- `subscriber.config.template_id`
+
+Heads Up controls:
+
+- watch decision behavior
+- delivery retries
+- unsubscribe
+- action buttons
+- HTML safety
+- base layout quality
+- built-in template variants
+
+Generic event example:
+
+```json
+{
+  "signal_key": "business.metric.health",
+  "value": { "num": 64 },
+  "fields": {
+    "resource_name": "Generic integration design check",
+    "notification": {
+      "title": "Metric needs attention",
+      "summary": "The current value crossed the alert threshold.",
+      "detail": "Use this area for the business reason or likely driver."
+    },
+    "metrics": [
+      { "label": "Current value", "value": "64" },
+      { "label": "Target", "value": "50" },
+      { "label": "Business impact", "value": "$7,500 at risk" },
+      { "label": "Time left", "value": "3 days" }
+    ]
+  },
+  "cta": {
+    "label": "View details",
+    "url": "https://example.com/details"
+  }
+}
+```
+
+Tier 1 template family:
+
+```text
+brand_alert_v1     Default brand shell and generic metrics.
+metric_alert_v1    Uses fields.metrics[] as the main content block.
+forecast_alert_v1  Forecast/goal pace layout from generic forecast fields.
+spend_alert_v1     Spend/budget defaults from generic spend fields.
+base_alert_v1      Compatibility fallback.
+```
+
+The important architectural decision: template variants are not per integration. They are reusable presentation patterns. Foretic can use `forecast_alert_v1`, but any forecast/goal integration can also use it.
+
+## How Tier 2 Works
+
+Tier 2 lets an integrator create reusable brand records and templates through the Heads Up API.
+
+Flow:
+
+```text
+Integrator creates brand -> logo/footer/icon metadata stored per workspace
+Integrator creates email template -> template stored per workspace
+Integrator creates subscriber -> subscriber.config.template_id and brand_id point at stored records
+Integrator sends event -> fields.template_data and optional icon override supply tag values
+Heads Up renders template -> delivery path sends email
+```
+
+Integrator controls:
+
+- subject template
+- text template
+- HTML template
+- required tags
+- optional tags
+- brand records with logo/footer/accent/icon URLs
+- event-level icon overrides
+- event-provided `fields.template_data`
+
+Heads Up controls:
+
+- template storage
+- workspace scoping
+- validation
+- escaping policy
+- safe URL checks
+- delivery, retry, unsubscribe, and action buttons
+- auditability
+
+Tier 2 should reuse Tier 1 shell tokens where practical, so custom templates still benefit from consistent branding and delivery controls.
+
+Brand records should store public HTTPS asset URLs and metadata, not binary image content. Integrators can host images in Cloudflare Images, their own CDN, or another stable public HTTPS asset host.
+
+## Epic A - Tier 1 Generic Built-In Templates
+
+### A1 - Shared Brand Shell
+
+As a platform developer, I want a shared branded email shell so every built-in alert email looks professional and consistent.
+
+Acceptance criteria:
+
+- Outer wrapper uses email-safe table HTML, system fonts, light gray page background, white card, GitHub-style border, and compact max width.
+- Header supports optional `branding.logo_url`, `branding.brand_name`, and context line.
+- Header does not render a fake placeholder logo when no logo is present.
+- Header supports optional `branding.title` and `branding.subtitle`.
+- Hero supports severity icon, title, severity pill, summary, detail, and primary CTA.
+- Hero icon can come from `fields.notification.icon_url`, `fields.icon_url`, `fields.email.icon_url`, or `branding.icons`.
+- Body supports metric rows, fallback CTA link, alert controls, unsubscribe, footer, and company line.
+- Default company line is `INC64 LLC. 30N St Ste N, Sheridan, WY 82801.` unless overridden by env or subscriber branding.
+- Alert controls render first two snooze buttons in a 50/50 row and `stop_watching` in a full-width row.
+- Dynamic text is HTML-escaped.
+- CTA and logo URLs must pass `http`/`https` validation.
+- Accent color uses a safe hex color fallback.
+- Unit tests cover logo, branding, escaping, CTA, metric rows, and fallback behavior.
+
+Smoke test:
+
+- `npm run smoke:email-design` sends one immediate rich event using `metric_alert_v1`.
+- Delivery must reach `sent`.
+- Output includes template id, latest alert, latest delivery, and recipient hint.
+
+### A2 - `brand_alert_v1` Default Template
+
+As an integrator, I want a polished default template so I can send useful alerts without custom HTML.
+
+Acceptance criteria:
+
+- Reads `fields.notification` for title, summary, and detail.
+- Reads `fields.metrics[]` when supplied.
+- Falls back to current value and threshold rows.
+- Uses subscriber `branding` for brand name, logo, accent, footer, and company line.
+- Uses event CTA as a primary button.
+- Uses existing unsubscribe and action controls.
+- Does not require Foretic fields.
+- Unit tests prove a generic event renders a professional email.
+
+Smoke test:
+
+- `HEADSUPP_SMOKE_EMAIL_TEMPLATE=brand_alert_v1 npm run smoke:email-design`
+- Engineer receives one email and can review visual design.
+
+### A3 - `metric_alert_v1` Template
+
+As an integrator with multi-number alerts, I want metric rows so recipients can understand real-world values quickly.
+
+Acceptance criteria:
+
+- Uses `fields.metrics[]` as ordered rows.
+- Each metric supports `label` and `value`; longer context belongs in `fields.notification.detail` or a separate metric row.
+- Falls back to `fields.display` or current/threshold values.
+- Subject prefers `fields.notification.title`.
+- Unit tests cover ordered metrics, sublines, branding, and escaping.
+
+Smoke test:
+
+- Default `npm run smoke:email-design` uses `metric_alert_v1`.
+- The email includes at least four metric rows.
+
+### A4 - `forecast_alert_v1` Template
+
+As any forecast or goal integrator, I want a forecast-shaped built-in template so forecast alerts show the business story without custom HTML.
+
+Acceptance criteria:
+
+- Uses generic forecast fields, not Foretic-only branches.
+- Resource name comes from `fields.forecast_name`, `fields.goal_name`, `fields.resource_name`, or channel name.
+- Rows can come from `fields.metrics[]`.
+- If metrics are absent, uses conventional display keys:
+  - `actual_to_date`
+  - `target`
+  - `gap`
+  - `days_remaining`
+  - `pace_percent`
+  - `threshold_value`
+- CTA defaults to the event CTA.
+- Unit tests prove it auto-selects from `fields.event_type = "forecast_state"` without checking `source_app`.
+
+Smoke test:
+
+- `HEADSUPP_SMOKE_EMAIL_TEMPLATE=forecast_alert_v1 npm run smoke:email-design`
+- Engineer can inspect a real forecast-style email. The smoke event remains generic enough to run outside Foretic.
+
+### A5 - `spend_alert_v1` Template
+
+As a spend or budget integrator, I want spend defaults so common budget emails look good without a custom template.
+
+Acceptance criteria:
+
+- Uses metric rows if present.
+- Falls back to amount and budget labels.
+- Adds merchant/vendor context when supplied.
+- Works with money values supplied through `fields.display` or subscriber `value_format`.
+- Unit tests cover merchant context and money formatting.
+
+Smoke test:
+
+- `HEADSUPP_SMOKE_EMAIL_TEMPLATE=spend_alert_v1 npm run smoke:email-design`
+- Engineer receives an immediate spend-style email.
+
+### A6 - Tier 1 Event Contract Documentation
+
+As an integrator, I want a stable event contract so I know how to shape high-quality emails.
+
+Acceptance criteria:
+
+- Docs define `fields.notification`.
+- Docs define `fields.display`.
+- Docs define `fields.metrics[]`.
+- Docs define `fields.resource_name`.
+- Docs explain which template IDs are available.
+- Docs include a smoke command for firing a test email immediately.
+- Docs explicitly state this is generic and not Foretic-specific.
+
+Test requirements:
+
+- Docs examples match renderer tests.
+- Smoke command exists in `package.json`.
+
+### A7 - Foretic Event Enrichment Using Generic Contract
+
+As Foretic, I want forecast events to carry business-ready metadata so the generic email templates can render useful forecast alerts.
+
+Acceptance criteria:
+
+- `buildForeticForecastStateEvent` keeps `signal_key = forecast.revenue.pace`.
+- It adds generic `fields.notification`.
+- It adds generic `fields.display`.
+- It adds generic `fields.metrics[]`.
+- It includes actual, expected, target, gap, days remaining, pace, and driver when available.
+- It does not require a Foretic-only renderer branch.
+- Unit tests prove the event validates through normal ingest validation.
+
+Smoke test:
+
+- Foretic can still use the normal connector path.
+- A forecast event with rich fields triggers an email through Tier 1.
+
+### A8 - Subject Line Intelligence
+
+As a recipient, I want subjects that name the thing and the stakes so I know why I should open the email.
+
+Acceptance criteria:
+
+- Subject prefers `fields.notification.subject`.
+- Then `fields.notification.title`.
+- Then resource/channel/watch fallback.
+- Does not append raw current value when an explicit notification title is supplied.
+- Keeps severity prefix.
+- Unit tests cover generic, metric, forecast, and escaped title cases.
+
+Smoke test:
+
+- Design smoke output includes the selected `template_id`; engineer verifies inbox subject.
+
+## Epic B - Tier 2 Brand Records
+
+### B1 - Workspace Brand Storage Model
+
+As an integrator, I want reusable brand records so I can apply logo, footer, accent color, and icons across subscribers/templates without repeating config.
+
+Acceptance criteria:
+
+- Add `email_brands` table.
+- Fields include workspace id, brand id/key, name, title, subtitle, logo URL, accent color, footer text, company line, icons JSON, enabled, created/updated timestamps.
+- Unique constraint on workspace id and brand key.
+- Store public HTTPS asset URLs, not binary files.
+- Validate logo and icon URLs are `http` or `https`.
+- Unit tests cover insert/read/update and invalid URLs.
+
+Smoke test:
+
+- API smoke creates a brand record, reads it back, and verifies sanitized fields.
+
+### B2 - Brand CRUD API
+
+As an integrator, I want to create and update brand records through the API so Foretic or any third-party app can control email identity.
+
+Acceptance criteria:
+
+- API supports create, get, list, update, disable.
+- Requires admin/integration permission.
+- Rejects invalid colors and unsafe URLs.
+- Redacts or omits private/internal URL fields from public reads if needed.
+- Unit tests cover permission and validation failures.
+
+Smoke test:
+
+- API smoke creates a brand with logo/footer/icons and validates it can be selected by id.
+
+### B3 - Brand Resolution At Delivery Time
+
+As an integrator, I want a subscriber or event to reference a brand id so the correct logo/footer/icons are applied at render time.
+
+Acceptance criteria:
+
+- Resolution order:
+  - event `fields.email.brand_id`
+  - subscriber `config.brand_id`
+  - subscriber inline `config.branding`
+  - workspace/default env branding
+- Inline subscriber branding can override a stored brand for emergency fixes.
+- Event-level icon URL can override brand icon for one alert.
+- Response body records selected brand id/key.
+- Unit tests cover resolution and fallback.
+
+Smoke test:
+
+- Create brand, create email subscriber with `brand_id`, send one trigger event, verify delivery reaches `sent`.
+
+## Epic C - Tier 2 API-Stored Templates
+
+### C1 - Email Template Storage Model
+
+As a platform operator, I want workspace-scoped email templates so integrations can own deeper layouts.
+
+Acceptance criteria:
+
+- Add `email_templates` table.
+- Fields include workspace id, template key, subject, html body, text body, tags JSON, version, enabled, created/updated timestamps.
+- Unique constraint on workspace id and template key.
+- Migration includes rollback-safe naming.
+- Unit tests cover insert/read/update.
+
+Smoke test:
+
+- None required until rendering is wired.
+
+### C2 - Template CRUD API
+
+As an integrator, I want to create and update templates through the API so I do not need a Heads Up deploy.
+
+Acceptance criteria:
+
+- API supports create, get, list, update, disable.
+- Requires admin/integration permission.
+- Validates max subject/html/text size.
+- Validates allowed tag syntax.
+- Rejects obvious unsafe tags/scripts.
+- Unit tests cover permission and validation failures.
+
+Smoke test:
+
+- Add an API smoke that creates a template and reads it back.
+
+### C3 - Safe Tag Renderer
+
+As a platform developer, I want a safe tag renderer so custom templates cannot execute arbitrary code.
+
+Acceptance criteria:
+
+- Supports simple tags like `{{forecast_name}}`.
+- Supports system tags like `{{brand_name}}`, `{{severity}}`, `{{cta_url}}`, `{{unsubscribe_url}}`.
+- Reads event values from `fields.template_data`.
+- Escapes string values by default.
+- Safe HTML tags are disabled by default.
+- Missing required tags fail the delivery with a clear non-retryable render error.
+- Unit tests cover escaping, missing tags, URL safety, and system tags.
+
+Smoke test:
+
+- Add a local render smoke or unit fixture before deployed email smoke.
+
+### C4 - Subscriber Wiring For Custom Templates
+
+As an integrator, I want subscriber config to point at a custom template so delivery uses my stored template.
+
+Acceptance criteria:
+
+- Resolution order: workspace custom template, built-in template registry, `brand_alert_v1`.
+- `response_body` records template key/version.
+- Built-in template behavior remains unchanged.
+- Unit tests cover resolution order and fallback.
+
+Smoke test:
+
+- Create custom template, create email subscriber using it, send one trigger event, verify delivery reaches `sent`.
+
+### C5 - Governance And Abuse Controls
+
+As a platform operator, I want guardrails so custom templates do not create phishing or abuse risk.
+
+Acceptance criteria:
+
+- Workspace feature flag controls custom email templates.
+- Optional link/domain allowlist.
+- Template create/update audit log.
+- Rate limits or quotas for template mutation.
+- Docs explain trust model.
+
+Smoke test:
+
+- API smoke verifies disabled workspace cannot create templates.
+
+### C6 - Foretic Tier 2 Pilot
+
+As Foretic, I want one custom forecast template registered through the API so we can prove Tier 2 without making Foretic special in Heads Up code.
+
+Acceptance criteria:
+
+- Foretic template uses the same visual language as Tier 1.
+- Foretic event supplies `fields.template_data`.
+- Subscriber points to `foretic_forecast_v2`.
+- No Foretic-specific render branch is added.
+- Side-by-side output can be compared with `forecast_alert_v1`.
+
+Smoke test:
+
+- Custom template deployed smoke sends one Foretic-like event and verifies `sent`.
+
+## Execution Order
+
+1. A1 - Shared Brand Shell
+2. A2 - `brand_alert_v1`
+3. A3 - `metric_alert_v1`
+4. A4 - `forecast_alert_v1`
+5. A5 - `spend_alert_v1`
+6. A6 - Tier 1 docs and smoke command
+7. A7 - Foretic event enrichment using generic contract
+8. A8 - subject intelligence
+9. B1-B3 brand records after Tier 1 is stable
+10. C1-C6 custom templates after brand records
+
+## Tier 1 Done Definition
+
+- Renderer has reusable built-in variants.
+- Existing email delivery path is unchanged.
+- No Foretic-specific renderer branch exists.
+- Unit tests cover built-in template behavior.
+- `npm run smoke:email-design` can send one immediate real email for design review.
+- `npm run smoke:email-subscriber` still validates the full email subscriber flow.
+- Docs tell developers how to shape content with event fields.

@@ -14,6 +14,11 @@ test('builds Foretic forecast_state event payload', () => {
     forecastId: 'oracle_forecast:mlfl1bfqrxnbk1',
     forecastName: 'RB sales history (stripe)',
     pacePercent: 69,
+    actualToDate: 7500,
+    expectedToDate: 10000,
+    target: 12000,
+    daysRemaining: 3,
+    primaryDriver: 'Average estimate value',
     occurredAt: '2026-05-24T10:00:00Z',
     ctaUrl: 'https://foretic.test/forecasts/oracle_forecast:mlfl1bfqrxnbk1',
   });
@@ -22,6 +27,11 @@ test('builds Foretic forecast_state event payload', () => {
   assert.equal(event.value.num, 69);
   assert.equal(event.fields.event_type, 'forecast_state');
   assert.equal(event.fields.status, 'critical');
+  assert.equal(event.fields.display.current_value, '69%');
+  assert.equal(event.fields.display.actual_to_date, '$7,500');
+  assert.equal(event.fields.display.gap, '$2,500 behind expected pace');
+  assert.equal(event.fields.notification.title, 'RB sales history (stripe)');
+  assert.equal(event.fields.metrics.some((metric) => metric.label === 'Time left' && metric.value === '3 days'), true);
   assert.equal(event.cta.label, 'View forecast');
   assert.equal(normalizeIncomingPayload(event).ok, true);
 });
