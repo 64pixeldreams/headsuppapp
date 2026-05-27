@@ -29,6 +29,7 @@
     "smoke:operator-observability": "node scripts/operator-observability-smoke.mjs",
     "smoke:email-subscriber": "node scripts/email-subscriber-smoke.mjs",
     "release:verify-env": "node scripts/verify-release-env.mjs --slack-required",
+    "release:verify-schema": "node scripts/verify-d1-schema.mjs",
     "provision:generic-smoke": "node scripts/provision-generic-smoke.mjs"
   },
   "keywords": [

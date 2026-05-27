@@ -83,6 +83,8 @@ Generic admin create actions validate required fields before D1 writes and retur
 
 When a stable unique key already exists, create actions return the canonical stored row with `created: false`. Connector secrets are returned only on a true first create; duplicate connector creates return the existing connector without `connector_secret`.
 
+If Worker code and D1 schema drift, admin actions return `SCHEMA_MISMATCH` with the missing table/column rather than exposing raw D1 internals. Operators should run `npm run release:verify-schema` and apply the missing migration before retrying.
+
 ## Operator Functions
 
 Bootstrap and key lifecycle functions:

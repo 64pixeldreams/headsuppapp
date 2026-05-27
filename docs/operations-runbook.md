@@ -66,6 +66,7 @@ whether the Worker was deployed after code changes
 Useful commands:
 
 ```powershell
+npm run release:verify-schema
 npm run smoke:generic-slack
 npm run smoke:alert-decisions
 npm run smoke:scheduled
@@ -237,6 +238,19 @@ npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0007_email
 ```
 
 Fresh installs must use `migrations/fresh/schema.sql` and should not run legacy `ALTER TABLE` patches.
+
+After any deploy or migration, verify remote schema alignment:
+
+```powershell
+cd apps/headsupp-api
+npm run release:verify-schema
+```
+
+If an admin action returns `SCHEMA_MISMATCH`, the Worker code is newer than the D1 schema. Apply the missing migration, rerun `npm run release:verify-schema`, then retry the admin action. For `channels.metadata_json`, the required legacy patch is:
+
+```powershell
+npx wrangler d1 execute headsup_db --remote --file "migrations/legacy/0006_channel_metadata.sql"
+```
 
 ## Watch Action Controls
 

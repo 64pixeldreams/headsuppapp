@@ -80,6 +80,9 @@ jobs:
       - name: Verify required secrets
         run: node scripts/verify-release-env.mjs --slack-required
 
+      - name: Verify deployed D1 schema
+        run: npm run release:verify-schema
+
       - name: Generic Slack smoke
         run: npm run smoke:generic-slack
 
