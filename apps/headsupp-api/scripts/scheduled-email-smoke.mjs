@@ -90,6 +90,19 @@ async function sentCounts() {
   return Object.fromEntries((rows?.results || []).map((row) => [row.watch_id, Number(row.sent || 0)]));
 }
 
+async function disableScheduledEmailProof() {
+  const now = new Date().toISOString();
+  await client.d1Query('UPDATE watches SET enabled = 0, updated_at = ? WHERE channel_id = ?', [now, ids.channel]);
+  await client.d1Query('UPDATE subscribers SET enabled = 0, updated_at = ? WHERE channel_id = ?', [now, ids.channel]);
+  await client.d1Query(
+    `UPDATE alert_deliveries
+     SET status = 'ignored', updated_at = ?
+     WHERE alert_id IN (SELECT id FROM alerts WHERE channel_id = ?)
+       AND status IN ('pending', 'retrying')`,
+    [now, ids.channel],
+  );
+}
+
 await provisionGenericScenario({
   client,
   ids,
@@ -149,13 +162,18 @@ await insertWatch({
 });
 
 const expected = [watchId('missing'), watchId('reminder'), watchId('digest')];
-const proof = await pollUntil({
-  label: 'scheduled email deliveries',
-  attempts: 50,
-  intervalMs: 3000,
-  check: sentCounts,
-  isReady: (counts) => expected.every((id) => Number(counts[id] || 0) >= 1),
-});
+let proof = null;
+try {
+  proof = await pollUntil({
+    label: 'scheduled email deliveries',
+    attempts: 50,
+    intervalMs: 3000,
+    check: sentCounts,
+    isReady: (counts) => expected.every((id) => Number(counts[id] || 0) >= 1),
+  });
+} finally {
+  await disableScheduledEmailProof();
+}
 
 console.log(
   JSON.stringify(
@@ -170,6 +188,10 @@ console.log(
       signal_key: signalKey,
       expected_watch_ids: expected,
       sent_counts: proof,
+      cleanup: {
+        scheduled_watches_disabled: true,
+        subscriber_disabled: true,
+      },
       expected_email_behavior: 'Three real scheduled smoke emails: missing expected, reminder due, and digest.',
     },
     null,
