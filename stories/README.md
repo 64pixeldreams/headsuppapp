@@ -23,7 +23,7 @@ If a story creates or changes an endpoint, auth rule, event payload, delivery pa
 
 ## Current Story Count
 
-There are 118 story files.
+There are 119 story files.
 
 Stories marked `_done` are complete. Pending stories should be built one at a time or in an agreed batch, with tests and docs updated before marking `_done`.
 
@@ -159,6 +159,7 @@ Final API-platform pass from the first Foretic integration feedback. Build 116 b
 ```text
 116 First integrator production pass_done
 117 Real email watch proof suite_done
+118 Email inbox loop proof_done
 ```
 
 ## Commercialization Batch

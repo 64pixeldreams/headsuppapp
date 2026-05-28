@@ -14,6 +14,7 @@ import { writeAuditLog } from './services/audit/control-plane-audit.js';
 import { buildEmailActionUrl, processEmailActionToken } from './services/subscribers/email-actions.js';
 import { processEmailAuthorizationToken } from './services/subscribers/email-authorization.js';
 import { processUnsubscribeToken } from './services/subscribers/unsubscribe.js';
+import { processEmailTestReceipt, verifyEmailWorkerSignature } from './services/email/test-message-log.js';
 
 export { WatchEvaluatorDO } from './durable/WatchEvaluatorDO.js';
 
@@ -75,6 +76,15 @@ function isAuthorizedObservabilityRequest(request, env) {
   if (!provided) return false;
   const expected = [env.HEADSUPP_OPERATOR_TOKEN, env.HEADSUPP_BOOTSTRAP_TOKEN].filter(Boolean);
   return expected.includes(provided);
+}
+
+async function readJsonBody(request) {
+  const rawBody = await request.text();
+  try {
+    return { ok: true, rawBody, body: rawBody ? JSON.parse(rawBody) : {} };
+  } catch {
+    return { ok: false, rawBody, body: null };
+  }
 }
 
 async function getCloudFunction(env) {
@@ -142,6 +152,31 @@ export default {
             'Access-Control-Allow-Origin': '*',
           },
         });
+      }
+
+      if (url.pathname === '/internal/email/test-receipts' && request.method === 'POST') {
+        if (!env.DB) {
+          return json({ ok: false, error: { code: 'DB_NOT_CONFIGURED' } }, { status: 501 });
+        }
+        const parsed = await readJsonBody(request);
+        if (!parsed.ok) {
+          return json({ ok: false, error: { code: 'INVALID_JSON' } }, { status: 400 });
+        }
+        const verification = await verifyEmailWorkerSignature({
+          secret: env.HEADSUPP_EMAIL_WORKER_WEBHOOK_SECRET,
+          timestamp: request.headers.get('X-HeadsUp-Timestamp'),
+          signature: request.headers.get('X-HeadsUp-Signature'),
+          rawBody: parsed.rawBody,
+        });
+        if (!verification.ok) {
+          return json({ ok: false, error: { code: verification.code } }, { status: verification.status });
+        }
+        const result = await processEmailTestReceipt({
+          db: env.DB,
+          receipt: parsed.body,
+          now: new Date().toISOString(),
+        });
+        return json(result, { status: result.status || (result.ok ? 200 : 400) });
       }
 
       if (url.pathname === '/v1/subscribers/unsubscribe' && request.method === 'GET') {

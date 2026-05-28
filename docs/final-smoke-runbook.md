@@ -2,7 +2,7 @@
 
 This runbook verifies the operational Heads Up API loop without committing secrets.
 
-For the full smoke matrix, expected D1 evidence, and release checklist, see [docs/api/smoke-test-suite.md](api/smoke-test-suite.md). For production incident diagnosis, see [docs/operations-runbook.md](operations-runbook.md).
+For the full smoke matrix, expected D1 evidence, and release checklist, see [docs/api/smoke-test-suite.md](api/smoke-test-suite.md). For Worker/D1/Email Routing deployment proof, see [docs/deployment-infrastructure-testing.md](deployment-infrastructure-testing.md). For production incident diagnosis, see [docs/operations-runbook.md](operations-runbook.md).
 
 ## Rules
 
@@ -47,6 +47,26 @@ smoke:email-real sends one template/action-button email and verifies delivery.st
 smoke:watch-email-matrix sends real emails for threshold, window, delta, percent change, trend, forecast template, and grouped winner cases
 smoke:scheduled-email sends real scheduled alert emails for missing expected, reminder, and digest
 each script exits non-zero if an expected delivery is missing, retrying, failed, or duplicated
+```
+
+## Automated Email Inbox Loop Proof
+
+Run this after deploying both `headsupp_app` and `headsup_email_worker`, applying `migrations/0009_email_test_messages.sql`, configuring Cloudflare Email Routing for `tester@aibox.headsupp.io`, and setting `HEADSUPP_EMAIL_WORKER_WEBHOOK_SECRET` on both workers:
+
+```powershell
+cd apps/headsupp-api
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+npm run smoke:email-inbox-loop
+Remove-Item Env:CLOUDFLARE_API_TOKEN
+```
+
+Expected:
+
+```text
+each watch case sends a test-mode JSON email to tester@aibox.headsupp.io, including threshold, window, delta, percent change, trend, MISSING_EXPECTED, REMINDER_DUE, and DIGEST
+headsup_email_worker receives the email and posts a signed receipt to headsupp_app
+email_test_messages reaches status = tested for every case
+the smoke exits non-zero if an email is not received or the JSON payload does not match the alert values
 ```
 
 ## D1 Migration Validation

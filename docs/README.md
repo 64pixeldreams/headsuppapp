@@ -15,6 +15,7 @@ docs/api/node-cloudflare-client.md
 docs/api/openapi.yaml
 docs/api/spec-alignment-audit.md
 docs/api/smoke-test-suite.md
+docs/deployment-infrastructure-testing.md
 docs/final-smoke-runbook.md
 docs/operations-runbook.md
 ```
@@ -42,6 +43,7 @@ delivery payloads
 subscriber behavior
 operator runbooks
 smoke proof commands
+deployment infrastructure testing
 ```
 
 ## Historical Archive

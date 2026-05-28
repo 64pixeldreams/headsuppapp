@@ -26,6 +26,7 @@ export function genericSmokeIds(scenarioId) {
 export async function cleanupGenericScenario(client, ids) {
   const statements = [
     ['DELETE FROM alert_deliveries WHERE alert_id IN (SELECT id FROM alerts WHERE channel_id = ?)', [ids.channel]],
+    ['DELETE FROM email_test_messages WHERE run_id LIKE ? OR delivery_id LIKE ?', [`%${ids.scenarioId}%`, `%${ids.scenarioId}%`]],
     ['DELETE FROM alerts WHERE channel_id = ?', [ids.channel]],
     ['DELETE FROM quiet_summary_deliveries WHERE channel_id = ?', [ids.channel]],
     ['DELETE FROM watch_states WHERE watch_id = ? OR watch_id LIKE ?', [ids.watch, `${ids.watch}_%`]],

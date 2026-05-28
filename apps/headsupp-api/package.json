@@ -31,6 +31,7 @@
     "smoke:email-real": "node scripts/email-subscriber-smoke.mjs",
     "smoke:watch-email-matrix": "node scripts/watch-email-matrix-smoke.mjs",
     "smoke:scheduled-email": "node scripts/scheduled-email-smoke.mjs",
+    "smoke:email-inbox-loop": "node scripts/email-inbox-loop-smoke.mjs",
     "smoke:email-design": "node scripts/email-design-smoke.mjs",
     "smoke:provision-channel": "node scripts/provision-channel-smoke.mjs",
     "smoke:workspace-subscriber": "node scripts/workspace-subscriber-smoke.mjs",

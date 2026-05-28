@@ -99,4 +99,4 @@ POST /v1/events/{connector_key}
 
 The ingest route validates connector HMAC, queues raw events, and returns `202 Accepted`. Processing happens asynchronously through Cloudflare Queues.
 
-Use [cursor-api-instructions.md](cursor-api-instructions.md) for the shortest copy-paste API path, [reference.md](reference.md) for endpoint/action schemas, [use-cases.md](use-cases.md) for value-based pattern selection, [spec-alignment-audit.md](spec-alignment-audit.md) for product alignment, and [smoke-test-suite.md](smoke-test-suite.md) for release proof commands.
+Use [cursor-api-instructions.md](cursor-api-instructions.md) for the shortest copy-paste API path, [reference.md](reference.md) for endpoint/action schemas, [use-cases.md](use-cases.md) for value-based pattern selection, [spec-alignment-audit.md](spec-alignment-audit.md) for product alignment, [smoke-test-suite.md](smoke-test-suite.md) for release proof commands, and [deployment-infrastructure-testing.md](../deployment-infrastructure-testing.md) for Worker/D1/Email Routing deployment proof.

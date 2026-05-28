@@ -48,6 +48,7 @@ npm run smoke:operator-observability
 npm run smoke:email-subscriber
 npm run smoke:watch-email-matrix
 npm run smoke:scheduled-email
+npm run smoke:email-inbox-loop
 npm run smoke:subscriber-lifecycle
 npm run soak:release
 ```
@@ -66,6 +67,7 @@ HEADSUPP_SMOKE_SLACK_WEBHOOK_URL
 HEADSUPP_BOOTSTRAP_TOKEN
 HEADSUPP_OPERATOR_TOKEN
 HEADSUPP_SMOKE_EMAIL_DESTINATION
+HEADSUPP_SMOKE_INBOX_EMAIL
 HEADSUPP_SMOKE_SERVICE_API_KEY
 HEADSUPP_EMAIL_AUTH_SECRET
 ```
@@ -90,6 +92,7 @@ smoke:operator-observability API + deployed key lifecycle, audit read, observabi
 smoke:email-subscriber  Email + deployed  provisions email subscriber, renders {value} title template and action buttons, triggers coffee highest-purchase alert, verifies sent delivery
 smoke:watch-email-matrix Email + deployed real email proof for threshold, window, delta, percent change, trend, forecast template, and grouped winner alerts
 smoke:scheduled-email Email + deployed real email proof for MISSING_EXPECTED, REMINDER_DUE, and DIGEST scheduled alert emails
+smoke:email-inbox-loop Email + deployed automated inbox receipt proof through tester@aibox.headsupp.io and email_test_messages
 smoke:subscriber-lifecycle API + deployed  admin.getSubscriber/listSubscribers pending authorization reads; optional confirm + disable when service key and email auth secret configured
 load:smoke               local             10000 synthetic events fold into fewer aggregate deltas
 load:high-volume         local             configurable high-volume synthetic proof, default 100000 events
@@ -135,6 +138,30 @@ watch_group highest_severity_wins
 ```
 
 Use `npm run smoke:email-real` for the smaller single-email proof. Use `npm run smoke:scheduled-email` for real scheduled alert emails (`MISSING_EXPECTED`, `REMINDER_DUE`, and `DIGEST`). Use `npm run smoke:scheduled` for broader scheduled D1/webhook/aggregate-forward proof.
+
+## Email Inbox Loop
+
+Command:
+
+```bash
+npm run smoke:email-inbox-loop
+```
+
+Requires:
+
+```text
+CLOUDFLARE_API_TOKEN
+HEADSUPP_EMAIL_WORKER_WEBHOOK_SECRET configured on headsupp_app and headsup_email_worker
+Cloudflare Email Routing route tester@aibox.headsupp.io -> headsup_email_worker
+```
+
+Optional:
+
+```text
+HEADSUPP_SMOKE_INBOX_EMAIL=tester@aibox.headsupp.io
+```
+
+This is the preferred broad email regression proof. Each case sends a test-mode JSON email to the controlled inbox. The Email Worker extracts the marked JSON block, posts a signed receipt to `POST /internal/email/test-receipts`, and the smoke polls `email_test_messages` until every case reaches `tested`. The matrix covers threshold, window, delta, percent change, trend, `MISSING_EXPECTED`, `REMINDER_DUE`, and `DIGEST`.
 
 ## Local Quality Gates
 

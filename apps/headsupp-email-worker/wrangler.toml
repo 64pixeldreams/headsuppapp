@@ -1,0 +1,7 @@
+name = "headsup_email_worker"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[vars]
+HEADSUPP_API_URL = "https://api.headsupp.io"
+HEADSUPP_EMAIL_TEST_ADDRESS = "tester@aibox.headsupp.io"

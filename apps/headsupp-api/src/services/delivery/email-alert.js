@@ -1,6 +1,7 @@
 import { classifyDeliveryResult, nextRetryAt } from './backoff.js';
 import { renderAlertEmail } from '../email/render-alert-email.js';
 import { sendEmail } from '../email/send-email.js';
+import { buildEmailTestPayload, emailTestText, recordEmailTestSent } from '../email/test-message-log.js';
 import { buildEmailActionLinks } from '../subscribers/email-actions.js';
 import { buildUnsubscribeUrl, createUnsubscribeToken } from '../subscribers/unsubscribe.js';
 
@@ -159,18 +160,31 @@ export async function dispatchEmailAlertDelivery({
 
   let error = null;
   let responseBody = null;
+  const emailTest = config.email_test?.enabled ? buildEmailTestPayload({ alert, delivery, subscriber, emailTest: config.email_test, now }) : null;
   try {
+    const text = emailTest ? emailTestText(emailTest.expected) : rendered.text;
+    const html = emailTest
+      ? `<pre style="white-space:pre-wrap;font-family:monospace;">${text.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</pre>`
+      : rendered.html;
     const result = await sendEmailFn({
       env,
       message: {
         from,
         to: [subscriber.destination_url],
         reply_to: { email: replyTo },
-        subject: rendered.subject,
-        text: rendered.text,
-        html: rendered.html,
+        subject: emailTest ? `[Heads Up Smoke] ${emailTest.expected.case_id}` : rendered.subject,
+        text,
+        html,
       },
     });
+    if (emailTest) {
+      await recordEmailTestSent({
+        db,
+        message: emailTest,
+        providerMessageId: result?.messageId || result?.id || null,
+        now,
+      });
+    }
     responseBody = JSON.stringify({
       ok: true,
       provider: result || null,
