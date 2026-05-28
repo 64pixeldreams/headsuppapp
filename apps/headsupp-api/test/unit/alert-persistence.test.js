@@ -50,6 +50,53 @@ test('builds alert record preserving watch and aggregate context', () => {
   assert.equal(JSON.parse(alert.payload_json).bucket_type, 'minute');
 });
 
+test('builds unique alert ids for long Foretic watch ids across evaluations', () => {
+  const longWatch = {
+    ...watch,
+    id: 'foretic:user:mkfoxvxgoyfbtd:forecast:oracle_forecast:mlfl1bfqrxnbk1:pace:critical',
+    watch_id: 'foretic:user:mkfoxvxgoyfbtd:forecast:oracle_forecast:mlfl1bfqrxnbk1:pace:critical',
+  };
+  const first = buildAlert({
+    watch: longWatch,
+    evaluation,
+    decision,
+    input,
+    now: '2026-05-28T05:39:35.457Z',
+  });
+  const second = buildAlert({
+    watch: longWatch,
+    evaluation,
+    decision,
+    input,
+    now: '2026-05-28T05:39:40.792Z',
+  });
+
+  assert.notEqual(first.id, second.id);
+  assert.match(first.id, /^alert_2026_05_28/);
+  assert.match(second.id, /^alert_2026_05_28/);
+});
+
+test('builds unique delivery ids for long subscriber ids on one alert', () => {
+  const alert = buildAlert({ watch, evaluation, decision, input, now: '2026-05-24T10:05:00.000Z' });
+  const deliveries = buildAlertDeliveries({
+    alert,
+    subscribers: [
+      {
+        subscriber_id: 'sub_foretic_user_mkfoxvxgoyfbtd_forecast_oracle_forecast_mlfl1bfqrxnbk1_board_example_com',
+        destination_url: 'board@example.com',
+      },
+      {
+        subscriber_id: 'sub_foretic_user_mkfoxvxgoyfbtd_forecast_oracle_forecast_mlfl1bfqrxnbk1_ops_example_com',
+        destination_url: 'ops@example.com',
+      },
+    ],
+    now: '2026-05-24T10:05:00.000Z',
+  });
+
+  assert.equal(deliveries.length, 2);
+  assert.notEqual(deliveries[0].id, deliveries[1].id);
+});
+
 test('builds pending alert delivery rows for subscribers', () => {
   const alert = buildAlert({ watch, evaluation, decision, input, now: '2026-05-24T10:05:00.000Z' });
   const deliveries = buildAlertDeliveries({

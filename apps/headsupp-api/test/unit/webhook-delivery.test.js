@@ -110,3 +110,62 @@ test('dispatch records retrying state on transient webhook failure', async () =>
   assert.equal(calls[0].params[0], 'retrying');
   assert.equal(calls[0].params[3], '2026-05-24T10:01:00.000Z');
 });
+
+test('dispatch supports internal smoke status transport when enabled', async () => {
+  const calls = [];
+  const result = await dispatchAlertDelivery({
+    db: fakeDb(calls),
+    delivery: {
+      id: 'delivery_123',
+      destination_url: 'smoke://status/200',
+      attempt_count: 1,
+    },
+    alert,
+    subscriber: {
+      subscriber_type: 'webhook',
+      source_app: 'headsupp-smoke',
+    },
+    env: {
+      HEADSUPP_SMOKE_TRANSPORT_ENABLED: 'true',
+    },
+    now: '2026-05-24T10:02:00.000Z',
+    async fetchFn() {
+      throw new Error('smoke transport should not fetch');
+    },
+  });
+
+  assert.equal(result.status, 'sent');
+  assert.equal(result.attempt_count, 2);
+  assert.equal(calls[0].params[0], 'sent');
+  assert.equal(calls[0].params[5], 'smoke status 200');
+});
+
+test('dispatch does not use smoke transport for non-smoke subscribers', async () => {
+  const calls = [];
+  const requests = [];
+  const result = await dispatchAlertDelivery({
+    db: fakeDb(calls),
+    delivery: {
+      id: 'delivery_123',
+      destination_url: 'smoke://status/200',
+      attempt_count: 0,
+    },
+    alert,
+    subscriber: {
+      subscriber_type: 'webhook',
+      source_app: 'customer-app',
+    },
+    env: {
+      HEADSUPP_SMOKE_TRANSPORT_ENABLED: 'true',
+    },
+    now: '2026-05-24T10:02:00.000Z',
+    async fetchFn(url) {
+      requests.push(url);
+      return new Response('real fetch path', { status: 400 });
+    },
+  });
+
+  assert.equal(result.status, 'failed');
+  assert.equal(requests[0], 'smoke://status/200');
+  assert.equal(calls[0].params[5], 'real fetch path');
+});

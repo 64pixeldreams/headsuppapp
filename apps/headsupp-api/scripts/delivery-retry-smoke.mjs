@@ -17,9 +17,9 @@ const client = createCloudflareClient(runtime);
 const ids = genericSmokeIds('delivery_retry');
 const signalKey = 'demo.retry';
 const startedAt = new Date().toISOString();
-const transientFailureUrl = process.env.HEADSUPP_SMOKE_RETRY_FAIL_URL || 'https://httpbin.org/status/500';
-const permanentFailureUrl = process.env.HEADSUPP_SMOKE_PERMANENT_FAIL_URL || 'https://httpbin.org/status/404';
-const successUrl = process.env.HEADSUPP_SMOKE_RETRY_SUCCESS_URL || 'https://httpbin.org/status/200';
+const transientFailureUrl = process.env.HEADSUPP_SMOKE_RETRY_FAIL_URL || 'smoke://status/503';
+const permanentFailureUrl = process.env.HEADSUPP_SMOKE_PERMANENT_FAIL_URL || 'smoke://status/404';
+const successUrl = process.env.HEADSUPP_SMOKE_RETRY_SUCCESS_URL || 'smoke://status/200';
 
 async function triggerAlert({ runId, value, idempotencySuffix }) {
   return sendSignedEvents({

@@ -1,9 +1,28 @@
-import { stableId } from '../ids/stable-id.js';
 import { subscriberMatchesAlertFilters } from '../subscribers/alert-filters.js';
 import { cooldownUntil } from '../watches/alert-decision.js';
 
+function shortHash(value) {
+  let hash = 5381;
+  const text = String(value || '');
+  for (let index = 0; index < text.length; index += 1) {
+    hash = ((hash << 5) + hash) ^ text.charCodeAt(index);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function compactStableId(prefix, parts) {
+  const seed = parts.filter((part) => part !== undefined && part !== null).join(':');
+  const normalized = seed
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 52);
+  return `${prefix}_${normalized}_${shortHash(seed)}`;
+}
+
 export function buildAlert({ watch, evaluation, decision, input, now = new Date().toISOString() }) {
-  const alertId = stableId('alert', `${watch.id || watch.watch_id}:${decision.action}:${now}`);
+  const alertId = compactStableId('alert', [now, decision.action, watch.id || watch.watch_id]);
   const payload = {
     watch_id: watch.id || watch.watch_id,
     signal_id: watch.signal_id || input.signalId,
@@ -107,7 +126,7 @@ export async function loadAlertSubscribers(db, { workspaceId, channelId, alert =
 
 export function buildAlertDeliveries({ alert, subscribers, now = new Date().toISOString() }) {
   return subscribers.map((subscriber) => ({
-    id: stableId('delivery', `${alert.id}:${subscriber.id || subscriber.subscriber_id}`),
+    id: compactStableId('delivery', [alert.id, subscriber.id || subscriber.subscriber_id]),
     alert_id: alert.id,
     subscriber_id: subscriber.id || subscriber.subscriber_id,
     destination_url: subscriber.destination_url,

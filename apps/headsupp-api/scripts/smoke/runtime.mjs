@@ -16,6 +16,7 @@ export function redactSlackUrl(url) {
 
 export function redactUrl(url) {
   const value = String(url || '');
+  if (value.startsWith('smoke://status/')) return value;
   if (value.startsWith('https://hooks.slack.com/services/')) return redactSlackUrl(value);
   try {
     const parsed = new URL(value);

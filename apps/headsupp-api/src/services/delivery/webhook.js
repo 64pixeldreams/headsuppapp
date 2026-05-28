@@ -53,6 +53,16 @@ export function alertDeliveryPayload(alert, subscriber, channel = null) {
   return genericAlertPayload(alert, channel);
 }
 
+function smokeStatusResponse(destinationUrl, subscriber, env = {}) {
+  if (env.HEADSUPP_SMOKE_TRANSPORT_ENABLED !== 'true') return null;
+  if (subscriber?.source_app !== 'headsupp-smoke') return null;
+  const match = String(destinationUrl || '').match(/^smoke:\/\/status\/(\d{3})$/);
+  if (!match) return null;
+  const status = Number(match[1]);
+  if (!Number.isInteger(status) || status < 100 || status > 599) return null;
+  return new Response(`smoke status ${status}`, { status });
+}
+
 export async function updateAlertDeliveryState(db, deliveryId, state, responseBody = null) {
   await db
     .prepare(
@@ -97,14 +107,16 @@ export async function dispatchAlertDelivery({
       env,
       timestamp: Math.floor(Date.parse(now) / 1000),
     });
-    const response = await fetchFn(delivery.destination_url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...signedHeaders,
-      },
-      body,
-    });
+    const response =
+      smokeStatusResponse(delivery.destination_url, subscriber, env) ||
+      (await fetchFn(delivery.destination_url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...signedHeaders,
+        },
+        body,
+      }));
     responseStatus = response.status;
     responseBody = await response.text();
   } catch (caught) {
