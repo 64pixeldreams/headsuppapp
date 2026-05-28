@@ -146,6 +146,114 @@ Confirmation endpoint:
 GET /v1/subscribers/confirm?token=...
 ```
 
+## Batch Subscribe And One Opt-In Email
+
+Integrations such as Foretic often subscribe one user to **many alerts at once**. Heads Up authorization is **per subscriber row**, not per email address globally.
+
+### How consent is scoped today
+
+Each email subscriber is a separate row keyed by channel identity plus email:
+
+```text
+subscriber identity = channel + subscriber_type + mode + normalized email
+                     (or your stable subscriber_key override)
+```
+
+Authorization state (`pending` / `authorized`) lives on **that row**. The confirmation link enables **that one subscriber** only.
+
+Implications:
+
+```text
+Same email, N different channels, authorization.required = true on each new subscriber
+  -> up to N separate opt-in emails (one per new channel subscriber)
+
+Same subscriber re-provisioned with upsert_existing / same subscriber_key
+  -> no second opt-in email; authorized state is preserved
+
+Same channel, same email, add config.filters on re-provision
+  -> no second opt-in email; one confirmed subscriber receives more alert types
+```
+
+Heads Up does **not** currently auto-authorize other channel subscribers because the same email confirmed elsewhere in the workspace.
+
+### Recommended pattern: one subscriber, many alerts
+
+For batch subscribe with **one permission email**, use:
+
+```text
+1 channel per user (or per alert board)
+many watches / watch_groups on that channel
+1 email subscriber per recipient on that channel
+config.filters to choose which alert types they receive
+stable subscriber_key for idempotent upsert
+```
+
+SDK example with `admin.provisionChannel`:
+
+```js
+await headsup.provisionChannel({
+  workspace: { workspace_key: 'foretic:user_abc', /* ... */ },
+  channel: { channel_key: 'foretic:user_abc:alerts', /* ... */ },
+  signals: [/* pace, goal risk, etc. */],
+  watch_groups: [/* bands per signal */],
+  subscribers: [
+    {
+      subscriber_key: 'foretic:user_abc:user@example.com',
+      subscriber_type: 'email',
+      destination_url: 'user@example.com',
+      mode: 'alert',
+      config: {
+        authorization: { required: true },
+        filters: {
+          signal_keys: ['forecast.revenue.pace', 'forecast.goal.risk'],
+        },
+      },
+    },
+  ],
+});
+```
+
+When the user later enables more alert types, rerun provisioning with the **same `subscriber_key`** and an expanded `config.filters` object. Heads Up upserts the subscriber and does **not** resend confirmation if already authorized.
+
+See [provisioning.md](provisioning.md) and [subscribers.md](subscribers.md#alert-filters) for filter fields.
+
+### Pattern to avoid
+
+Do **not** loop `admin.createSubscriber` (or `provisionChannel`) across **many channels** for the same email with `authorization.required: true` on each unless you intentionally want **one opt-in email per channel**.
+
+```text
+Bad for single opt-in UX:
+  channel A + email subscriber (authorization required)
+  channel B + email subscriber (authorization required)
+  channel C + email subscriber (authorization required)
+  -> 3 confirmation emails
+
+Better:
+  one channel + 3 watches + 1 email subscriber + filters
+  -> 1 confirmation email
+```
+
+### Foretic UI flow
+
+```text
+User selects multiple alerts in Foretic UI
+  -> Foretic updates config.filters (or watch list) on one channel
+  -> Foretic calls provisionChannel upsert with same subscriber_key
+  -> If pending: user gets one confirm email
+  -> If already authorized: no new confirm email; new filters apply immediately
+
+User confirms once
+  -> GET /v1/subscribers/confirm enables that subscriber
+  -> optional lifecycle webhook: subscriber.authorized
+  -> Foretic refreshes UI via getSubscriber or webhook
+```
+
+### Do Heads Up API changes be needed?
+
+**No**, for the recommended design above. The current API already supports one opt-in for many alerts when provisioning is modeled as **one email subscriber with filters**, not one subscriber per alert channel.
+
+Consider a future Heads Up enhancement only if product requirements demand **one channel per forecast** **and** **one global opt-in per email** (workspace-level consent or a bundled confirmation email). That is not implemented today.
+
 ## Recipient Action Buttons
 
 Email subscribers can opt into standard alert-control buttons. Heads Up owns the catalog, labels, durations, signing, and behavior. Subscriber config only chooses which standard actions appear:

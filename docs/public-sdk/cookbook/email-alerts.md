@@ -48,6 +48,8 @@ config: {
 
 When `authorization.required` is true, the subscriber starts disabled until the recipient confirms via the emailed link (`GET /v1/subscribers/confirm?token=...` on the API host).
 
+**Batch subscribe:** consent is per subscriber row, not per email globally. To subscribe a user to many alerts with **one** opt-in email, use one channel + one email subscriber + `config.filters`, not one email subscriber per channel. See [email-subscribers.md](../../api/email-subscribers.md#batch-subscribe-and-one-opt-in-email) (API repo) or provision with `admin.provisionChannel` and a stable `subscriber_key`.
+
 ## Watch and send (same as webhook path)
 
 ```js

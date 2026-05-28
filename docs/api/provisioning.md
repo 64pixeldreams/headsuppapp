@@ -227,6 +227,8 @@ one recipient = one subscriber row
 recipient preferences = subscriber.config.filters
 ```
 
+For **one opt-in email when batch-subscribing a user to many alerts**, prefer **one channel per user** (or alert board) with many watches and **one email subscriber** using `config.filters`, not one email subscriber per forecast channel. Authorization is per subscriber row; multiple channel subscribers with `authorization.required: true` each send a separate confirmation email. See [email-subscribers.md](email-subscribers.md#batch-subscribe-and-one-opt-in-email).
+
 Example:
 
 ```json
