@@ -145,6 +145,24 @@ function provisionDb(calls = []) {
                   if (row.channel_id === params[2] && row.status === params[3]) row.status = params[0];
                 }
               }
+              if (/UPDATE subscribers/.test(sql)) {
+                const subscriber = tables.subscribers.find((row) => row.id === params[11] || row.subscriber_id === params[12]);
+                if (subscriber) {
+                  Object.assign(subscriber, {
+                    name: params[0],
+                    destination_url: params[1],
+                    normalized_destination: params[2],
+                    destination_url_redacted: params[3],
+                    config_json: params[4],
+                    enabled: params[5],
+                    source_app: params[6],
+                    external_tenant_id: params[7],
+                    external_user_id: params[8],
+                    external_resource_id: params[9],
+                    updated_at: params[10],
+                  });
+                }
+              }
               return { meta: { changes: 1 } };
             },
             async first() {
@@ -539,6 +557,134 @@ test('admin provisionChannel rejects duplicate watch group band keys', async () 
   assert.equal(result.code, 'PROVISION_STEP_FAILED');
   assert.equal(result.details.section, 'watch_groups');
   assert.equal(result.details.cause.code, 'DUPLICATE_BAND_KEY');
+});
+
+test('admin provisionChannel upserts subscriber filters by subscriber_key', async () => {
+  const db = provisionDb();
+  const permissions = [
+    'workspace:create',
+    'channel:create',
+    'connector:create',
+    'signal:create',
+    'watch:create',
+    'subscriber:create',
+  ];
+  const base = {
+    workspace: {
+      workspace_key: 'demo:tenant_filter',
+      name: 'Filter Tenant',
+      source_app: 'demo',
+      external_tenant_id: 'tenant_filter',
+      external_user_id: 'user_filter',
+    },
+    channel: {
+      channel_key: 'demo:tenant_filter:forecast:one',
+      name: 'Forecast One',
+    },
+    signals: [{ signal_key: 'forecast.revenue.pace' }, { signal_key: 'forecast.goal.risk' }],
+    subscribers: [
+      {
+        subscriber_key: 'foretic:forecast_1:board@example.com',
+        subscriber_type: 'email',
+        destination_url: 'board@example.com',
+        mode: 'alert',
+        config: {
+          template_id: 'forecast_alert_v1',
+          filters: { signal_keys: ['forecast.goal.risk'] },
+        },
+      },
+    ],
+  };
+
+  const first = await provisionAdminChannel({
+    auth: { user_id: 'user_admin', permissions },
+    db,
+    input: base,
+    now: '2026-05-24T10:00:00.000Z',
+  });
+  const second = await provisionAdminChannel({
+    auth: { user_id: 'user_admin', permissions },
+    db,
+    input: {
+      ...base,
+      subscribers: [
+        {
+          ...base.subscribers[0],
+          config: {
+            template_id: 'forecast_alert_v1',
+            filters: { signal_keys: ['forecast.revenue.pace', 'forecast.goal.risk'] },
+          },
+        },
+      ],
+    },
+    now: '2026-05-24T10:01:00.000Z',
+  });
+
+  assert.equal(first.ok, true);
+  assert.equal(first.created.subscribers, 1);
+  assert.equal(second.ok, true);
+  assert.equal(second.updated.subscribers, 1);
+  assert.deepEqual(second.subscribers[0].config.filters.signal_keys, ['forecast.revenue.pace', 'forecast.goal.risk']);
+  assert.equal(db.tables.subscribers.length, 1);
+});
+
+test('admin provisionChannel rejects email destination changes for same subscriber_key', async () => {
+  const db = provisionDb();
+  const permissions = [
+    'workspace:create',
+    'channel:create',
+    'connector:create',
+    'signal:create',
+    'watch:create',
+    'subscriber:create',
+  ];
+  const payload = {
+    workspace: {
+      workspace_key: 'demo:tenant_filter_destination',
+      name: 'Filter Tenant',
+      source_app: 'demo',
+      external_tenant_id: 'tenant_filter_destination',
+      external_user_id: 'user_filter',
+    },
+    channel: {
+      channel_key: 'demo:tenant_filter_destination:forecast:one',
+      name: 'Forecast One',
+    },
+    subscribers: [
+      {
+        subscriber_key: 'foretic:forecast_1:board',
+        subscriber_type: 'email',
+        destination_url: 'board@example.com',
+        mode: 'alert',
+        config: { template_id: 'forecast_alert_v1' },
+      },
+    ],
+  };
+
+  await provisionAdminChannel({
+    auth: { user_id: 'user_admin', permissions },
+    db,
+    input: payload,
+    now: '2026-05-24T10:00:00.000Z',
+  });
+  const result = await provisionAdminChannel({
+    auth: { user_id: 'user_admin', permissions },
+    db,
+    input: {
+      ...payload,
+      subscribers: [
+        {
+          ...payload.subscribers[0],
+          destination_url: 'new-board@example.com',
+        },
+      ],
+    },
+    now: '2026-05-24T10:01:00.000Z',
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.details.section, 'subscribers');
+  assert.equal(result.details.cause.code, 'VALIDATION_ERROR');
 });
 
 test('admin provisionChannel reports unknown watch signal_key with section details', async () => {

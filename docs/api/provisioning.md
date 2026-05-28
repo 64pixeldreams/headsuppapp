@@ -85,10 +85,17 @@ const setup = await headsup.provisionChannel({
   ],
   subscribers: [
     {
+      subscriber_key: 'foretic:job_456:martin@example.com',
       subscriber_type: 'email',
       destination_url: 'martin@example.com',
       mode: 'alert',
-      config: { template_id: 'forecast_alert_v1' }
+      config: {
+        template_id: 'forecast_alert_v1',
+        authorization: { required: true },
+        filters: {
+          signal_keys: ['forecast.revenue.pace', 'forecast.goal.risk']
+        }
+      }
     }
   ],
   workspace_subscribers: [
@@ -206,7 +213,50 @@ watch_key       stable watch inside a channel
 subscriber_key  optional stable subscriber override
 ```
 
-Rerun the same payload to repair partial setup or confirm all resources still exist.
+Rerun the same payload to repair partial setup or confirm all resources still exist. For provisioned subscribers, rerunning with the same `subscriber_key` can update mutable recipient preferences such as `config.filters`.
+
+## Subscriber Alert Filters
+
+Use subscriber alert filters when one channel has multiple alert types and each recipient chooses their own set.
+
+Foretic model:
+
+```text
+one forecast = one channel
+one recipient = one subscriber row
+recipient preferences = subscriber.config.filters
+```
+
+Example:
+
+```json
+{
+  "subscriber_key": "foretic:job_456:board@example.com",
+  "subscriber_type": "email",
+  "destination_url": "board@example.com",
+  "mode": "alert",
+  "config": {
+    "template_id": "forecast_alert_v1",
+    "authorization": { "required": true },
+    "filters": {
+      "signal_keys": ["forecast.goal.risk"],
+      "watch_group_keys": ["forecast_goal_health"],
+      "band_keys": ["warning", "critical"]
+    }
+  }
+}
+```
+
+Supported filters:
+
+```text
+signal_keys
+watch_group_keys
+watch_keys
+band_keys
+```
+
+No filters means the subscriber receives all matching channel alerts. Filters are OR-based across dimensions: matching any listed signal, watch group, watch, or band sends the delivery. Empty arrays are ignored.
 
 ## Watch Groups
 
@@ -286,4 +336,5 @@ $env:HEADSUPP_API_KEY='<service api key>'
 $env:HEADSUPP_SMOKE_EMAIL_DESTINATION='martin@example.com'
 npm run smoke:provision-channel
 npm run smoke:workspace-subscriber
+npm run smoke:subscriber-filters
 ```

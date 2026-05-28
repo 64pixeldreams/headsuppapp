@@ -42,6 +42,53 @@ Slack OAuth is not part of the current API. Slack delivery uses incoming webhook
 
 Email subscribers use the same delivery queue/state pipeline and support `admin.disableSubscriber` / `admin.deleteSubscriber`.
 
+## Alert Filters
+
+`mode = alert` subscribers can opt into selected alert types with `config.filters`.
+
+If no filters are configured, the subscriber receives every alert that matches the existing channel/workspace routing rule. If filters are configured, the subscriber receives an alert when it matches at least one configured filter dimension.
+
+```json
+{
+  "subscriber_type": "email",
+  "destination_url": "board@example.com",
+  "mode": "alert",
+  "subscriber_key": "foretic:forecast_123:board@example.com",
+  "config": {
+    "template_id": "forecast_alert_v1",
+    "authorization": { "required": true },
+    "filters": {
+      "signal_keys": ["forecast.goal.risk"],
+      "watch_group_keys": ["forecast_goal_health"],
+      "watch_keys": ["watch_goal_risk_warning"],
+      "band_keys": ["warning", "critical"]
+    }
+  }
+}
+```
+
+Filter fields:
+
+```text
+signal_keys
+  Match alert signal keys, such as forecast.goal.risk.
+
+watch_group_keys
+  Match grouped policies, such as forecast_goal_health.
+
+watch_keys
+  Match stable watch IDs/keys returned by provisioning.
+
+band_keys
+  Match grouped band keys, such as warning or critical.
+```
+
+Filter matching is OR across dimensions. For example, `signal_keys: ["forecast.goal.risk"]` receives all goal-risk alerts without also listing every watch group or band. Adding `band_keys: ["critical"]` also receives any critical grouped alert that exposes `band_key = critical`.
+
+Empty arrays are treated as unset. Invalid filter values are rejected when the subscriber is created or updated.
+
+When using `admin.provisionChannel`, set a stable `subscriber_key` per recipient. Rerunning provisioning with the same `subscriber_key` updates mutable subscriber fields such as `config.filters`, so Foretic can change recipient alert preferences idempotently.
+
 ## Slack Webhook Subscriber
 
 Foretic users create an incoming webhook URL in their own Slack workspace. Foretic sends that URL to Heads Up during provisioning.

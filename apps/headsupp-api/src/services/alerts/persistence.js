@@ -1,4 +1,5 @@
 import { stableId } from '../ids/stable-id.js';
+import { subscriberMatchesAlertFilters } from '../subscribers/alert-filters.js';
 import { cooldownUntil } from '../watches/alert-decision.js';
 
 export function buildAlert({ watch, evaluation, decision, input, now = new Date().toISOString() }) {
@@ -34,7 +35,55 @@ export function buildAlert({ watch, evaluation, decision, input, now = new Date(
   };
 }
 
-export async function loadAlertSubscribers(db, { workspaceId, channelId }) {
+function parseAlertPayload(alert) {
+  if (!alert?.payload_json) return {};
+  try {
+    return JSON.parse(alert.payload_json);
+  } catch {
+    return {};
+  }
+}
+
+async function firstRow(db, sql, params = []) {
+  const prepared = db.prepare(sql).bind(...params);
+  if (typeof prepared.first === 'function') return prepared.first();
+  return null;
+}
+
+export async function loadAlertRoutingContext(db, alert) {
+  if (!alert) return {};
+  const payload = parseAlertPayload(alert);
+  const signal = await firstRow(
+    db,
+    'SELECT signal_key FROM signals WHERE id = ? OR signal_id = ? LIMIT 1',
+    [alert.signal_id, alert.signal_id],
+  );
+  const watch = await firstRow(
+    db,
+    'SELECT id, watch_id, watch_group_id, band_key FROM watches WHERE id = ? OR watch_id = ? LIMIT 1',
+    [alert.watch_id, alert.watch_id],
+  );
+  const watchGroupId = payload.watch_group_id || watch?.watch_group_id || null;
+  const watchGroup = watchGroupId
+    ? await firstRow(
+      db,
+      'SELECT id, watch_group_id, group_key FROM watch_groups WHERE id = ? OR watch_group_id = ? LIMIT 1',
+      [watchGroupId, watchGroupId],
+    )
+    : null;
+  return {
+    signal_id: alert.signal_id || payload.signal_id || null,
+    signal_key: signal?.signal_key || payload.signal_key || null,
+    watch_id: alert.watch_id || payload.watch_id || null,
+    watch_key: watch?.watch_id || payload.watch_key || null,
+    watch_group_id: watchGroupId,
+    watch_group_key: watchGroup?.group_key || payload.watch_group_key || payload.fields?.watch_group?.watch_group_key || null,
+    band_key: payload.band_key || watch?.band_key || payload.fields?.watch_group?.band_key || null,
+    severity: alert.severity || null,
+  };
+}
+
+export async function loadAlertSubscribers(db, { workspaceId, channelId, alert = null }) {
   const result = await db
     .prepare(
       `SELECT *
@@ -50,7 +99,10 @@ export async function loadAlertSubscribers(db, { workspaceId, channelId }) {
     .bind(channelId, workspaceId)
     .all();
 
-  return result?.results || [];
+  const subscribers = result?.results || [];
+  if (!alert) return subscribers;
+  const context = await loadAlertRoutingContext(db, alert);
+  return subscribers.filter((subscriber) => subscriberMatchesAlertFilters(subscriber, context));
 }
 
 export function buildAlertDeliveries({ alert, subscribers, now = new Date().toISOString() }) {
@@ -177,7 +229,7 @@ export async function persistAlertWithDeliveries({
   now = new Date().toISOString(),
 }) {
   const alert = buildAlert({ watch, evaluation, decision, input, now });
-  const subscribers = await loadAlertSubscribers(db, { workspaceId: alert.workspace_id, channelId: alert.channel_id });
+  const subscribers = await loadAlertSubscribers(db, { workspaceId: alert.workspace_id, channelId: alert.channel_id, alert });
   const deliveries = buildAlertDeliveries({ alert, subscribers, now });
   const statements = [alertStatement(db, alert), watchStateStatement(db, { watch, decision, now })];
   statements.push(...deliveries.map((delivery) => deliveryStatement(db, delivery)));

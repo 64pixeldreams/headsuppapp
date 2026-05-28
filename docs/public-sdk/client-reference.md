@@ -108,6 +108,22 @@ const setup = await headsup.provisionChannel({
       ]
     }
   ],
+  subscribers: [
+    {
+      subscriber_key: 'demo:job_123:board@example.com',
+      subscriber_type: 'email',
+      destination_url: 'board@example.com',
+      mode: 'alert',
+      config: {
+        template_id: 'forecast_alert_v1',
+        authorization: { required: true },
+        filters: {
+          signal_keys: ['forecast.revenue.pace'],
+          band_keys: ['warning', 'critical']
+        }
+      }
+    }
+  ],
   workspace_subscribers: [
     {
       subscriber_scope: 'workspace',
@@ -119,10 +135,13 @@ const setup = await headsup.provisionChannel({
 });
 
 // setup.created / setup.reused explain what changed
+// setup.updated.subscribers increments when provisionChannel changes subscriber preferences
 // setup.connector.connector_secret is returned only when the connector is new
 ```
 
 Use `watch_groups` for related bands such as warning and critical. With `highest_severity_wins`, a critical value sends only the critical alert; the warning band is suppressed for that evaluation. Keep `watches` for independent policies that should alert separately.
+
+Use subscriber `config.filters` when each recipient chooses alert types. Supported filter fields are `signal_keys`, `watch_group_keys`, `watch_keys`, and `band_keys`. No filters means the subscriber receives all matching channel alerts. Rerun `provisionChannel` with the same `subscriber_key` to update filters idempotently.
 
 ### getChannel(payload) → channel
 

@@ -7,6 +7,7 @@ import {
   redactSubscriberDestination,
   validateSubscriberUrl,
 } from '../subscribers/urls.js';
+import { normalizeSubscriberConfigAlertFilters } from '../subscribers/alert-filters.js';
 import { normalizeAuthorizationConfig, sendAuthorizationEmail } from '../subscribers/email-authorization.js';
 import { buildActionControlRow } from '../watches/action-controls.js';
 
@@ -178,8 +179,12 @@ export function buildSubscriberRow(input, now = new Date().toISOString()) {
     };
   }
   const parsedConfig = parseJsonField(input.config_json ?? input.config, {});
-  const authConfig = subscriberType === 'email' ? normalizeAuthorizationConfig(parsedConfig, now) : { config: parsedConfig, required: false };
-  const config = authConfig.config;
+  const filteredConfig = normalizeSubscriberConfigAlertFilters(parsedConfig);
+  if (!filteredConfig.ok) return filteredConfig;
+  const normalizedAuthConfig = subscriberType === 'email'
+    ? normalizeAuthorizationConfig(filteredConfig.config, now)
+    : { config: filteredConfig.config, required: false };
+  const config = normalizedAuthConfig.config;
   const validation = validateSubscriberUrl(subscriberType, input.destination_url, config);
   if (!validation.ok) return validation;
   const destinationUrl = input.destination_url || validation.normalized_destination;
@@ -208,7 +213,7 @@ export function buildSubscriberRow(input, now = new Date().toISOString()) {
       secret_hash: null,
       mode,
       config_json: JSON.stringify(config),
-      enabled: authConfig.required ? 0 : input.enabled === false ? 0 : 1,
+      enabled: normalizedAuthConfig.required ? 0 : input.enabled === false ? 0 : 1,
       subscriber_scope: subscriberScope,
       source_app: input.source_app || null,
       external_tenant_id: input.external_tenant_id || null,
@@ -437,6 +442,9 @@ function sanitizeSubscriberConfig(config = {}) {
   }
   if (config.branding && typeof config.branding === 'object') {
     safe.branding = config.branding;
+  }
+  if (config.filters && typeof config.filters === 'object' && !Array.isArray(config.filters)) {
+    safe.filters = config.filters;
   }
   return safe;
 }
@@ -787,7 +795,90 @@ export async function createAdminSubscriber({ auth, db, input, env = {}, now }) 
   const built = buildSubscriberRow(inheritOwnership({ ...input, subscriber_scope: subscriberScope }, parent), now);
   if (!built.ok) return built;
   const existing = await loadSubscriber(db, built.row.subscriber_id);
-  if (existing) return { ok: true, created: false, subscriber: publicSubscriber(existing), authorization: null };
+  if (existing) {
+    if (input.upsert_existing === true) {
+      if (existing.subscriber_type === 'email' && existing.normalized_destination !== built.row.normalized_destination) {
+        return validationError(
+          action,
+          'destination_url',
+          'Existing email subscribers cannot change destination_url under the same subscriber_key.',
+        );
+      }
+      const existingConfig = parseJsonField(existing.config_json, {});
+      const nextConfig = parseJsonField(built.row.config_json, {});
+      if (
+        existing.subscriber_type === 'email' &&
+        existingConfig.authorization?.status === 'authorized' &&
+        nextConfig.authorization?.required === true &&
+        !input.config?.authorization?.status
+      ) {
+        nextConfig.authorization = {
+          ...nextConfig.authorization,
+          status: 'authorized',
+          requested_at: existingConfig.authorization.requested_at || nextConfig.authorization.requested_at || now,
+          authorized_at: existingConfig.authorization.authorized_at || now,
+        };
+      }
+      const nextEnabled = existing.subscriber_type === 'email' && nextConfig.authorization?.status === 'authorized'
+        ? existing.enabled
+        : built.row.enabled;
+      const unchanged =
+        existing.name === built.row.name &&
+        existing.destination_url === built.row.destination_url &&
+        existing.normalized_destination === built.row.normalized_destination &&
+        JSON.stringify(existingConfig) === JSON.stringify(nextConfig) &&
+        Number(existing.enabled) === Number(nextEnabled) &&
+        (existing.external_resource_id || null) === (built.row.external_resource_id || null);
+      if (unchanged) {
+        return { ok: true, created: false, subscriber: publicSubscriber(existing), authorization: null };
+      }
+      await db
+        .prepare(
+          `UPDATE subscribers
+           SET name = ?, destination_url = ?, normalized_destination = ?, destination_url_redacted = ?,
+               config_json = ?, enabled = ?, source_app = ?, external_tenant_id = ?, external_user_id = ?,
+               external_resource_id = ?, updated_at = ?
+           WHERE id = ? OR subscriber_id = ?`,
+        )
+        .bind(
+          built.row.name,
+          built.row.destination_url,
+          built.row.normalized_destination,
+          built.row.destination_url_redacted,
+          JSON.stringify(nextConfig),
+          nextEnabled,
+          built.row.source_app,
+          built.row.external_tenant_id,
+          built.row.external_user_id,
+          built.row.external_resource_id,
+          now,
+          existing.id || existing.subscriber_id,
+          existing.subscriber_id || existing.id,
+        )
+        .run();
+      return {
+        ok: true,
+        created: false,
+        updated: true,
+        subscriber: publicSubscriber({
+          ...existing,
+          name: built.row.name,
+          destination_url: built.row.destination_url,
+          normalized_destination: built.row.normalized_destination,
+          destination_url_redacted: built.row.destination_url_redacted,
+          config_json: JSON.stringify(nextConfig),
+          enabled: nextEnabled,
+          source_app: built.row.source_app,
+          external_tenant_id: built.row.external_tenant_id,
+          external_user_id: built.row.external_user_id,
+          external_resource_id: built.row.external_resource_id,
+          updated_at: now,
+        }),
+        authorization: null,
+      };
+    }
+    return { ok: true, created: false, subscriber: publicSubscriber(existing), authorization: null };
+  }
   await insertRow(db, 'subscribers', built.row);
   const subscriber = (await loadSubscriber(db, built.row.subscriber_id)) || built.row;
   let authorization = null;

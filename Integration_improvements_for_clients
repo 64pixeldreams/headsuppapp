@@ -1199,6 +1199,372 @@ pace 96 after triggered -> recovery email
 - Existing tests and smoke tests continue to pass.
 - New unit and smoke tests prove Foretic pace no longer double-fires warning + critical.
 
+## Story A11 - Subscriber Alert Filters And Provisioning Upsert
+
+### Problem
+
+Foretic's correct product model is:
+
+```text
+one Foretic forecast = one Heads Up channel
+one recipient = one Heads Up subscriber row
+recipient alert choices = subscriber-level preferences
+```
+
+The channel can contain multiple signals and grouped policies:
+
+```text
+forecast.revenue.pace
+forecast.goal.risk
+forecast.change.materiality
+forecast.operational.stalled
+```
+
+But today's alert delivery path sends every channel alert to every enabled `mode = alert` subscriber on that channel. This means:
+
+```text
+martin@example.com cannot choose pace + goal only
+board@example.com cannot choose goal only
+ops@example.com cannot choose operational stalled only
+```
+
+Foretic should not create separate channels per recipient/alert set, and Foretic should not receive every alert then reroute or suppress downstream. Heads Up should only send each subscriber the alert types they selected.
+
+### Current Technical Behavior
+
+Current alert subscriber loading is channel/workspace fanout only:
+
+```text
+enabled = 1
+mode = alert
+same channel_id, or workspace-scoped alert webhook for the workspace
+```
+
+Subscriber `config_json` is stored, but `config.filters` is not interpreted by alert delivery.
+
+`admin.provisionChannel` can create stable subscribers using `subscriber_key` or a derived stable ID. However, if the subscriber already exists, `createAdminSubscriber` returns it unchanged. A rerun with a changed `config.filters` does not update the row.
+
+### Product Design
+
+Add subscriber-level alert filters for `mode = alert` subscribers.
+
+Request shape:
+
+```json
+{
+  "subscriber_key": "foretic:forecast_123:board@example.com",
+  "subscriber_type": "email",
+  "destination_url": "board@example.com",
+  "mode": "alert",
+  "config": {
+    "template_id": "forecast_alert_v1",
+    "authorization": { "required": true },
+    "filters": {
+      "signal_keys": ["forecast.goal.risk"],
+      "watch_group_keys": ["forecast_goal_health"],
+      "watch_keys": ["goal_risk_warning"],
+      "band_keys": ["warning", "critical"]
+    }
+  }
+}
+```
+
+Supported filter dimensions:
+
+```text
+signal_keys
+  Match by semantic signal key, e.g. forecast.goal.risk.
+
+watch_group_keys
+  Match grouped policies, e.g. forecast_goal_health.
+
+watch_keys
+  Match independent watch keys when the integrator provisions stable watch IDs/keys.
+
+band_keys
+  Match grouped bands, e.g. warning, critical, recovery.
+```
+
+Routing rules:
+
+```text
+No filters configured
+  Subscriber receives all alerts that match the existing channel/workspace + mode routing.
+
+Filters configured
+  Subscriber receives the alert when it matches at least one configured filter dimension.
+
+Empty filter arrays
+  Treat as unset, not as "block everything".
+
+Unknown filter fields
+  Ignore for forward compatibility.
+
+Malformed filters
+  Reject at subscriber creation/update time with a validation error.
+```
+
+Important semantic choice:
+
+```text
+Filters are OR across dimensions, not AND.
+```
+
+Reason: recipient preferences are usually "send me these alert types." If a subscriber lists `signal_keys: ["forecast.goal.risk"]`, they should receive all goal-risk alerts without also needing to know every watch key, group key, and band key. Adding `band_keys: ["critical"]` should allow "all critical alerts" as a second allowed route, not accidentally narrow the signal filter.
+
+### Foretic Examples
+
+Martin receives pace and goal:
+
+```json
+{
+  "subscriber_key": "foretic:forecast_123:martin@example.com",
+  "subscriber_type": "email",
+  "destination_url": "martin@example.com",
+  "mode": "alert",
+  "config": {
+    "template_id": "forecast_alert_v1",
+    "authorization": { "required": true },
+    "filters": {
+      "signal_keys": ["forecast.revenue.pace", "forecast.goal.risk"]
+    }
+  }
+}
+```
+
+Board receives goal only:
+
+```json
+{
+  "subscriber_key": "foretic:forecast_123:board@example.com",
+  "subscriber_type": "email",
+  "destination_url": "board@example.com",
+  "mode": "alert",
+  "config": {
+    "template_id": "forecast_alert_v1",
+    "authorization": { "required": true },
+    "filters": {
+      "signal_keys": ["forecast.goal.risk"]
+    }
+  }
+}
+```
+
+Ops receives operational stalled only:
+
+```json
+{
+  "subscriber_key": "foretic:forecast_123:ops@example.com",
+  "subscriber_type": "email",
+  "destination_url": "ops@example.com",
+  "mode": "alert",
+  "config": {
+    "template_id": "forecast_alert_v1",
+    "authorization": { "required": true },
+    "filters": {
+      "signal_keys": ["forecast.operational.stalled"]
+    }
+  }
+}
+```
+
+### API And Backend Implementation Notes
+
+Add a small subscriber filter module:
+
+```text
+apps/headsupp-api/src/services/subscribers/alert-filters.js
+```
+
+Responsibilities:
+
+```text
+normalizeSubscriberAlertFilters(config.filters)
+subscriberMatchesAlertFilters(subscriber, alertRoutingContext)
+```
+
+Alert routing context should include:
+
+```json
+{
+  "signal_id": "sig_...",
+  "signal_key": "forecast.goal.risk",
+  "watch_id": "watch_...",
+  "watch_key": "goal_risk_warning",
+  "watch_group_id": "wg_...",
+  "watch_group_key": "forecast_goal_health",
+  "band_key": "critical",
+  "severity": "critical"
+}
+```
+
+Implementation options:
+
+1. Prefer loading routing context during delivery subscriber lookup with joins across `signals`, `watches`, and `watch_groups`.
+2. Also include key metadata in `alert.payload_json` for debugging and webhook/email transparency.
+
+The matching helper should run after existing channel/workspace/mode selection and before `alert_deliveries` rows are built.
+
+### Provisioning Upsert
+
+Extend `admin.provisionChannel` subscriber handling so stable subscribers can be updated on rerun.
+
+Desired behavior:
+
+```text
+same subscriber_key or derived subscriber ID + new config.filters
+  update existing subscriber config_json and mutable presentation fields
+
+same subscriber_key + same config
+  reuse without meaningful changes
+```
+
+Mutable fields for provisioning upsert:
+
+```text
+name / display_name
+config_json
+enabled
+external_resource_id
+source_app / external_tenant_id / external_user_id inherited ownership fields
+```
+
+Destination changes need careful handling:
+
+```text
+webhook/slack destination change
+  Can update after URL validation.
+
+email destination change
+  Prefer requiring a new subscriber_key, or force authorization back to pending if supported.
+```
+
+Recommendation for MVP:
+
+```text
+Support config/name/enabled updates for existing subscribers.
+Do not silently change email destination for an existing subscriber_key in this story.
+Return a validation error if email destination differs from the stored normalized destination.
+```
+
+`admin.createSubscriber` can remain create-or-reuse for backward compatibility. The upsert behavior can live inside `admin.provisionChannel` only, or a new internal helper such as `upsertProvisionedSubscriber`.
+
+### Documentation Updates
+
+Update:
+
+```text
+docs/api/subscribers.md
+docs/api/provisioning.md
+docs/api/reference.md
+docs/api/openapi.yaml
+docs/public-sdk/client-reference.md
+docs/public-sdk/concepts/watch-types.md if examples mention grouped alert routing
+```
+
+Docs must explain:
+
+```text
+subscriber config.filters shape
+OR matching semantics
+no-filter backward compatibility
+stable subscriber_key recommendation
+provisionChannel rerun updates subscriber preferences
+Foretic one forecast = one channel model
+```
+
+### SDK Updates
+
+No new SDK method is required if `provisionChannel` passes payloads through unchanged.
+
+SDK docs should show:
+
+```js
+subscribers: [
+  {
+    subscriber_key: `foretic:${forecastId}:board@example.com`,
+    subscriber_type: 'email',
+    destination_url: 'board@example.com',
+    mode: 'alert',
+    config: {
+      template_id: 'forecast_alert_v1',
+      authorization: { required: true },
+      filters: {
+        signal_keys: ['forecast.goal.risk'],
+      },
+    },
+  },
+]
+```
+
+If the SDK has typed docs or examples for subscriber config, add `filters` there.
+
+### Tests
+
+Unit tests:
+
+```text
+alert-filters.test.js
+  - no filters matches all alerts
+  - signal_keys match by signal key
+  - watch_group_keys match grouped policy key
+  - watch_keys match independent watch key/stable watch ID where applicable
+  - band_keys match grouped band key
+  - multiple dimensions are OR, not AND
+  - empty arrays are ignored
+  - malformed filter values are rejected
+
+alert-persistence.test.js
+  - channel subscribers still load when no filters exist
+  - filtered subscriber receives matching signal alert
+  - filtered subscriber is skipped for nonmatching signal alert
+  - workspace-scoped webhook subscribers preserve existing behavior
+  - disabled subscribers remain skipped
+
+admin-control-plane.test.js
+  - subscriber config with filters validates and stores
+  - public/read subscriber responses expose safe filters
+  - invalid filter shape returns validation error
+
+provision-channel/admin-control-plane test
+  - rerun same subscriber_key with changed config.filters updates config_json
+  - rerun unchanged subscriber remains reused/idempotent
+  - existing email subscriber cannot silently change destination under same subscriber_key
+```
+
+Smoke test:
+
+```text
+npm run smoke:subscriber-filters
+```
+
+Smoke flow:
+
+```text
+1. provision one channel with pace, goal, and operational signals/watch groups
+2. provision three email/webhook test subscribers with different filters
+3. trigger a pace alert
+4. verify only pace-enabled subscribers get deliveries
+5. trigger a goal alert
+6. verify only goal-enabled subscribers get deliveries
+7. rerun provisionChannel changing one subscriber's filters
+8. trigger again and verify updated routing
+```
+
+### Acceptance Criteria
+
+- Existing subscribers with no `config.filters` continue receiving all matching channel alerts.
+- `mode = alert` subscribers can filter by `signal_keys`, `watch_group_keys`, `watch_keys`, and `band_keys`.
+- Filters are validated when subscribers are created or updated.
+- Matching is OR across configured dimensions.
+- Alert delivery creates `alert_deliveries` only for subscribers that pass filters.
+- Filtered-out subscribers do not receive email, webhook, Slack, or queued delivery attempts.
+- `admin.provisionChannel` can update existing subscriber `config.filters` when rerun with the same `subscriber_key`.
+- Stable `subscriber_key` is documented as the recommended Foretic recipient identity.
+- Email authorization behavior remains safe when subscriber config changes.
+- API docs, SDK docs, OpenAPI examples, and Foretic copy block are updated.
+- Unit tests and relevant smoke tests pass.
+
 ## Suggested Build Order
 
 ```text
@@ -1213,6 +1579,7 @@ pace 96 after triggered -> recovery email
 9. Run tests + deploy + smoke
 10. A9 Foretic Agent Handoff
 11. A10 Grouped Watch Policies And Winner Selection
+12. A11 Subscriber Alert Filters And Provisioning Upsert
 ```
 
 ## Test Matrix
@@ -1269,6 +1636,12 @@ evaluate-watch-group.test.js
   - lowest severity winner policy
   - group cooldown and escalation
   - group recovery
+
+subscriber-alert-filters.test.js
+  - no filters means receive all
+  - signal/watch/watch-group/band filters
+  - OR semantics across dimensions
+  - provisionChannel subscriber config upsert
 ```
 
 ### New Smoke Tests
@@ -1291,6 +1664,8 @@ npm run smoke:watch-groups
 - [ ] SDK docs updated.
 - [ ] Watch group docs updated when A10 ships.
 - [ ] Watch group SDK examples updated when A10 ships.
+- [ ] Subscriber alert filter docs updated when A11 ships.
+- [ ] Subscriber filter smoke test added when A11 ships.
 - [ ] Deployed worker uses new migration-compatible code.
 - [ ] Foretic copy block produced.
 

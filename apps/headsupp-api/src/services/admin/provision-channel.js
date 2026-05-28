@@ -99,6 +99,13 @@ function reusedCounter() {
   };
 }
 
+function updatedCounter() {
+  return {
+    subscribers: 0,
+    workspace_subscribers: 0,
+  };
+}
+
 function asArray(value) {
   if (value === undefined || value === null) return [];
   return Array.isArray(value) ? value : null;
@@ -128,6 +135,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
 
   const created = createdCounter();
   const reused = reusedCounter();
+  const updated = updatedCounter();
   let workspace = null;
 
   if (workspaceInput) {
@@ -353,6 +361,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
       env,
       input: {
         ...subscriberInput,
+        upsert_existing: true,
         subscriber_scope: 'channel',
         workspace_id: workspace.workspace_id || workspace.id,
         channel_id: channel.channel_id || channel.id,
@@ -362,7 +371,8 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
     if (!subscriberResult.ok) return stepError('subscribers', subscriberResult, index);
     subscribers.push(subscriberResult.subscriber);
     if (subscriberResult.created === true) created.subscribers += 1;
-    if (subscriberResult.created === false) reused.subscribers += 1;
+    if (subscriberResult.updated === true) updated.subscribers += 1;
+    else if (subscriberResult.created === false) reused.subscribers += 1;
   }
 
   const workspaceSubscribers = [];
@@ -373,6 +383,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
       env,
       input: {
         ...subscriberInput,
+        upsert_existing: true,
         subscriber_scope: 'workspace',
         workspace_id: workspace.workspace_id || workspace.id,
       },
@@ -381,13 +392,15 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
     if (!subscriberResult.ok) return stepError('workspace_subscribers', subscriberResult, index);
     workspaceSubscribers.push(subscriberResult.subscriber);
     if (subscriberResult.created === true) created.workspace_subscribers += 1;
-    if (subscriberResult.created === false) reused.workspace_subscribers += 1;
+    if (subscriberResult.updated === true) updated.workspace_subscribers += 1;
+    else if (subscriberResult.created === false) reused.workspace_subscribers += 1;
   }
 
   return {
     ok: true,
     created,
     reused,
+    updated,
     workspace,
     channel,
     channel_contract: channelContract,

@@ -103,6 +103,29 @@ await headsup.provisionChannel({
 
 With `highest_severity_wins`, a value of `78` sends warning, while a value of `64` sends only critical even though the warning threshold also matches. The group owns cooldown, so a later higher-severity band can still escalate during cooldown, while equal or lower severity repeats stay quiet.
 
+Pair grouped watches with subscriber filters when recipients choose alert types:
+
+```js
+subscribers: [
+  {
+    subscriber_key: `foretic:${forecastId}:board@example.com`,
+    subscriber_type: 'email',
+    destination_url: 'board@example.com',
+    mode: 'alert',
+    config: {
+      template_id: 'forecast_alert_v1',
+      authorization: { required: true },
+      filters: {
+        signal_keys: ['forecast.goal.risk'],
+        band_keys: ['warning', 'critical'],
+      },
+    },
+  },
+]
+```
+
+No filters means the subscriber receives all matching channel alerts. Filters are OR-based across `signal_keys`, `watch_group_keys`, `watch_keys`, and `band_keys`.
+
 ## Watch Type Index
 
 Use these stable anchors when linking from references and SDK docs.

@@ -31,6 +31,7 @@
     "smoke:email-design": "node scripts/email-design-smoke.mjs",
     "smoke:provision-channel": "node scripts/provision-channel-smoke.mjs",
     "smoke:workspace-subscriber": "node scripts/workspace-subscriber-smoke.mjs",
+    "smoke:subscriber-filters": "node scripts/subscriber-filters-smoke.mjs",
     "smoke:subscriber-lifecycle": "node scripts/subscriber-lifecycle-smoke.mjs",
     "release:verify-env": "node scripts/verify-release-env.mjs --slack-required",
     "release:verify-schema": "node scripts/verify-d1-schema.mjs",

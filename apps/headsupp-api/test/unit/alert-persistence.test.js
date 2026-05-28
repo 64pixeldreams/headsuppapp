@@ -153,3 +153,149 @@ test('loads channel and workspace-scoped alert subscribers', async () => {
   assert.equal(subscribers[0].subscriber_id, 'sub_channel');
   assert.equal(subscribers[1].subscriber_id, 'sub_workspace');
 });
+
+test('persists deliveries only for matching subscriber alert filters', async () => {
+  const statements = [];
+  const db = {
+    prepare(sql) {
+      return {
+        bind(...params) {
+          return {
+            sql,
+            params,
+            async first() {
+              if (/FROM signals/.test(sql)) return { signal_key: 'forecast.goal.risk' };
+              if (/FROM watches/.test(sql)) {
+                return {
+                  id: 'watch_goal_critical',
+                  watch_id: 'watch_goal_critical',
+                  watch_group_id: 'wg_goal',
+                  band_key: 'critical',
+                };
+              }
+              if (/FROM watch_groups/.test(sql)) {
+                return {
+                  id: 'wg_goal',
+                  watch_group_id: 'wg_goal',
+                  group_key: 'forecast_goal_health',
+                };
+              }
+              return null;
+            },
+            async all() {
+              if (/FROM subscribers/.test(sql)) {
+                return {
+                  results: [
+                    {
+                      subscriber_id: 'sub_goal',
+                      destination_url: 'goal@example.com',
+                      config_json: JSON.stringify({ filters: { signal_keys: ['forecast.goal.risk'] } }),
+                    },
+                    {
+                      subscriber_id: 'sub_pace',
+                      destination_url: 'pace@example.com',
+                      config_json: JSON.stringify({ filters: { signal_keys: ['forecast.revenue.pace'] } }),
+                    },
+                    {
+                      subscriber_id: 'sub_all',
+                      destination_url: 'all@example.com',
+                      config_json: '{}',
+                    },
+                  ],
+                };
+              }
+              return { results: [] };
+            },
+          };
+        },
+      };
+    },
+    async batch(items) {
+      statements.push(...items);
+    },
+  };
+
+  const result = await persistAlertWithDeliveries({
+    db,
+    watch: {
+      ...watch,
+      id: 'watch_goal_critical',
+      watch_id: 'watch_goal_critical',
+      signal_id: 'sig_goal',
+      watch_group_id: 'wg_goal',
+      band_key: 'critical',
+      name: 'Goal risk critical',
+    },
+    evaluation,
+    decision,
+    input: { ...input, signalId: 'sig_goal', watchGroupId: 'wg_goal' },
+    now: '2026-05-24T10:05:00.000Z',
+  });
+
+  assert.equal(result.deliveries.length, 2);
+  assert.deepEqual(result.deliveries.map((delivery) => delivery.subscriber_id).sort(), ['sub_all', 'sub_goal']);
+  assert.equal(statements.filter((statement) => /INSERT INTO alert_deliveries/.test(statement.sql)).length, 2);
+});
+
+test('persists deliveries for matching watch group and band filters', async () => {
+  const db = {
+    prepare(sql) {
+      return {
+        bind(...params) {
+          return {
+            sql,
+            params,
+            async first() {
+              if (/FROM signals/.test(sql)) return { signal_key: 'forecast.revenue.pace' };
+              if (/FROM watches/.test(sql)) return { watch_id: 'watch_pace_critical', watch_group_id: 'wg_pace', band_key: 'critical' };
+              if (/FROM watch_groups/.test(sql)) return { watch_group_id: 'wg_pace', group_key: 'forecast_pace_health' };
+              return null;
+            },
+            async all() {
+              if (/FROM subscribers/.test(sql)) {
+                return {
+                  results: [
+                    {
+                      subscriber_id: 'sub_group',
+                      destination_url: 'group@example.com',
+                      config_json: JSON.stringify({ filters: { watch_group_keys: ['forecast_pace_health'] } }),
+                    },
+                    {
+                      subscriber_id: 'sub_band',
+                      destination_url: 'band@example.com',
+                      config_json: JSON.stringify({ filters: { band_keys: ['critical'] } }),
+                    },
+                    {
+                      subscriber_id: 'sub_warning',
+                      destination_url: 'warning@example.com',
+                      config_json: JSON.stringify({ filters: { band_keys: ['warning'] } }),
+                    },
+                  ],
+                };
+              }
+              return { results: [] };
+            },
+          };
+        },
+      };
+    },
+    async batch() {},
+  };
+
+  const result = await persistAlertWithDeliveries({
+    db,
+    watch: {
+      ...watch,
+      id: 'watch_pace_critical',
+      watch_id: 'watch_pace_critical',
+      watch_group_id: 'wg_pace',
+      band_key: 'critical',
+    },
+    evaluation,
+    decision: { ...decision, severity: 'critical' },
+    input: { ...input, watchGroupId: 'wg_pace' },
+    now: '2026-05-24T10:05:00.000Z',
+  });
+
+  assert.deepEqual(result.deliveries.map((delivery) => delivery.subscriber_id).sort(), ['sub_band', 'sub_group']);
+});

@@ -186,6 +186,21 @@ paths:
                             config:
                               threshold: 70
                               bucket_type: minute
+                    subscribers:
+                      - subscriber_key: demo:job_123:board@example.com
+                        subscriber_type: email
+                        destination_url: board@example.com
+                        mode: alert
+                        config:
+                          template_id: forecast_alert_v1
+                          authorization:
+                            required: true
+                          filters:
+                            signal_keys:
+                              - forecast.revenue.pace
+                            band_keys:
+                              - warning
+                              - critical
                     workspace_subscribers:
                       - subscriber_scope: workspace
                         subscriber_type: webhook

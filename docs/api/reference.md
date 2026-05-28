@@ -161,12 +161,27 @@ Payload props:
 - `destination_url` (string, required): https URL for webhook/slack, email address for `email`.
 - `display_name` (string, optional).
 - `mode` (string, optional): `alert`, `aggregate_forward`, `quiet_summary`. Defaults to `alert`.
-- `config` (object, optional): receiver settings (`signing_secret` for webhook, `template_id`/`value_format`/`locale`/template labels/standard action buttons for email).
+- `subscriber_key` (string, optional): stable subscriber identity for idempotent provisioning/upsert.
+- `config` (object, optional): receiver settings (`signing_secret` for webhook, `template_id`/`value_format`/`locale`/template labels/standard action buttons for email). For `mode = alert`, `config.filters` can restrict deliveries by `signal_keys`, `watch_group_keys`, `watch_keys`, or `band_keys`.
 - `enabled` (boolean, optional): defaults to true.
 
 Returns `data.subscriber` (redacted destination only), `data.created`, and optional `data.authorization`.
 
 Workspace-scoped subscribers currently support `subscriber_type = webhook` with `mode = alert`, and return `channel_id: null`.
+
+Alert filter example:
+
+```json
+{
+  "filters": {
+    "signal_keys": ["forecast.goal.risk"],
+    "watch_group_keys": ["forecast_goal_health"],
+    "band_keys": ["warning", "critical"]
+  }
+}
+```
+
+No filters preserves current behavior and receives all matching channel/workspace alerts. Filters match with OR semantics across dimensions.
 
 Email `config` supports formatted notification templates:
 
