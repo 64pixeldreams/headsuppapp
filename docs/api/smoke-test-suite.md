@@ -46,6 +46,8 @@ npm run smoke:aggregate-forward-dimensions
 npm run smoke:advanced-watches
 npm run smoke:operator-observability
 npm run smoke:email-subscriber
+npm run smoke:watch-email-matrix
+npm run smoke:scheduled-email
 npm run smoke:subscriber-lifecycle
 npm run soak:release
 ```
@@ -86,6 +88,8 @@ smoke:aggregate-forward-dimensions D1 + deployed dimension-filtered aggregate fo
 smoke:advanced-watches   D1 + deployed     WINDOW, DELTA, relative change, trend, reminders, recurring expectations, rich digest
 smoke:operator-observability API + deployed key lifecycle, audit read, observability overview, redaction
 smoke:email-subscriber  Email + deployed  provisions email subscriber, renders {value} title template and action buttons, triggers coffee highest-purchase alert, verifies sent delivery
+smoke:watch-email-matrix Email + deployed real email proof for threshold, window, delta, percent change, trend, forecast template, and grouped winner alerts
+smoke:scheduled-email Email + deployed real email proof for MISSING_EXPECTED, REMINDER_DUE, and DIGEST scheduled alert emails
 smoke:subscriber-lifecycle API + deployed  admin.getSubscriber/listSubscribers pending authorization reads; optional confirm + disable when service key and email auth secret configured
 load:smoke               local             10000 synthetic events fold into fewer aggregate deltas
 load:high-volume         local             configurable high-volume synthetic proof, default 100000 events
@@ -93,6 +97,44 @@ soak:release             local             bounded throughput and fold-compressi
 ```
 
 Use Slack-backed smokes only for features where a human notification is meaningful. D1/API assertions are the right proof for tenant isolation, retry state, scheduler state, and aggregate-forward rows.
+
+When a deployed smoke accepts an event but does not create the expected notification, use `admin.traceEvent` with the smoke `idempotency_key`. The trace is the production debugging path for raw-event status, aggregate application, cooldown suppression, subscriber filter routing, and delivery state.
+
+## Real Email Watch Matrix
+
+Command:
+
+```bash
+HEADSUPP_SMOKE_EMAIL_DESTINATION=martin@inc64.com npm run smoke:watch-email-matrix
+```
+
+Requires:
+
+```text
+CLOUDFLARE_API_TOKEN
+HEADSUPP_SMOKE_EMAIL_DESTINATION
+```
+
+This is manual production proof and sends real emails. It provisions deterministic smoke resources, triggers signed ingest events, and exits non-zero unless each expected email delivery reaches `sent`.
+
+Covered cases:
+
+```text
+LAST_VALUE_GT
+LAST_VALUE_LT
+WINDOW_SUM_GT
+WINDOW_COUNT_GT
+DELTA_GT
+DELTA_LT
+PERCENT_CHANGE_GT
+PERCENT_CHANGE_LT
+TREND_UP_GT
+TREND_DOWN_GT
+forecast_alert_v1 template delivery
+watch_group highest_severity_wins
+```
+
+Use `npm run smoke:email-real` for the smaller single-email proof. Use `npm run smoke:scheduled-email` for real scheduled alert emails (`MISSING_EXPECTED`, `REMINDER_DUE`, and `DIGEST`). Use `npm run smoke:scheduled` for broader scheduled D1/webhook/aggregate-forward proof.
 
 ## Local Quality Gates
 

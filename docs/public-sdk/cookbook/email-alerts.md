@@ -2,6 +2,19 @@
 
 Email subscribers use `subscriber_type: 'email'` and `destination_url` as the recipient address.
 
+## Real email proof
+
+Before relying on production email delivery, operators can run the deployed proof suite from the API repo:
+
+```bash
+cd apps/headsupp-api
+HEADSUPP_SMOKE_EMAIL_DESTINATION=martin@inc64.com npm run smoke:email-real
+HEADSUPP_SMOKE_EMAIL_DESTINATION=martin@inc64.com npm run smoke:watch-email-matrix
+HEADSUPP_SMOKE_EMAIL_DESTINATION=martin@inc64.com npm run smoke:scheduled-email
+```
+
+These commands send real emails and assert delivery rows reach `sent`. Do not point smoke tests at customer recipients.
+
 ## Create subscriber
 
 ```js

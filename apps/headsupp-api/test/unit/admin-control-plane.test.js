@@ -556,6 +556,10 @@ test('admin provisionChannel rejects duplicate watch group band keys', async () 
   assert.equal(result.ok, false);
   assert.equal(result.code, 'PROVISION_STEP_FAILED');
   assert.equal(result.details.section, 'watch_groups');
+  assert.equal(result.details.group_key, 'forecast_pace_health');
+  assert.equal(result.details.signal_key, 'forecast.revenue.pace');
+  assert.equal(result.details.band_index, 1);
+  assert.equal(result.details.band_key, 'warning');
   assert.equal(result.details.cause.code, 'DUPLICATE_BAND_KEY');
 });
 
@@ -728,6 +732,9 @@ test('admin provisionChannel reports unknown watch signal_key with section detai
   assert.equal(result.code, 'PROVISION_STEP_FAILED');
   assert.equal(result.details.section, 'watches');
   assert.equal(result.details.index, 0);
+  assert.equal(result.details.signal_key, 'missing.signal');
+  assert.equal(result.details.dependency.type, 'signal');
+  assert.match(result.details.dependency.reason, /not present/);
   assert.equal(result.details.cause.code, 'SIGNAL_NOT_FOUND');
 });
 

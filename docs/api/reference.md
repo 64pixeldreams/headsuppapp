@@ -148,6 +148,20 @@ Returns `data.created`, `data.reused`, and all materialized resources, including
 
 Use `watch_groups` for related warning/critical bands that should produce one alert. `highest_severity_wins` is the default policy for avoiding duplicate warning plus critical alerts.
 
+Subscriber upsert behavior:
+
+- `subscriber_key` is the stable identity for repeat provisioning.
+- `admin.provisionChannel` updates existing subscriber `name`, `mode`, `enabled`, and `config`, including `config.filters`.
+- Updating `config.filters` preserves email authorization and does not send another opt-in email.
+- Changing an email destination is protected; create a new subscriber or run an explicit reauthorization flow instead.
+
+Failure behavior:
+
+- partial failures return `PROVISION_STEP_FAILED`;
+- `details.section` and `details.index` identify the failing payload array;
+- stable keys such as `signal_key`, `group_key`, `watch_key`, and `subscriber_key` are echoed when present;
+- missing dependency failures include `details.dependency`.
+
 See [provisioning.md](provisioning.md).
 
 ### `admin.createSubscriber`
@@ -470,6 +484,29 @@ Payload props:
 - same as `admin.listChannelAlerts`.
 
 Returns `timeline` entries ordered by trigger time.
+
+### `admin.traceEvent`
+
+Payload props:
+
+- `workspace_id` (string, required).
+- `channel_id` (string, required).
+- `idempotency_key` (string, required): the event key used in signed ingest.
+
+Permission: `alert:read`.
+
+Returns `trace`:
+
+- `raw_event`: accepted/processing/processed status from the dedupe ledger.
+- `signal`: resolved signal key/id when found.
+- `aggregates`: recent aggregate rows touched after the event was received.
+- `watch_states`: recent watch state and cooldown details for the signal.
+- `alerts`: safe alert rows created after the event was received.
+- `deliveries`: delivery statuses without destination URLs or secrets.
+- `subscriber_routing`: subscriber filter match results for created alerts.
+- `summary`: booleans for accepted/processed/aggregate/alert/delivery plus latest delivery status and suppression reason.
+
+Use this action when ingest returns `queued` but no email or webhook arrives.
 
 ## Callback Payload Props
 

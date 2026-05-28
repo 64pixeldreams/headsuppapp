@@ -2,6 +2,8 @@
 
 Foretic uses this API to create Heads Up resources for a Foretic customer/user.
 
+For new Foretic-style work, prefer the generic [SaaS integration guide](saas-integration-guide.md) and `admin.provisionChannel`. The older `foretic.*` actions are adapter conveniences and historical pilot references; they should not be the primary integration path for new alert-board work.
+
 ## Authentication
 
 ```text

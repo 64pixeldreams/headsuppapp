@@ -56,6 +56,23 @@ Responses include trust timestamps such as `last_evaluated_at`, `last_alert_at`,
 
 `admin.listAlertTimeline` accepts the same `workspace_id`, `channel_id`, and optional `limit` fields as `admin.listChannelAlerts`, returning recent safe alert records ordered by `triggered_at`.
 
+## Event Trace
+
+Use `admin.traceEvent` when `/v1/events/{connector_key}` returns `queued` but the expected alert or email is missing.
+
+```json
+{
+  "action": "admin.traceEvent",
+  "payload": {
+    "workspace_id": "ws_123",
+    "channel_id": "ch_123",
+    "idempotency_key": "evt_123"
+  }
+}
+```
+
+The trace includes raw event status, aggregate application, recent watch states, alert rows, delivery rows, and subscriber filter match results. It redacts destinations and summarizes provider response bodies.
+
 ## Tenant Rules
 
 Reads are scoped through workspace and channel ownership. Requests outside the authenticated `source_app` or `external_tenant_id` return `TENANT_SCOPE_MISMATCH`. Channel/workspace mismatches return `WORKSPACE_CHANNEL_MISMATCH`.

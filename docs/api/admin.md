@@ -40,6 +40,7 @@ admin.updateChannelContract
 admin.getChannelContract
 admin.listChannelContractVersions
 admin.listChannelAlerts
+admin.traceEvent
 admin.getWatchState
 admin.listAlertTimeline
 admin.snoozeWatch
@@ -86,7 +87,28 @@ Generic admin create actions validate required fields before D1 writes and retur
 
 When a stable unique key already exists, create actions return the canonical stored row with `created: false`. Connector secrets are returned only on a true first create; duplicate connector creates return the existing connector without `connector_secret`.
 
+`admin.provisionChannel` is the preferred SaaS integration entry point. It creates or reuses the full workspace/channel/connector/signal/watch/subscriber graph and updates existing subscribers by stable `subscriber_key`. Re-provisioning the same subscriber can update mutable config such as `config.filters` without changing email authorization state or sending a new opt-in email. Email destination changes are protected and should be modeled as a new subscriber or explicit reauthorization flow.
+
+Partial provisioning failures return `PROVISION_STEP_FAILED` with `details.section`, `details.index`, stable keys such as `signal_key`, `group_key`, `watch_key`, or `subscriber_key`, and the underlying `cause`. Dependency failures such as missing signals include `details.dependency` to help map the error back to the source payload.
+
 If Worker code and D1 schema drift, admin actions return `SCHEMA_MISMATCH` with the missing table/column rather than exposing raw D1 internals. Operators should run `npm run release:verify-schema` and apply the missing migration before retrying.
+
+## Trace Event
+
+Use `admin.traceEvent` when ingest returned `queued` but no notification arrived.
+
+```json
+{
+  "action": "admin.traceEvent",
+  "payload": {
+    "workspace_id": "ws_123",
+    "channel_id": "ch_123",
+    "idempotency_key": "evt_123"
+  }
+}
+```
+
+Requires `alert:read`. The response is tenant-scoped and redacted. It includes raw event status, aggregate application, recent watch states, alerts, deliveries, subscriber filter routing, and a summary with likely suppression reason such as `RAW_EVENT_NOT_FOUND` or `COOLDOWN_ACTIVE`.
 
 ## Operator Functions
 

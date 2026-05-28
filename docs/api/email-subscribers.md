@@ -19,6 +19,19 @@ Heads Up supports `subscriber_type: "email"` on the same delivery pipeline used 
 
 Email is outbound-only in this scope. Inbound email handlers are not part of this story batch.
 
+## Real Email Proof
+
+Use these manual smokes before declaring production email ready:
+
+```bash
+cd apps/headsupp-api
+HEADSUPP_SMOKE_EMAIL_DESTINATION=martin@inc64.com npm run smoke:email-real
+HEADSUPP_SMOKE_EMAIL_DESTINATION=martin@inc64.com npm run smoke:watch-email-matrix
+HEADSUPP_SMOKE_EMAIL_DESTINATION=martin@inc64.com npm run smoke:scheduled-email
+```
+
+They send real emails and assert D1 delivery rows reach `sent`. Do not run them on every PR and do not point them at customer recipients.
+
 ## Cloudflare Binding Setup
 
 Worker config must include:
@@ -167,7 +180,7 @@ Implications:
 Same email, N different channels, authorization.required = true on each new subscriber
   -> up to N separate opt-in emails (one per new channel subscriber)
 
-Same subscriber re-provisioned with upsert_existing / same subscriber_key
+Same subscriber re-provisioned by admin.provisionChannel with same subscriber_key
   -> no second opt-in email; authorized state is preserved
 
 Same channel, same email, add config.filters on re-provision

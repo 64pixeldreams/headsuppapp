@@ -54,6 +54,7 @@ HEADSUPP_CONNECTOR_SECRET=hu_sec_...
 | [docs/quickstart.md](docs/quickstart.md) | One-page minimal SDK flow |
 | [docs/cookbook/webhook-alerts.md](docs/cookbook/webhook-alerts.md) | Webhook subscriber + verify callbacks |
 | [docs/cookbook/email-alerts.md](docs/cookbook/email-alerts.md) | Email formatting, actions, opt-in |
+| [docs/cookbook/saas-integration.md](docs/cookbook/saas-integration.md) | One-call SaaS setup and alert-board model |
 | [docs/cookbook/aggregate-forwarding.md](docs/cookbook/aggregate-forwarding.md) | Closed-bucket aggregate webhooks |
 | [docs/cookbook/trend-watches.md](docs/cookbook/trend-watches.md) | TREND_UP_GT / TREND_DOWN_GT |
 | [docs/cookbook/noise-control.md](docs/cookbook/noise-control.md) | Cooldown, snooze, renotify policy |

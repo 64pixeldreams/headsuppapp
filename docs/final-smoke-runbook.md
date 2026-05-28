@@ -27,6 +27,28 @@ load smoke accepts 10000 synthetic events
 folded aggregate deltas are much fewer than raw deltas
 ```
 
+## Real Email Production Proof
+
+Run manually before declaring the API email platform ready:
+
+```powershell
+cd apps/headsupp-api
+$env:HEADSUPP_SMOKE_EMAIL_DESTINATION='martin@inc64.com'
+npm run smoke:email-real
+npm run smoke:watch-email-matrix
+npm run smoke:scheduled-email
+Remove-Item Env:HEADSUPP_SMOKE_EMAIL_DESTINATION
+```
+
+Expected:
+
+```text
+smoke:email-real sends one template/action-button email and verifies delivery.status = sent
+smoke:watch-email-matrix sends real emails for threshold, window, delta, percent change, trend, forecast template, and grouped winner cases
+smoke:scheduled-email sends real scheduled alert emails for missing expected, reminder, and digest
+each script exits non-zero if an expected delivery is missing, retrying, failed, or duplicated
+```
+
 ## D1 Migration Validation
 
 Local:

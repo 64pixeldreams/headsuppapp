@@ -21,7 +21,20 @@ function validationError(field, message = `${field} is required.`) {
   };
 }
 
-function stepError(section, result, index = null) {
+function stepDebugContext(section, input = {}) {
+  const stableKey = input.group_key || input.watch_group_key || input.watch_key || input.subscriber_key || input.signal_key || input.connector_key || input.channel_key || input.workspace_key || null;
+  return {
+    supplied_key: stableKey,
+    group_key: input.group_key || input.watch_group_key || null,
+    watch_key: input.watch_key || null,
+    subscriber_key: input.subscriber_key || null,
+    signal_key: input.signal_key || null,
+    connector_key: input.connector_key || null,
+    section,
+  };
+}
+
+function stepError(section, result, index = null, input = null, extras = {}) {
   return {
     ok: false,
     status: result.status || 400,
@@ -30,6 +43,8 @@ function stepError(section, result, index = null) {
     details: {
       section,
       index,
+      ...(input ? stepDebugContext(section, input) : {}),
+      ...extras,
       cause: {
         code: result.code,
         message: result.message,
@@ -225,7 +240,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
       },
       now,
     });
-    if (!signalResult.ok) return stepError('signals', signalResult, index);
+    if (!signalResult.ok) return stepError('signals', signalResult, index, signalInput);
     signals.push(signalResult.signal);
     signalByKey.set(signalResult.signal.signal_key, signalResult.signal);
     if (signalResult.created === true) created.signals += 1;
@@ -243,7 +258,15 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
         status: 400,
         code: 'SIGNAL_NOT_FOUND',
         message: `No signal was found for watch_groups[${index}].signal_key.`,
-      }, index);
+      }, index, groupInput, {
+        dependency: {
+          type: 'signal',
+          signal_key: groupInput.signal_key || null,
+          reason: groupInput.signal_key
+            ? 'signal was not present in this provision payload and was not found in the channel'
+            : 'watch group did not include signal_id or signal_key',
+        },
+      });
     }
     const bands = asArray(groupInput.bands);
     if (!bands || bands.length === 0) {
@@ -251,7 +274,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
         status: 400,
         code: 'INVALID_WATCH_GROUP',
         message: `watch_groups[${index}].bands must be a non-empty array.`,
-      }, index);
+      }, index, groupInput);
     }
     const bandKeys = new Set();
     for (const [bandIndex, band] of bands.entries()) {
@@ -261,7 +284,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
           status: 400,
           code: 'DUPLICATE_BAND_KEY',
           message: `watch_groups[${index}].bands[${bandIndex}].band_key duplicates another band.`,
-        }, index);
+        }, index, groupInput, { band_index: bandIndex, band_key: bandKey });
       }
       bandKeys.add(bandKey);
     }
@@ -277,7 +300,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
       },
       now,
     });
-    if (!groupResult.ok) return stepError('watch_groups', groupResult, index);
+    if (!groupResult.ok) return stepError('watch_groups', groupResult, index, groupInput);
     const watchGroup = groupResult.watch_group;
     const groupWatches = [];
     if (groupResult.created === true) created.watch_groups += 1;
@@ -311,7 +334,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
         },
         now,
       });
-      if (!watchResult.ok) return stepError('watch_groups', watchResult, index);
+      if (!watchResult.ok) return stepError('watch_groups', watchResult, index, groupInput, { band_index: bandIndex, band_key: bandKey });
       groupWatches.push(watchResult.watch);
       watches.push(watchResult.watch);
       if (watchResult.created === true) created.watches += 1;
@@ -329,7 +352,15 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
         status: 400,
         code: 'SIGNAL_NOT_FOUND',
         message: `No signal was found for watches[${index}].signal_key.`,
-      }, index);
+      }, index, watchInput, {
+        dependency: {
+          type: 'signal',
+          signal_key: watchInput.signal_key || null,
+          reason: watchInput.signal_key
+            ? 'signal was not present in this provision payload and was not found in the channel'
+            : 'watch did not include signal_id or signal_key',
+        },
+      });
     }
     const signalId = signal.id || signal.signal_id;
     const watchId = watchInput.watch_id || (watchInput.watch_key
@@ -347,7 +378,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
       },
       now,
     });
-    if (!watchResult.ok) return stepError('watches', watchResult, index);
+    if (!watchResult.ok) return stepError('watches', watchResult, index, watchInput);
     watches.push(watchResult.watch);
     if (watchResult.created === true) created.watches += 1;
     if (watchResult.created === false) reused.watches += 1;
@@ -368,7 +399,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
       },
       now,
     });
-    if (!subscriberResult.ok) return stepError('subscribers', subscriberResult, index);
+    if (!subscriberResult.ok) return stepError('subscribers', subscriberResult, index, subscriberInput);
     subscribers.push(subscriberResult.subscriber);
     if (subscriberResult.created === true) created.subscribers += 1;
     if (subscriberResult.updated === true) updated.subscribers += 1;
@@ -389,7 +420,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
       },
       now,
     });
-    if (!subscriberResult.ok) return stepError('workspace_subscribers', subscriberResult, index);
+    if (!subscriberResult.ok) return stepError('workspace_subscribers', subscriberResult, index, subscriberInput);
     workspaceSubscribers.push(subscriberResult.subscriber);
     if (subscriberResult.created === true) created.workspace_subscribers += 1;
     if (subscriberResult.updated === true) updated.workspace_subscribers += 1;

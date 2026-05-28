@@ -22,6 +22,8 @@ Everything else in this folder is supporting context and should link back to tho
 [email-rendering.md](email-rendering.md)             email template selection and event rendering contract
 [email-branding.md](email-branding.md)              email logo/footer/icon branding guide
 [provisioning.md](provisioning.md)                 one-call channel setup and workspace subscribers
+[saas-integration-guide.md](saas-integration-guide.md)       canonical SaaS integration path and Foretic-style board model
+[migration-and-cleanup.md](migration-and-cleanup.md)         safe migration between channel/watch/subscriber models
 [aggregate-forwarding.md](aggregate-forwarding.md)       closed aggregate bucket forwarding guide
 [watch-types.md](watch-types.md)                plain-English feature and watch catalog
 [getting-started-api-keys.md](getting-started-api-keys.md)   first-run bootstrap and service API keys
@@ -40,6 +42,8 @@ email-subscribers.md
 email-rendering.md
 email-branding.md
 provisioning.md
+saas-integration-guide.md
+migration-and-cleanup.md
 webhook-receivers.md
 watch-types.md
 alerts-and-deliveries.md

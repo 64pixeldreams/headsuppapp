@@ -87,7 +87,7 @@ Filter matching is OR across dimensions. For example, `signal_keys: ["forecast.g
 
 Empty arrays are treated as unset. Invalid filter values are rejected when the subscriber is created or updated.
 
-When using `admin.provisionChannel`, set a stable `subscriber_key` per recipient. Rerunning provisioning with the same `subscriber_key` updates mutable subscriber fields such as `config.filters`, so Foretic can change recipient alert preferences idempotently.
+When using `admin.provisionChannel`, set a stable `subscriber_key` per recipient. Rerunning provisioning with the same `subscriber_key` updates mutable subscriber fields such as `name`, `mode`, `enabled`, and `config.filters`, so integrators can change recipient alert preferences idempotently. Updating filters preserves email authorization and does not send another opt-in email. Changing an email destination should create a new subscriber or use an explicit reauthorization flow.
 
 ## Slack Webhook Subscriber
 

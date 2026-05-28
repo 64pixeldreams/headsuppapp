@@ -421,6 +421,16 @@ Payload props:
 
 Returns `timeline` entries ordered by trigger time.
 
+### `admin.traceEvent`
+
+Payload props:
+
+- `workspace_id` (string, required).
+- `channel_id` (string, required).
+- `idempotency_key` (string, required).
+
+Returns a redacted `trace` for queued event debugging: raw event status, aggregate application, watch cooldown state, alerts, deliveries, subscriber routing, and summary.
+
 ## Callback Payload Props
 
 ### Alert Callback (`type = heads_up.alert`)

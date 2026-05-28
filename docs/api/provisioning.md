@@ -20,6 +20,8 @@ workspace subscribers
 
 The action is safe to rerun. Existing resources are reused by stable keys.
 
+For SaaS integrations with many customer resources, also read [saas-integration-guide.md](saas-integration-guide.md). It explains when to use one channel per resource versus one channel per alert board.
+
 ## Required Permissions
 
 For MVP, service keys calling `admin.provisionChannel` should include:
@@ -204,7 +206,7 @@ console.log(setup.connector.connector_secret); // shown only when connector is n
 
 ```text
 workspace_key   stable per third-party tenant/account
-channel_key     stable per external resource
+channel_key     stable per external resource or alert board
 connector_key   stable ingest key
 signal_key      stable signal inside a channel
 group_key       stable watch group inside a channel
@@ -213,18 +215,23 @@ watch_key       stable watch inside a channel
 subscriber_key  optional stable subscriber override
 ```
 
-Rerun the same payload to repair partial setup or confirm all resources still exist. For provisioned subscribers, rerunning with the same `subscriber_key` can update mutable recipient preferences such as `config.filters`.
+Rerun the same payload to repair partial setup or confirm all resources still exist. For provisioned subscribers, rerunning with the same `subscriber_key` can update mutable recipient preferences such as `name`, `mode`, `enabled`, and `config.filters`. Updating filters preserves email authorization and does not send another opt-in email. Changing an email destination is protected and should be modeled as a new subscriber or explicit reauthorization flow.
 
 ## Subscriber Alert Filters
 
 Use subscriber alert filters when one channel has multiple alert types and each recipient chooses their own set.
 
-Foretic model:
+Channel model:
 
 ```text
-one forecast = one channel
-one recipient = one subscriber row
-recipient preferences = subscriber.config.filters
+one channel per resource
+  use when each resource needs separate consent/subscribers/cooldowns
+
+one channel per user or alert board
+  use when one opt-in should cover many resources
+  put resource ids in fields/dimensions
+  create one watch or watch_group per resource policy
+  use subscriber.config.filters for recipient preferences
 ```
 
 For **one opt-in email when batch-subscribing a user to many alerts**, prefer **one channel per user** (or alert board) with many watches and **one email subscriber** using `config.filters`, not one email subscriber per forecast channel. Authorization is per subscriber row; multiple channel subscribers with `authorization.required: true` each send a separate confirmation email. See [email-subscribers.md](email-subscribers.md#batch-subscribe-and-one-opt-in-email).
@@ -314,7 +321,7 @@ Channel subscribers still work exactly as before and remain best for per-channel
 
 `admin.provisionChannel` writes resources in deterministic order and every write is idempotent. It does not roll back earlier successful steps. If a later step fails, fix the payload and rerun the same request.
 
-Failure details identify the section and array index:
+Failure details identify the section, array index, supplied stable keys, and dependency reason where available:
 
 ```json
 {
@@ -322,6 +329,12 @@ Failure details identify the section and array index:
   "details": {
     "section": "watches",
     "index": 0,
+    "signal_key": "missing.signal",
+    "dependency": {
+      "type": "signal",
+      "signal_key": "missing.signal",
+      "reason": "signal was not present in this provision payload and was not found in the channel"
+    },
     "cause": {
       "code": "SIGNAL_NOT_FOUND"
     }

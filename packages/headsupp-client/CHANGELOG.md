@@ -2,6 +2,8 @@
 
 ## 0.1.2
 
+- Added `traceEvent` for debugging queued ingest events through alert and delivery state.
+- Added SaaS integration cookbook guidance for alert-board channel modeling.
 - Added subscriber read wrappers:
   - `getSubscriber`
   - `listSubscribers`

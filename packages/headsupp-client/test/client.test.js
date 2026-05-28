@@ -172,6 +172,40 @@ test('supports getSubscriber and listSubscribers wrappers', async () => {
   });
 });
 
+test('supports traceEvent wrapper', async () => {
+  const calls = [];
+  const client = createHeadsUpClient({
+    baseUrl: 'https://headsupp.example',
+    apiKey: 'hu_api_test',
+    fetch: async (url, init) => {
+      calls.push({ url, init });
+      return jsonResponse({
+        success: true,
+        data: {
+          ok: true,
+          trace: {
+            idempotency_key: 'evt_123',
+            found: true,
+            summary: { latest_delivery_status: 'sent' },
+          },
+        },
+      });
+    },
+  });
+
+  const trace = await client.traceEvent({
+    workspace_id: 'ws_demo',
+    channel_id: 'ch_demo',
+    idempotency_key: 'evt_123',
+  });
+
+  assert.equal(trace.summary.latest_delivery_status, 'sent');
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    action: 'admin.traceEvent',
+    payload: { workspace_id: 'ws_demo', channel_id: 'ch_demo', idempotency_key: 'evt_123' },
+  });
+});
+
 test('supports disable/delete subscriber wrappers', async () => {
   const calls = [];
   const client = createHeadsUpClient({

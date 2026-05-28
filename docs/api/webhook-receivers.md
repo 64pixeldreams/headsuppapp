@@ -392,6 +392,8 @@ X-HeadsUp-Signature: v1=<hmac_sha256_hex(timestamp + "." + raw_body)>
 X-HeadsUp-Delivery-Id: <delivery id>
 ```
 
+Outbound callbacks intentionally use `v1=`. Signed event ingest uses `sha256=` on `/v1/events/{connector_key}`. Do not reuse the ingest verifier without changing the expected prefix and secret source.
+
 Node verification example:
 
 ```js

@@ -6,6 +6,11 @@ Primary docs:
 - [Quickstart](quickstart.md)
 - [Reference](reference.md)
 - [Watch types](watch-types.md)
+- [SaaS integration cookbook](cookbook/saas-integration.md)
+
+## Channel Model For SaaS Apps
+
+Use one channel per resource when consent, recipients, and lifecycle are resource-specific. Use one channel per user/account/alert board when one opt-in should cover many resources and subscriber `config.filters` should manage preferences. For alert-board channels, put resource IDs in event fields/dimensions and create one watch or watch group per resource policy so cooldown remains per policy.
 
 ## What Heads Up Is Best At
 

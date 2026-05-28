@@ -27,6 +27,7 @@ Full SDK docs (self-contained, SDK-first):
 | Getting started | [../../docs/public-sdk/getting-started.md](../../docs/public-sdk/getting-started.md) |
 | Client reference | [../../docs/public-sdk/client-reference.md](../../docs/public-sdk/client-reference.md) |
 | Cookbooks | [../../docs/public-sdk/cookbook/](../../docs/public-sdk/cookbook/) |
+| SaaS integration cookbook | [../../docs/public-sdk/cookbook/saas-integration.md](../../docs/public-sdk/cookbook/saas-integration.md) |
 | Published package docs | https://github.com/64pixeldreams/headsuppclientsdk/tree/main/docs |
 
 Sync public-sdk from SDK repo:

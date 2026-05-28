@@ -143,6 +143,8 @@ Use `watch_groups` for related bands such as warning and critical. With `highest
 
 Use subscriber `config.filters` when each recipient chooses alert types. Supported filter fields are `signal_keys`, `watch_group_keys`, `watch_keys`, and `band_keys`. No filters means the subscriber receives all matching channel alerts. Rerun `provisionChannel` with the same `subscriber_key` to update filters idempotently.
 
+For SaaS integrations, start with [cookbook/saas-integration.md](cookbook/saas-integration.md). It explains when to use one channel per resource versus one channel per alert board. Repeat provisioning with the same `subscriber_key` updates subscriber config such as filters without sending another opt-in email; changing an email destination should be treated as a new subscriber or reauthorization flow.
+
 ### getChannel(payload) → channel
 
 ```js
@@ -374,6 +376,22 @@ const state = await headsup.getWatchState({
   watch_id: watch.watch_id,
 });
 ```
+
+### traceEvent(payload) → trace
+
+Use after `sendEvent()` returns `queued` but no notification arrives.
+
+```js
+const trace = await headsup.traceEvent({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  idempotency_key: 'evt_001',
+});
+
+console.log(trace.summary.latest_delivery_status);
+```
+
+The trace is tenant-scoped and redacted. It includes raw event processing status, aggregate application, watch cooldown state, created alerts, delivery status, and subscriber filter routing.
 
 ## Watch action controls
 

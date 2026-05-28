@@ -23,7 +23,7 @@ If a story creates or changes an endpoint, auth rule, event payload, delivery pa
 
 ## Current Story Count
 
-There are 116 story files.
+There are 118 story files.
 
 Stories marked `_done` are complete. Pending stories should be built one at a time or in an agreed batch, with tests and docs updated before marking `_done`.
 
@@ -150,6 +150,15 @@ Opt-in recipient confirmation and aggregate-based trend intelligence:
 113 Email subscriber authorization opt-in_done
 114 Trend watch types over aggregates_done
 115 Trend and email authorization docs SDK smoke_done
+```
+
+## First Integrator Production Readiness Batch
+
+Final API-platform pass from the first Foretic integration feedback. Build 116 before 117 so the real-email proof suite can use the finalized provisioning, debugging, and docs model.
+
+```text
+116 First integrator production pass_done
+117 Real email watch proof suite_done
 ```
 
 ## Commercialization Batch

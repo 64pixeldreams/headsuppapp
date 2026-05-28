@@ -21,7 +21,7 @@ import {
   updateAdminChannelContract,
 } from '../services/admin/control-plane.js';
 import { provisionAdminChannel } from '../services/admin/provision-channel.js';
-import { getAdminWatchState, listAdminAlertTimeline, listAdminChannelAlerts } from '../services/admin/read-models.js';
+import { getAdminWatchState, listAdminAlertTimeline, listAdminChannelAlerts, traceAdminEvent } from '../services/admin/read-models.js';
 import { createKVControlPlaneStore } from '../services/control-plane/kv-store.js';
 import { writeAuditLog } from '../services/audit/control-plane-audit.js';
 
@@ -138,6 +138,7 @@ export async function registerAdminFunctions(cloudFunction) {
   defineAdmin('admin.getChannelContract', getAdminChannelContract);
   defineAdmin('admin.listChannelContractVersions', listAdminChannelContractVersions);
   defineAdmin('admin.listChannelAlerts', listAdminChannelAlerts);
+  defineAdmin('admin.traceEvent', traceAdminEvent);
   defineAdmin('admin.getWatchState', getAdminWatchState);
   defineAdmin('admin.listAlertTimeline', listAdminAlertTimeline);
   defineAdmin('admin.snoozeWatch', snoozeAdminWatch);

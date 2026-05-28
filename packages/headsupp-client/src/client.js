@@ -100,6 +100,7 @@ export function createHeadsUpClient({ baseUrl, apiKey, bootstrapToken, fetch: fe
     disableSubscriberByEmail: (payload) =>
       requestFunction('admin.disableSubscriber', payload).then((data) => resource(data, 'subscriber')),
     listChannelAlerts: (payload) => requestFunction('admin.listChannelAlerts', payload),
+    traceEvent: (payload) => requestFunction('admin.traceEvent', payload).then((data) => resource(data, 'trace')),
     getWatchState: (payload) => requestFunction('admin.getWatchState', payload).then((data) => resource(data, 'watch_state')),
     snoozeWatch: (payload) => requestFunction('admin.snoozeWatch', payload).then((data) => resource(data, 'action_control')),
     muteWatch: (payload) => requestFunction('admin.muteWatch', payload).then((data) => resource(data, 'action_control')),

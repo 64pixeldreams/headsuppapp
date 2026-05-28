@@ -73,6 +73,8 @@ Example response after connector authentication succeeds and raw event messages 
 }
 ```
 
+If this response is successful but no alert or email appears, use `admin.traceEvent` with the same `idempotency_key`. The trace shows whether the raw event was processed, whether aggregates were applied, whether a watch was in cooldown, whether subscriber filters matched, and whether delivery rows were created.
+
 ## Single Event
 
 ```json

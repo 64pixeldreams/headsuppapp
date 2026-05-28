@@ -190,6 +190,8 @@ The signature payload is:
 timestamp + "." + raw_body
 ```
 
+Ingest signatures use the `sha256=` prefix. Outbound webhook callback signatures use the `v1=` prefix documented in [webhook-receivers.md](webhook-receivers.md). Keep separate verifier helpers for each direction and always verify the raw request body bytes/string exactly as received.
+
 The connector maps to:
 
 ```text

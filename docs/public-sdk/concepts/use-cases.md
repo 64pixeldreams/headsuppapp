@@ -8,6 +8,8 @@ SDK docs:
 - [Watch types](watch-types.md)
 - [Cookbooks](../cookbook/)
 
+For SaaS integrations, start with [SaaS integration](../cookbook/saas-integration.md). Prefer one channel per alert board when one opt-in should cover many resources; use one channel per resource only when consent, subscribers, lifecycle, or cooldowns must be isolated.
+
 ## What Heads Up Is Best At
 
 Heads Up is an attention-processing API that:

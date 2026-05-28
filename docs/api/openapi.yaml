@@ -231,6 +231,13 @@ paths:
                   payload:
                     workspace_id: ws_demo
                     channel_id: ch_demo
+              traceEvent:
+                value:
+                  action: admin.traceEvent
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+                    idempotency_key: evt_demo_001
               createThresholdWatch:
                 value:
                   action: admin.createWatch
