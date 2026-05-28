@@ -77,7 +77,7 @@ The CI workflow verifies the core deployed-smoke variables before running deploy
 ## Coverage Matrix
 
 ```text
-smoke:generic-slack      Slack + deployed  silence on normal events, one alert on trigger, sent Slack delivery
+smoke:generic-slack      Slack + deployed  silence on normal events, one polished Slack alert on trigger, sent delivery
 smoke:alert-decisions    Slack + deployed  warning, cooldown suppression, critical escalation, recovery
 smoke:foretic            Slack + local     Foretic-shaped provision/event/Slack payload loop
 smoke:scheduled          D1 + deployed     MISSING_EXPECTED, DIGEST, AGGREGATE_FORWARD delivery rows
@@ -99,7 +99,7 @@ load:high-volume         local             configurable high-volume synthetic pr
 soak:release             local             bounded throughput and fold-compression release proof
 ```
 
-Use Slack-backed smokes only for features where a human notification is meaningful. D1/API assertions are the right proof for tenant isolation, retry state, scheduler state, and aggregate-forward rows.
+Use Slack-backed smokes only for features where a human notification is meaningful. D1/API assertions are the right proof for tenant isolation, retry state, scheduler state, and aggregate-forward rows. Unit tests cover Slack Block Kit payload fields and generic webhook JSON contract fields without needing a real Slack channel.
 
 When a deployed smoke accepts an event but does not create the expected notification, use `admin.traceEvent` with the smoke `idempotency_key`. The trace is the production debugging path for raw-event status, aggregate application, cooldown suppression, subscriber filter routing, and delivery state.
 

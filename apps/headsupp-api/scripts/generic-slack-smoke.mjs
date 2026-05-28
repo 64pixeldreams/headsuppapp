@@ -15,7 +15,7 @@ requireEnv('HEADSUPP_SMOKE_SLACK_WEBHOOK_URL', runtime.slackWebhookUrl);
 
 const client = createCloudflareClient(runtime);
 const ids = genericSmokeIds('generic_slack');
-const signalKey = 'demo.metric';
+const signalKey = 'coffee.sales.pace';
 const startedAt = new Date().toISOString();
 const runId = `${ids.scenarioId}:${Date.now()}`;
 const health = await checkHealth(runtime.baseUrl);
@@ -24,9 +24,37 @@ const setup = await provisionGenericScenario({
   ids,
   slackWebhookUrl: runtime.slackWebhookUrl,
   signalKey,
-  watchName: 'Generic smoke metric high',
+  subscriberName: '[Heads Up Smoke] Coffee Slack proof',
+  watchName: 'Coffee sales pace needs attention',
   watchConfig: { threshold: 10, severity: 'warning', bucket_type: 'minute' },
 });
+
+await client.d1Query('UPDATE channels SET name = ?, metadata_json = ?, updated_at = ? WHERE id = ?', [
+  'Coffee launch dashboard',
+  JSON.stringify({
+    forecast_id: 'coffee_launch_q3',
+    forecast_name: 'Coffee Launch Q3',
+    resource_name: 'Coffee Launch Q3',
+  }),
+  new Date().toISOString(),
+  ids.channel,
+]);
+await client.d1Query('UPDATE subscribers SET config_json = ?, updated_at = ? WHERE id = ?', [
+  JSON.stringify({
+    template_id: 'base_alert_slack_v1',
+    source_label: 'Heads Up Coffee',
+    labels: {
+      title_template: 'Coffee sales pace is heating up: {value} orders',
+      summary_template: 'Coffee orders crossed the {threshold}-order watch line. Review the launch dashboard before the next campaign window.',
+      current_label: 'Coffee orders',
+      threshold_label: 'Watch line',
+      watch_label: 'Scenario',
+      watch_value: 'Q3 coffee launch',
+    },
+  }),
+  new Date().toISOString(),
+  ids.subscriber,
+]);
 
 const before = await smokeCounts(client, ids);
 const normalAccepted = await sendSignedEvents({
@@ -38,7 +66,7 @@ const normalAccepted = await sendSignedEvents({
     count: 20,
     signalKey,
     value: 5,
-    source: 'generic-slack-smoke',
+    source: 'coffee-slack-smoke',
   }),
 });
 
@@ -61,7 +89,18 @@ const triggerAccepted = await sendSignedEvents({
       name: 'trigger',
       signalKey,
       value: 15,
-      source: 'generic-slack-smoke',
+      source: 'coffee-slack-smoke',
+      fields: {
+        product: 'coffee',
+        campaign: 'Q3 launch',
+      },
+      dimensions: {
+        product: 'coffee',
+      },
+      cta: {
+        label: 'Open coffee dashboard',
+        url: 'https://headsupp.io/demo/coffee-launch',
+      },
     }),
   ],
 });
@@ -95,7 +134,7 @@ console.log(
         channel_id: ids.channel,
         connector_key: setup.connectorKey,
         signal_key: signalKey,
-        watch: 'LAST_VALUE_GT threshold 10',
+        watch: 'Coffee sales pace LAST_VALUE_GT threshold 10',
       },
       ingest: {
         normal_events_sent: 20,
@@ -108,7 +147,7 @@ console.log(
         after_normal: afterNormal,
         after_trigger: delivered.counts,
       },
-      expected_slack_text: 'Generic smoke metric high is warning at 15.',
+      expected_slack_text: 'Coffee sales pace is heating up: 15 orders.',
       latest_delivery: delivered.delivery,
     },
     null,

@@ -1,5 +1,6 @@
 import { classifyDeliveryResult } from './backoff.js';
 import { buildSignedWebhookHeaders } from './signing.js';
+import { slackAlertPayload as renderSlackAlertPayload } from './slack-alert.js';
 
 function parseChannelMetadata(channel) {
   if (!channel) return {};
@@ -20,6 +21,7 @@ export function genericAlertPayload(alert, channel = null) {
   }
   return {
     type: 'heads_up.alert',
+    schema_version: '2026-05-28',
     alert_id: alert.id,
     workspace_id: alert.workspace_id,
     channel_id: alert.channel_id,
@@ -41,15 +43,17 @@ export function genericAlertPayload(alert, channel = null) {
   };
 }
 
-export function slackAlertPayload(alert) {
-  const cta = alert.cta_url ? ` ${alert.cta_label || 'View'}: ${alert.cta_url}` : '';
-  return {
-    text: `${alert.summary_text}${cta}`,
-  };
+export function slackAlertPayload(alert, options = {}) {
+  return renderSlackAlertPayload(alert, options);
 }
 
 export function alertDeliveryPayload(alert, subscriber, channel = null) {
-  if (subscriber.subscriber_type === 'slack_webhook') return slackAlertPayload(alert);
+  if (subscriber.subscriber_type === 'slack_webhook') {
+    return renderSlackAlertPayload(alert, {
+      subscriber,
+      channelMetadata: parseChannelMetadata(channel),
+    });
+  }
   return genericAlertPayload(alert, channel);
 }
 

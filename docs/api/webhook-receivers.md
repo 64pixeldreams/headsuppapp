@@ -4,6 +4,14 @@ Primary docs: use [quickstart.md](quickstart.md) for setup flow and [reference.m
 
 This guide explains how to subscribe Slack or your own webhook to a channel and what happens when a watch fires.
 
+Use delivery channels by audience:
+
+```text
+email   polished customer/user inbox alerts
+slack   polished customer/team chat alerts
+webhook structured developer/API/AI-agent delivery
+```
+
 ## What A Subscriber Does
 
 A subscriber belongs to a channel. When Heads Up creates output for that channel, it sends the output to matching subscribers.
@@ -43,7 +51,15 @@ Create a Slack incoming webhook URL in Slack, then create a Heads Up subscriber:
     "subscriber_type": "slack_webhook",
     "destination_url": "https://hooks.slack.com/services/T_TEST/B_TEST/SECRET",
     "display_name": "#ops-alerts",
-    "mode": "alert"
+    "mode": "alert",
+    "config": {
+      "template_id": "base_alert_slack_v1",
+      "source_label": "Foretic",
+      "labels": {
+        "title_template": "Forecast risk: {value}%",
+        "summary_template": "Goal risk reached {value}% against threshold {threshold}%."
+      }
+    }
   }
 }
 ```
@@ -68,6 +84,8 @@ Response:
 ```
 
 Save `subscriber_id` only if you need to reference the subscriber later. The full Slack URL is never returned.
+
+Slack messages are rendered as incoming-webhook-compatible JSON with `text` and `blocks`. Slack templates are channel-native, not HTML. They include severity, title, summary, current value, threshold, watch context, CTA button when present, and a compact source/context line.
 
 ## Subscribe Your Own Webhook To Alerts
 
@@ -99,6 +117,7 @@ When an alert watch fires, a generic webhook subscriber receives:
 ```json
 {
   "type": "heads_up.alert",
+  "schema_version": "2026-05-28",
   "alert_id": "alert_123",
   "workspace_id": "ws_demo",
   "channel_id": "ch_demo",
@@ -127,6 +146,7 @@ Route alert callbacks by:
 
 ```text
 type = heads_up.alert
+schema_version = 2026-05-28
 ```
 
 Dedupe retries by:
@@ -134,6 +154,18 @@ Dedupe retries by:
 ```text
 alert_id
 X-HeadsUp-Delivery-Id
+```
+
+Generic webhooks are intentionally not visual templates. Use them for developer systems, AI agents, ETL, support automations, or customer APIs that need stable data and their own rendering layer.
+
+Recommended controls for AI agents and external APIs:
+
+```text
+watch cooldown_seconds       prevent repeated alerts during noisy periods
+watch groups                 choose one winner instead of sending warning + critical duplicates
+recovery settings            send clear/recovered signals only when meaningful
+subscriber config.filters    route only the signals/watch groups/bands the receiver should handle
+receiver dedupe              dedupe by alert_id and X-HeadsUp-Delivery-Id
 ```
 
 ## Subscribe Your App To Subscriber Lifecycle Events

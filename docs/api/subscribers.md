@@ -102,7 +102,15 @@ Request shape:
   "subscriber_type": "slack_webhook",
   "destination_url": "https://hooks.slack.com/services/...",
   "display_name": "#forecast-alerts",
-  "mode": "alert"
+  "mode": "alert",
+  "config": {
+    "template_id": "base_alert_slack_v1",
+    "source_label": "Foretic",
+    "labels": {
+      "title_template": "Forecast risk: {value}%",
+      "summary_template": "Goal risk reached {value}% against threshold {threshold}%."
+    }
+  }
 }
 ```
 
@@ -137,6 +145,8 @@ subscriber stores source_app and external tenant/user fields
 API responses return destination_url_redacted, not the full destination_url
 ```
 
+Slack alert subscribers are for polished team-chat alerts. They render incoming-webhook-compatible Slack payloads with `text` and `blocks`, including severity, title, summary, current value, threshold, CTA button, and context. Use `labels.title_template` and `labels.summary_template` for customer-facing copy.
+
 Example response:
 
 ```json
@@ -158,6 +168,8 @@ Example response:
 
 ## Generic Webhook Subscriber
 
+Generic webhooks are for developer systems, AI agents, API automation, and downstream delivery. They receive structured JSON and should render their own UI if needed.
+
 Request shape:
 
 ```json
@@ -167,7 +179,14 @@ Request shape:
   "subscriber_type": "webhook",
   "destination_url": "https://example.com/heads-up",
   "display_name": "Foretic callback",
-  "mode": "alert"
+  "mode": "alert",
+  "config": {
+    "filters": {
+      "signal_keys": ["forecast.goal.risk"],
+      "band_keys": ["critical"]
+    },
+    "signing_secret": "receiver_shared_secret"
+  }
 }
 ```
 
@@ -205,7 +224,17 @@ Slack incoming webhook payload:
 
 ```json
 {
-  "text": "Revenue forecast is critical at 64%. View forecast: https://foretic.io/forecasts/fc_123"
+  "text": "Critical: Forecast risk: 64% Goal risk reached 64% against threshold 70%.",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "Critical: Forecast risk: 64%",
+        "emoji": true
+      }
+    }
+  ]
 }
 ```
 
@@ -214,6 +243,7 @@ Generic alert webhook payload:
 ```json
 {
   "type": "heads_up.alert",
+  "schema_version": "2026-05-28",
   "alert_id": "alert_123",
   "workspace_id": "ws_123",
   "channel_id": "ch_123",
@@ -229,6 +259,8 @@ Generic alert webhook payload:
   }
 }
 ```
+
+Alert volume is controlled before delivery by watch cooldowns, grouped winner selection, recovery rules, and subscriber filters. For AI agents or expensive APIs, prefer narrow `config.filters` and non-zero watch cooldowns.
 
 Generic quiet-summary webhook payload:
 

@@ -6,6 +6,14 @@ Purpose: inspect alert history and watch quiet state without exposing webhook de
 
 This file covers read APIs. For outbound Slack messages, generic alert callback payloads, aggregate-forward callbacks, quiet-summary callbacks, retry behavior, and signature verification, see [webhook-receivers.md](webhook-receivers.md).
 
+Delivery channel intent:
+
+```text
+email   polished customer/user inbox alerts
+slack   polished customer/team chat alerts
+webhook structured developer/API/AI-agent delivery
+```
+
 Authentication:
 
 ```text
@@ -36,6 +44,8 @@ watch:read
 Responses include safe alert fields, CTA fields, sanitized context `fields`, `metadata.as_of`, and `metadata.suppressed_watch_count`. They do not include subscriber destinations, connector secrets, delivery response bodies, or raw webhook URLs.
 
 Manual alert ignores use `admin.ignoreAlert`. Pending or retrying deliveries for the ignored alert are marked `ignored` and are not redelivered.
+
+Alert delivery volume is governed by the watch decision path before subscribers are dispatched. Cooldowns, grouped winner selection, recovery rules, and subscriber `config.filters` apply equally to email, Slack, and generic webhook alert subscribers.
 
 ## Watch State
 
