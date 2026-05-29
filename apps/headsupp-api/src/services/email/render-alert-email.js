@@ -319,9 +319,12 @@ function normalizeBranding(config = {}, defaults = {}) {
       : defaults.footer_text || 'Fewer surprises. Just a heads up.',
     footer_brand_name: footerBrandName,
     footer_brand_url: safeUrl(footerBrandUrl),
+    // In-card company line is the integrator's own legal line only. The platform
+    // address belongs solely to the footer (platform_company_line) so it is not
+    // duplicated for the non-integrator default.
     company_line: integratorBranding
       ? branding.company_line || branding.company_info || null
-      : defaults.company_line || null,
+      : null,
     powered_by_name: defaults.powered_by_name || DEFAULT_POWERED_BY_NAME,
     powered_by_url: safeUrl(defaults.powered_by_url || DEFAULT_POWERED_BY_URL),
     show_powered_by: defaults.show_powered_by !== false,

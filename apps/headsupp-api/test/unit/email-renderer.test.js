@@ -558,6 +558,8 @@ test('platform default renders the company address only once (footer, not duplic
     alert: baseAlert,
     subscriber: { config_json: '{}' },
     channel: {},
+    // Mirror production: HEADSUPP_EMAIL_COMPANY_LINE feeds defaults.company_line.
+    defaults: { company_line: 'INC64 LLC. 30N St Ste N, Sheridan, WY 82801.' },
   });
 
   const occurrences = rendered.html.match(/INC64 LLC\. 30N St Ste N, Sheridan, WY 82801\./g) || [];
