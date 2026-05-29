@@ -158,6 +158,48 @@ fields.goal_name
 channel.name
 ```
 
+### `fields.debug`
+
+Use `debug` for support traceability without putting ids into customer-facing copy.
+
+```json
+{
+  "fields": {
+    "debug": {
+      "id": "oracle_forecast:mn9cxnv3muoleo",
+      "event_ref": "foretic:oracle_forecast:mn9cxnv3muoleo:forecast_state:2026-05-29T12:00:00Z",
+      "mode": "debug"
+    }
+  }
+}
+```
+
+Debug rendering is off by default. Enable it either per recipient with `subscriber.config.debug = true` or per event with `fields.debug.mode = "debug"`.
+
+When debug is off, `fields.debug` is ignored and never rendered. When debug is on, email renders a discreet footer line such as:
+
+```text
+Debug: oracle_forecast:mn9cxnv3muoleo · evt foretic:...
+```
+
+The subject also gets `[debug.id]` by default. Set `subscriber.config.debug_subject = false` to keep the footer line but suppress the subject suffix. Debug values are escaped and are never used as title, subtitle, summary, or detail.
+
+Foretic copy block:
+
+```text
+HeadsUp now owns debug rendering for email alerts. Keep forecast ids out of
+forecast_name, resource_name, notification.title, notification.summary, and
+notification.detail. Put the human forecast name in resource_name/forecast_name,
+and put opaque ids in fields.debug:
+
+fields.debug.id = oracle_forecast:<id>
+fields.debug.event_ref = foretic:<forecast_id>:forecast_state:<occurred_at>
+
+Debug is hidden by default. For an internal test inbox, set subscriber.config.debug
+= true. For one-off event tracing, set fields.debug.mode = "debug". Debug mode
+adds a discreet footer line and a subject suffix; it never changes customer copy.
+```
+
 ## Forecast Events
 
 Forecast emails are generic. They do not require `source_app = "foretic"`.

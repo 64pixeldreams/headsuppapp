@@ -595,6 +595,119 @@ test('prefers a real forecast name over an opaque resource id', () => {
   assert.doesNotMatch(rendered.html, /oracle_forecast:mn9cxnv3muoleo/);
 });
 
+test('ignores debug fields when debug render mode is off', () => {
+  const rendered = renderAlertEmail({
+    alert: {
+      ...baseAlert,
+      payload_json: JSON.stringify({
+        fields: {
+          notification: { title: 'Forecast pace alert', summary: 'Clean summary.' },
+          debug: {
+            id: 'oracle_forecast:mn9cxnv3muoleo',
+            event_ref: 'foretic:oracle_forecast:mn9cxnv3muoleo:forecast_state',
+          },
+        },
+      }),
+    },
+    subscriber: { config_json: '{}' },
+    channel: {},
+  });
+
+  assert.doesNotMatch(rendered.subject, /oracle_forecast:mn9cxnv3muoleo/);
+  assert.doesNotMatch(rendered.text, /oracle_forecast:mn9cxnv3muoleo/);
+  assert.doesNotMatch(rendered.html, /oracle_forecast:mn9cxnv3muoleo/);
+});
+
+test('renders debug footer and subject suffix for debug subscriber', () => {
+  const rendered = renderAlertEmail({
+    alert: {
+      ...baseAlert,
+      payload_json: JSON.stringify({
+        fields: {
+          notification: { title: 'Forecast pace alert', summary: 'Clean summary.' },
+          debug: {
+            id: 'oracle_forecast:mn9cxnv3muoleo',
+            event_ref: 'foretic:oracle_forecast:mn9cxnv3muoleo:forecast_state',
+          },
+        },
+      }),
+    },
+    subscriber: { config_json: JSON.stringify({ debug: true }) },
+    channel: {},
+  });
+
+  assert.match(rendered.subject, /\[oracle_forecast:mn9cxnv3muoleo\]$/);
+  assert.match(rendered.text, /Debug: oracle_forecast:mn9cxnv3muoleo · evt foretic:oracle_forecast:mn9cxnv3muoleo:forecast_state/);
+  assert.match(rendered.html, /Debug: oracle_forecast:mn9cxnv3muoleo · evt foretic:oracle_forecast:mn9cxnv3muoleo:forecast_state/);
+  assert.match(rendered.html, /<h1[^>]*>Forecast pace alert<\/h1>/);
+});
+
+test('renders debug footer from per-event debug mode', () => {
+  const rendered = renderAlertEmail({
+    alert: {
+      ...baseAlert,
+      payload_json: JSON.stringify({
+        fields: {
+          notification: { title: 'Forecast pace alert', summary: 'Clean summary.' },
+          debug: {
+            id: 'oracle_forecast:mn9cxnv3muoleo',
+            mode: 'debug',
+          },
+        },
+      }),
+    },
+    subscriber: { config_json: '{}' },
+    channel: {},
+  });
+
+  assert.match(rendered.subject, /\[oracle_forecast:mn9cxnv3muoleo\]$/);
+  assert.match(rendered.text, /Debug: oracle_forecast:mn9cxnv3muoleo/);
+});
+
+test('debug_subject false keeps footer debug line without subject suffix', () => {
+  const rendered = renderAlertEmail({
+    alert: {
+      ...baseAlert,
+      payload_json: JSON.stringify({
+        fields: {
+          notification: { title: 'Forecast pace alert', summary: 'Clean summary.' },
+          debug: { id: 'oracle_forecast:mn9cxnv3muoleo' },
+        },
+      }),
+    },
+    subscriber: { config_json: JSON.stringify({ debug: true, debug_subject: false }) },
+    channel: {},
+  });
+
+  assert.doesNotMatch(rendered.subject, /\[oracle_forecast:mn9cxnv3muoleo\]/);
+  assert.match(rendered.text, /Debug: oracle_forecast:mn9cxnv3muoleo/);
+});
+
+test('debug values are escaped in html', () => {
+  const rendered = renderAlertEmail({
+    alert: {
+      ...baseAlert,
+      payload_json: JSON.stringify({
+        fields: {
+          notification: { title: 'Forecast pace alert', summary: 'Clean summary.' },
+          debug: {
+            id: 'forecast:<script>',
+            event_ref: 'evt:<b>1</b>',
+            mode: 'debug',
+          },
+        },
+      }),
+    },
+    subscriber: { config_json: '{}' },
+    channel: {},
+  });
+
+  assert.match(rendered.html, /forecast:&lt;script&gt;/);
+  assert.match(rendered.html, /evt:&lt;b&gt;1&lt;\/b&gt;/);
+  assert.doesNotMatch(rendered.html, /<script>/);
+  assert.doesNotMatch(rendered.html, /<b>1<\/b>/);
+});
+
 test('renders all Heads Up-owned forecast win icon asset aliases', () => {
   const cases = [
     ['medal', 'ec9d77a6-8193-4631-1f06-52698ad24b00'],

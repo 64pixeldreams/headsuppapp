@@ -594,6 +594,8 @@ Use this action when ingest returns `queued` but no email or webhook arrives.
 
 Machine-parseable routing keys: `type`, `watch_id`, `signal_id`, `channel_metadata`.
 
+Email-only debug rendering can use `fields.debug` in the source event. By default it is ignored. If `subscriber.config.debug = true` or `fields.debug.mode = "debug"`, the email renderer shows a discreet debug footer line and subject suffix from `fields.debug.id` / `fields.debug.event_ref`. Debug values are never used as title, subtitle, summary, or detail.
+
 ### Aggregate Callback (`event_type = aggregate_bucket_closed`)
 
 ```json

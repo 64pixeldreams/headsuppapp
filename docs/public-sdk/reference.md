@@ -176,6 +176,19 @@ These are standard API-owned actions. Unknown values are ignored. Snooze actions
 
 Email authorization is optional and not default. When `authorization.required = true`, the subscriber starts disabled and must be confirmed through a signed email link before it receives alerts.
 
+Email debug rendering is optional for internal/support recipients:
+
+```json
+{
+  "config": {
+    "debug": true,
+    "debug_subject": true
+  }
+}
+```
+
+Events can include `fields.debug.id` and `fields.debug.event_ref`. Debug values are hidden by default; when enabled by `config.debug = true` or `fields.debug.mode = "debug"`, they render only in a discreet debug line and optional subject suffix. They are never used as title, subtitle, summary, or detail.
+
 ### `GET /v1/subscribers/confirm`
 
 Public recipient endpoint for signed email subscription confirmation links.

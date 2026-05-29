@@ -80,6 +80,40 @@ When `authorization.required` is true, the subscriber starts disabled until the 
 
 Re-provisioning the same `subscriber_key` with updated `dimensions` changes preferences idempotently and does not re-send an opt-in email.
 
+## Internal debug inbox
+
+Keep opaque ids out of customer copy. If an internal/test recipient needs traceability, enable email debug rendering on that subscriber:
+
+```js
+await headsup.createSubscriber({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  subscriber_type: 'email',
+  destination_url: 'debug@example.com',
+  mode: 'alert',
+  config: {
+    debug: true,
+    debug_subject: true,
+  },
+});
+```
+
+Events can safely include debug metadata:
+
+```json
+{
+  "fields": {
+    "resource_name": "Acme Q2 Revenue",
+    "debug": {
+      "id": "oracle_forecast:mn9cxnv3muoleo",
+      "event_ref": "foretic:oracle_forecast:mn9cxnv3muoleo:forecast_state:2026-05-29T12:00:00Z"
+    }
+  }
+}
+```
+
+Debug mode can also be enabled for a single event with `fields.debug.mode = "debug"`. Set `debug_subject: false` if you want the footer debug line without adding `[debug.id]` to the subject.
+
 ## Watch and send (same as webhook path)
 
 ```js

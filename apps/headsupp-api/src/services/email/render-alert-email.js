@@ -121,6 +121,28 @@ function firstDisplayName(candidates = []) {
   return null;
 }
 
+function cleanDebugText(value) {
+  const text = String(value ?? '').trim().replace(/[\r\n\t]+/g, ' ');
+  return text || null;
+}
+
+function buildDebugContext(fields = {}, subscriberConfig = {}) {
+  const debug = fields.debug && typeof fields.debug === 'object' && !Array.isArray(fields.debug) ? fields.debug : {};
+  const enabled = subscriberConfig.debug === true || debug.mode === 'debug';
+  const id = cleanDebugText(debug.id);
+  const eventRef = cleanDebugText(debug.event_ref);
+  if (!enabled || (!id && !eventRef)) return null;
+  const parts = [];
+  if (id) parts.push(id);
+  if (eventRef) parts.push(`evt ${eventRef}`);
+  return {
+    id,
+    event_ref: eventRef,
+    line: `Debug: ${parts.join(' · ')}`,
+    subject_suffix: id && subscriberConfig.debug_subject !== false ? `[${id}]` : null,
+  };
+}
+
 function renderTemplate(template, values = {}) {
   if (!template) return null;
   return String(template).replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => {
@@ -467,6 +489,9 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
   const platformCompanyLine = brand.platform_company_line ? escapeHtml(brand.platform_company_line) : null;
   const metricsHtml = renderMetricsTable(metrics);
   const actionHtml = renderActionControls(actionLinks);
+  const debugLine = context.debug?.line || null;
+  const debugLineHtml = debugLine ? escapeHtml(debugLine) : null;
+  const debugSubjectSuffix = context.debug?.subject_suffix || null;
 
   const text = [
     brand.brand_name,
@@ -487,6 +512,8 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
     ...actionTextLines,
     context.unsubscribe_url ? '' : null,
     context.unsubscribe_url ? `Unsubscribe: ${context.unsubscribe_url}` : null,
+    debugLine ? '' : null,
+    debugLine,
     '',
     footerBrandName ? `From ${footerBrandName}` : null,
     brand.footer_text || null,
@@ -574,6 +601,7 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
                           ? `<p style="margin:0 0 10px 0;font-size:12px;color:#57606a;">If you no longer want these emails, <a href="${escapeHtml(context.unsubscribe_url)}" style="color:#0969da;">unsubscribe</a>.</p>`
                           : ''
                       }
+                      ${debugLineHtml ? `<p style="margin:0 0 12px 0;font-size:11px;line-height:1.5;color:#6e7781;">${debugLineHtml}</p>` : ''}
                       ${footerBrandHtml ? `<p style="margin:14px 0 0 0;font-size:12px;color:#57606a;">From ${footerBrandHtml}</p>` : ''}
                       ${escapedFooter ? `<p style="margin:${footerBrandHtml ? '6px' : '14px'} 0 0 0;font-size:12px;color:#57606a;">${escapedFooter}</p>` : ''}
                       ${companyLine ? `<p style="margin:${footerBrandHtml || escapedFooter ? '6px' : '14px'} 0 0 0;font-size:12px;color:#57606a;">${companyLine}</p>` : ''}
@@ -598,7 +626,7 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
 </html>`;
 
   return {
-    subject: `${titlePrefix(context.severity)}: ${subjectTitle}`,
+    subject: `${titlePrefix(context.severity)}: ${subjectTitle}${debugSubjectSuffix ? ` ${debugSubjectSuffix}` : ''}`,
     text,
     html,
   };
@@ -799,6 +827,7 @@ export function renderAlertEmail({ alert, subscriber, channel, unsubscribe_url =
   });
   const renderer = TEMPLATE_REGISTRY[templateId] || TEMPLATE_REGISTRY.brand_alert_v1;
   const branding = normalizeBranding(subscriberConfig, defaults);
+  const debug = buildDebugContext(fields, subscriberConfig);
   const contextLine = firstDisplayName([
     fields.context_line,
     fields.forecast_name,
@@ -830,6 +859,7 @@ export function renderAlertEmail({ alert, subscriber, channel, unsubscribe_url =
     channel,
     channel_metadata: channelMetadata,
     context_line: contextLine,
+    debug,
     template_id: templateId,
     append_value_to_title: !notification.title && !titleTemplate,
   };

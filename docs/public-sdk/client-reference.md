@@ -238,6 +238,8 @@ Event shape:
 
 Email CTA variants can be passed as `cta.variant` or `cta.color_class`. Supported values are `primary`, `success`, `warning`, `danger`, `info`, `dark`, and `light`; invalid values fall back to `dark`. Positive forecast milestones can set `fields.tone = "success"` to render the `forecast_win_v1` email template; use `fields.icon_variant` (`trophy`/`award`, `medal`, `rocket`/`trendup`, or `target_hit`/`target`) and `fields.notification.headline_value` for the celebratory hero block.
 
+For support-only traceability, events may include `fields.debug.id` and `fields.debug.event_ref`. Debug data is hidden unless `subscriber.config.debug = true` or `fields.debug.mode = "debug"`; then it renders as a discreet email debug line plus optional subject suffix. It is never used as title/subtitle/summary/detail.
+
 ### sendEvents({ connectorKey, connectorSecret, events, timestamp? })
 
 Batch ingest; body is `{ events: [...] }`.
@@ -259,6 +261,19 @@ const sub = await headsup.createSubscriber({
   display_name: 'Ops webhook',
   mode: 'alert',
   config: { signing_secret: 'shared_secret' },
+});
+```
+
+Internal email test inboxes can enable debug rendering:
+
+```js
+await headsup.createSubscriber({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  subscriber_type: 'email',
+  destination_url: 'debug@example.com',
+  mode: 'alert',
+  config: { debug: true, debug_subject: true },
 });
 ```
 
