@@ -2,7 +2,7 @@ import { subscriberMatchesAlertFilters } from '../subscribers/alert-filters.js';
 import { cooldownUntil } from '../watches/alert-decision.js';
 
 const SEVERITY_RANK = Object.freeze({
-  recovery: 50,
+  recovery: 400,
   info: 100,
   watch: 100,
   warning: 200,

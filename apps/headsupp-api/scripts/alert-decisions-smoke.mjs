@@ -62,6 +62,13 @@ async function waitForAlertCount(label, expectedAlerts, expectedSentDeliveries) 
   });
 }
 
+async function waitForNextMinuteBucket() {
+  const now = Date.now();
+  const msIntoMinute = now % 60_000;
+  const waitMs = 60_000 - msIntoMinute + 1_000;
+  await sleep(waitMs);
+}
+
 const before = await smokeCounts(client, ids);
 
 const firstTrigger = await sendOne('warning-trigger', 15);
@@ -82,6 +89,7 @@ await updateGenericWatchConfig({
 const escalationTrigger = await sendOne('critical-escalation', 25);
 const escalationAlert = await waitForAlertCount('critical escalation alert', 2, 2);
 
+await waitForNextMinuteBucket();
 const recoveryTrigger = await sendOne('recovery', 5);
 const recoveryAlert = await waitForAlertCount('recovery alert', 3, 3);
 
