@@ -553,6 +553,46 @@ test('renders forecast win fallback icon and display metrics when headline is ab
   assert.match(rendered.text, /Target met for the quarter\./);
 });
 
+test('platform default renders the company address only once (footer, not duplicated in card)', () => {
+  const rendered = renderAlertEmail({
+    alert: baseAlert,
+    subscriber: { config_json: '{}' },
+    channel: {},
+  });
+
+  const occurrences = rendered.html.match(/INC64 LLC\. 30N St Ste N, Sheridan, WY 82801\./g) || [];
+  assert.equal(occurrences.length, 1);
+});
+
+test('does not surface an opaque resource id as the header subtitle', () => {
+  const rendered = renderAlertEmail({
+    alert: {
+      ...baseAlert,
+      payload_json: JSON.stringify({ fields: { resource_name: 'oracle_forecast:mn9cxnv3muoleo' } }),
+    },
+    subscriber: { config_json: '{}' },
+    channel: {},
+  });
+
+  assert.doesNotMatch(rendered.html, /oracle_forecast:mn9cxnv3muoleo/);
+});
+
+test('prefers a real forecast name over an opaque resource id', () => {
+  const rendered = renderAlertEmail({
+    alert: {
+      ...baseAlert,
+      payload_json: JSON.stringify({
+        fields: { forecast_name: 'Q2 Revenue', resource_name: 'oracle_forecast:mn9cxnv3muoleo' },
+      }),
+    },
+    subscriber: { config_json: '{}' },
+    channel: {},
+  });
+
+  assert.match(rendered.html, /Q2 Revenue/);
+  assert.doesNotMatch(rendered.html, /oracle_forecast:mn9cxnv3muoleo/);
+});
+
 test('renders all Heads Up-owned forecast win icon asset aliases', () => {
   const cases = [
     ['medal', 'ec9d77a6-8193-4631-1f06-52698ad24b00'],

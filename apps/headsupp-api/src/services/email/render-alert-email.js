@@ -104,6 +104,23 @@ function buildDisplayTitle(title, currentValue, { appendValue = true } = {}) {
   return `${base}: ${value}`;
 }
 
+// Opaque resource identifiers (e.g. "oracle_forecast:mn9cxnv3muoleo") should
+// never be surfaced as a human title or subtitle. Detect namespaced id tokens
+// so we can prefer a real display name instead.
+function looksLikeResourceId(value) {
+  const text = String(value || '').trim();
+  if (!text || /\s/.test(text)) return false;
+  return /^[a-z0-9][a-z0-9_-]*:[a-z0-9_-]{4,}$/i.test(text);
+}
+
+function firstDisplayName(candidates = []) {
+  for (const candidate of candidates) {
+    const text = typeof candidate === 'string' ? candidate.trim() : '';
+    if (text && !looksLikeResourceId(text)) return text;
+  }
+  return null;
+}
+
 function renderTemplate(template, values = {}) {
   if (!template) return null;
   return String(template).replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => {
@@ -304,7 +321,7 @@ function normalizeBranding(config = {}, defaults = {}) {
     footer_brand_url: safeUrl(footerBrandUrl),
     company_line: integratorBranding
       ? branding.company_line || branding.company_info || null
-      : defaults.company_line || DEFAULT_COMPANY_LINE,
+      : defaults.company_line || null,
     powered_by_name: defaults.powered_by_name || DEFAULT_POWERED_BY_NAME,
     powered_by_url: safeUrl(defaults.powered_by_url || DEFAULT_POWERED_BY_URL),
     show_powered_by: defaults.show_powered_by !== false,
@@ -602,7 +619,9 @@ function renderMetricAlertTemplate(context) {
   return renderBrandShell(
     {
       ...context,
-      context_line: context.context_line || context.fields?.resource_name || context.channel?.name || null,
+      context_line:
+        context.context_line ||
+        firstDisplayName([context.fields?.forecast_name, context.fields?.resource_name, context.channel?.name]),
     },
     {
       metrics: buildMetricRows(context),
@@ -612,7 +631,12 @@ function renderMetricAlertTemplate(context) {
 }
 
 function renderForecastAlertTemplate(context) {
-  const resourceName = context.fields?.forecast_name || context.fields?.goal_name || context.fields?.resource_name || context.channel?.name;
+  const resourceName = firstDisplayName([
+    context.fields?.forecast_name,
+    context.fields?.goal_name,
+    context.fields?.resource_name,
+    context.channel?.name,
+  ]);
   const title = context.notification?.title || resourceName || context.title;
   const contextLine = [
     context.branding?.brand_name || context.brand_name,
@@ -633,7 +657,12 @@ function renderForecastAlertTemplate(context) {
 }
 
 function renderForecastWinTemplate(context) {
-  const resourceName = context.fields?.forecast_name || context.fields?.goal_name || context.fields?.resource_name || context.channel?.name;
+  const resourceName = firstDisplayName([
+    context.fields?.forecast_name,
+    context.fields?.goal_name,
+    context.fields?.resource_name,
+    context.channel?.name,
+  ]);
   const title = context.notification?.title || resourceName || context.title;
   const contextLine = [
     context.branding?.brand_name || context.brand_name,
@@ -767,7 +796,13 @@ export function renderAlertEmail({ alert, subscriber, channel, unsubscribe_url =
   });
   const renderer = TEMPLATE_REGISTRY[templateId] || TEMPLATE_REGISTRY.brand_alert_v1;
   const branding = normalizeBranding(subscriberConfig, defaults);
-  const contextLine = fields.context_line || fields.resource_name || channelMetadata.resource_name || null;
+  const contextLine = firstDisplayName([
+    fields.context_line,
+    fields.forecast_name,
+    fields.goal_name,
+    fields.resource_name,
+    channelMetadata.resource_name,
+  ]);
   const context = {
     title,
     subject_title: notification.subject || null,
