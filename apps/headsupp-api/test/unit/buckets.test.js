@@ -62,8 +62,36 @@ test('converts event to aggregate deltas for configured buckets', () => {
   assert.equal(deltas.length, 3);
   assert.equal(deltas[0].bucket_type, 'minute');
   assert.equal(deltas[0].sum_value, 64);
+  assert.equal(deltas[0].aggregate, true);
   assert.deepEqual(deltas[0].dimensions, { forecast_id: 'fc_123', status: 'critical' });
   assert.equal(deltas[1].bucket_start_at, '2026-05-24T10:00:00.000Z');
   assert.equal(deltas[2].bucket_type, 'week');
   assert.equal(deltas[2].bucket_start_at, '2026-05-18T00:00:00.000Z');
+});
+
+test('emits a single event-only delta for value-less events', () => {
+  const deltas = eventToAggregateDeltas({
+    message: {
+      workspaceId: 'ws_123',
+      channelId: 'ch_123',
+      event: {
+        idempotency_key: 'foretic:forecast_1:goal_reached:goal_9',
+        signal_key: 'forecast.goal.reached',
+        occurred_at: '2026-05-24T10:37:45.123Z',
+        // no numeric value: this is an event-occurrence style signal
+        value: { num: null },
+        fields: { event_type: 'goal_reached', goal_id: 'goal_9' },
+      },
+    },
+    signal: { id: 'sig_goal', signal_key: 'forecast.goal.reached' },
+    contract: { dimensions: [], default_bucket_types: ['minute', 'hour', 'day'] },
+    now: '2026-05-24T10:38:00.000Z',
+  });
+
+  assert.equal(deltas.length, 1);
+  assert.equal(deltas[0].aggregate, false);
+  assert.equal(deltas[0].bucket_type, 'minute');
+  assert.equal(deltas[0].signal_id, 'sig_goal');
+  assert.equal(deltas[0].event_context.fields.event_type, 'goal_reached');
+  assert.equal(deltas[0].event_context.idempotency_key, 'foretic:forecast_1:goal_reached:goal_9');
 });

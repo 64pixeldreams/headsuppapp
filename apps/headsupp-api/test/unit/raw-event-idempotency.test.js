@@ -94,14 +94,45 @@ test('detects aggregate-applied event that still needs completion', async () => 
   assert.equal(result.aggregate_applied, true);
 });
 
-test('treats non-insert in-flight event as duplicate to avoid double apply', async () => {
+test('treats a recent non-insert in-flight event as duplicate to avoid double apply', async () => {
   const result = await beginRawEventProcessing(
-    fakeDb(0, [], { processed_at: null, aggregate_applied_at: null, status: 'processing' }),
+    fakeDb(0, [], {
+      processed_at: null,
+      aggregate_applied_at: null,
+      status: 'processing',
+      // started at the same instant as receivedAt -> not stale.
+      processing_started_at: message.receivedAt,
+    }),
     message,
   );
 
   assert.equal(result.duplicate, true);
   assert.equal(result.aggregate_applied, false);
+});
+
+test('reclaims a stale in-flight event so a failed attempt does not strand it', async () => {
+  const result = await beginRawEventProcessing(
+    fakeDb(0, [], {
+      processed_at: null,
+      aggregate_applied_at: null,
+      status: 'processing',
+      // started an hour before receivedAt -> stale, must be reprocessed.
+      processing_started_at: '2026-05-24T09:00:00.000Z',
+    }),
+    message,
+  );
+
+  assert.equal(result.duplicate, false);
+  assert.equal(result.aggregate_applied, false);
+});
+
+test('reclaims an in-flight event with no processing_started_at timestamp', async () => {
+  const result = await beginRawEventProcessing(
+    fakeDb(0, [], { processed_at: null, aggregate_applied_at: null, status: 'processing' }),
+    message,
+  );
+
+  assert.equal(result.duplicate, false);
 });
 
 test('marks processing key as aggregated', async () => {

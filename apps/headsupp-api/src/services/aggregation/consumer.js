@@ -3,6 +3,7 @@ import { normalizeEventByContract } from './contract-extraction.js';
 import {
   beginRawEventProcessing,
   markRawEventAggregatedStatement,
+  markRawEventFailedStatement,
   markRawEventProcessedStatement,
 } from './idempotency.js';
 import { resolveSignalAndContract } from './signal-resolution.js';
@@ -15,58 +16,79 @@ export async function processRawEventMessages(messages, env, now = new Date().to
   const aggregateDeltasToInvoke = [];
   let processed = 0;
   let duplicates = 0;
+  let failed = 0;
   const seenInBatch = new Set();
   const completionKeys = [];
+  const failedKeys = [];
   const aggregateApplyKeys = [];
   const pendingAggregateDeltas = [];
   const signalContractCache = new Map();
 
   for (const message of messages) {
-    const validation = normalizeIncomingPayload(message.event);
-    if (!validation.ok) {
-      throw new Error(`Invalid raw queue event: ${validation.code}`);
-    }
+    let idempotencyKey = null;
+    try {
+      const validation = normalizeIncomingPayload(message.event);
+      if (!validation.ok) {
+        // Already validated at ingest; treat as terminal rather than poisoning the batch.
+        failed += 1;
+        continue;
+      }
 
-    const normalizedMessage = {
-      ...message,
-      event: validation.events[0],
-    };
-    const idempotency = await beginRawEventProcessing(env.DB, normalizedMessage);
-    if (seenInBatch.has(idempotency.idempotency_key)) {
-      duplicates += 1;
-      continue;
-    }
-    seenInBatch.add(idempotency.idempotency_key);
-    if (idempotency.duplicate) {
-      duplicates += 1;
-      continue;
-    }
+      const normalizedMessage = {
+        ...message,
+        event: validation.events[0],
+      };
+      const idempotency = await beginRawEventProcessing(env.DB, normalizedMessage);
+      idempotencyKey = idempotency.idempotency_key;
+      if (seenInBatch.has(idempotencyKey)) {
+        duplicates += 1;
+        continue;
+      }
+      seenInBatch.add(idempotencyKey);
+      if (idempotency.duplicate) {
+        duplicates += 1;
+        continue;
+      }
 
-    const resolutionKey = `${normalizedMessage.channelId}:${normalizedMessage.event.signal_key}`;
-    const cachedResolution = signalContractCache.get(resolutionKey);
-    const resolution = cachedResolution || (await resolveSignalAndContract(env.DB, normalizedMessage, now));
-    if (!cachedResolution) signalContractCache.set(resolutionKey, resolution);
-    const { signal, contract } = resolution;
-    const normalizedByContract = normalizeEventByContract(normalizedMessage.event, contract);
-    if (!normalizedByContract.ok) {
-      throw new Error(`Invalid raw queue event: ${normalizedByContract.code}`);
+      const resolutionKey = `${normalizedMessage.channelId}:${normalizedMessage.event.signal_key}`;
+      const cachedResolution = signalContractCache.get(resolutionKey);
+      const resolution = cachedResolution || (await resolveSignalAndContract(env.DB, normalizedMessage, now));
+      if (!cachedResolution) signalContractCache.set(resolutionKey, resolution);
+      const { signal, contract } = resolution;
+      const normalizedByContract = normalizeEventByContract(normalizedMessage.event, contract);
+      if (!normalizedByContract.ok) {
+        // Unprocessable event (e.g. no valid timestamp). Mark terminal so it can
+        // neither strand the batch nor retry forever.
+        failedKeys.push(idempotencyKey);
+        failed += 1;
+        continue;
+      }
+
+      const deltas = eventToAggregateDeltas({
+        message: {
+          ...normalizedMessage,
+          event: normalizedByContract.event,
+        },
+        signal,
+        contract,
+        now,
+      });
+      aggregateDeltasToInvoke.push(...deltas);
+
+      const writeDeltas = deltas.filter((delta) => delta.aggregate !== false);
+      if (writeDeltas.length > 0 && !idempotency.aggregate_applied) {
+        pendingAggregateDeltas.push(...writeDeltas);
+        aggregateApplyKeys.push(idempotencyKey);
+      }
+      completionKeys.push(idempotencyKey);
+      processed += 1;
+    } catch (error) {
+      // A single bad event must never throw out of the batch: that strands every
+      // event in the batch in 'processing' and produces zero alerts. Mark the
+      // offending event terminal and continue.
+      if (idempotencyKey) failedKeys.push(idempotencyKey);
+      failed += 1;
     }
-    const deltas = eventToAggregateDeltas({
-      message: {
-        ...normalizedMessage,
-        event: normalizedByContract.event,
-      },
-      signal,
-      contract,
-      now,
-    });
-    aggregateDeltasToInvoke.push(...deltas);
-    if (!idempotency.aggregate_applied) {
-      pendingAggregateDeltas.push(...deltas);
-      aggregateApplyKeys.push(idempotency.idempotency_key);
-    }
-    completionKeys.push(idempotency.idempotency_key);
-    processed += 1;
   }
 
   if (aggregateApplyKeys.length > 0) {
@@ -84,13 +106,19 @@ export async function processRawEventMessages(messages, env, now = new Date().to
     aggregateDeltas: foldedDeltas,
     now,
   });
-  if (completionKeys.length > 0) {
-    await env.DB.batch(completionKeys.map((idempotencyKey) => markRawEventProcessedStatement(env.DB, idempotencyKey, now)));
+
+  const completionStatements = [
+    ...completionKeys.map((idempotencyKey) => markRawEventProcessedStatement(env.DB, idempotencyKey, now)),
+    ...failedKeys.map((idempotencyKey) => markRawEventFailedStatement(env.DB, idempotencyKey, now)),
+  ];
+  if (completionStatements.length > 0) {
+    await env.DB.batch(completionStatements);
   }
 
   return {
     processed,
     duplicates,
+    failed,
     aggregate_deltas: foldedDeltas.length,
     watch_invocations: watchInvocations.filter((result) => result.invoked).length,
   };

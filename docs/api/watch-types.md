@@ -365,8 +365,11 @@ Send a matching event:
 }
 ```
 
+`value` is optional for `EVENT_OCCURRENCE`. These are discrete business events, not metrics, so you can omit `value` entirely or send `"value": { "num": null }`. Value-less events are accepted at ingest, routed to event-occurrence watches, and do **not** write a numeric aggregate row. (Only watch types that read aggregates, such as `LAST_VALUE_*` or `WINDOW_*`, require a numeric `value.num`.)
+
 Behavior:
 
+- `value` may be omitted or `null`; the event still fires the watch and writes no aggregate.
 - `config.event_type` must match `fields.event_type` when present.
 - `config.dedupe_key_path` defaults to `idempotency_key`.
 - Dedupe is persisted in D1 as `(workspace_id, channel_id, watch_id, occurrence_key)`.

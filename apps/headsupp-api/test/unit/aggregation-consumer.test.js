@@ -140,6 +140,81 @@ test('skips aggregate and watch work for duplicate raw events', async () => {
   assert.equal(result.watch_invocations, 0);
 });
 
+test('processes value-less events without writing aggregates but still invokes watches', async () => {
+  const fetches = [];
+  const db = createConsumerDb();
+  const env = {
+    DB: db,
+    WATCH_EVALUATOR: {
+      idFromName(name) {
+        return `id:${name}`;
+      },
+      get() {
+        return {
+          async fetch(_url, init) {
+            fetches.push(JSON.parse(init.body));
+            return new Response('{}', { status: 202 });
+          },
+        };
+      },
+    },
+  };
+
+  const valuelessMessage = {
+    ...message,
+    event: {
+      ...message.event,
+      idempotency_key: 'evt_valueless',
+      signal_key: 'forecast.goal.reached',
+      value: { num: null },
+      fields: { event_type: 'goal_reached', goal_id: 'goal_9' },
+    },
+  };
+
+  const result = await processRawEventMessages([valuelessMessage], env, '2026-05-24T10:38:00.000Z');
+
+  assert.equal(result.processed, 1);
+  assert.equal(result.failed, 0);
+  assert.equal(result.watch_invocations, 1);
+  // No aggregate row should be written for a value-less event.
+  assert.equal(db.calls.some((call) => /INSERT INTO aggregates/.test(call.sql)), false);
+  // Only the completion batch runs (no aggregate batch).
+  assert.equal(db.batches.length, 1);
+  assert.equal(fetches[0].eventContext.fields.event_type, 'goal_reached');
+});
+
+test('does not let one invalid event in a batch block valid events', async () => {
+  const fetches = [];
+  const db = createConsumerDb();
+  const env = {
+    DB: db,
+    WATCH_EVALUATOR: {
+      idFromName(name) {
+        return `id:${name}`;
+      },
+      get() {
+        return {
+          async fetch(_url, init) {
+            fetches.push(JSON.parse(init.body));
+            return new Response('{}', { status: 202 });
+          },
+        };
+      },
+    },
+  };
+
+  const invalidMessage = {
+    ...message,
+    event: { occurred_at: message.event.occurred_at },
+  };
+
+  const result = await processRawEventMessages([invalidMessage, message], env, '2026-05-24T10:38:00.000Z');
+
+  assert.equal(result.processed, 1);
+  assert.equal(result.failed, 1);
+  assert.equal(result.watch_invocations, 1);
+});
+
 test('retries watch invocation without double-counting when aggregate already applied', async () => {
   const fetches = [];
   const db = createConsumerDb({ aggregateApplied: true });

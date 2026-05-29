@@ -14,6 +14,12 @@ export async function rawEventIdempotencyKey(message) {
   return `${message.connectorId}:${message.event.signal_key}:${message.event.occurred_at}:${hash}`;
 }
 
+// How long an in-flight 'processing' row may sit before it is considered stale
+// and safe to reclaim. A previous attempt that threw before completing leaves
+// the row in 'processing'; without reclaim those events are never retried and
+// produce zero alerts.
+export const STALE_PROCESSING_MS = 60_000;
+
 export async function beginRawEventProcessing(db, message, receivedAt = message.receivedAt) {
   const idempotencyKey = await rawEventIdempotencyKey(message);
   const insertResult = await db
@@ -34,9 +40,12 @@ export async function beginRawEventProcessing(db, message, receivedAt = message.
   const inserted = Number(insertResult?.meta?.changes || 0) > 0;
 
   const state = await db
-    .prepare('SELECT processed_at, aggregate_applied_at, status FROM raw_event_dedupe WHERE idempotency_key = ? LIMIT 1')
+    .prepare(
+      'SELECT processed_at, aggregate_applied_at, status, processing_started_at FROM raw_event_dedupe WHERE idempotency_key = ? LIMIT 1',
+    )
     .bind(idempotencyKey)
     .first();
+
   if (inserted && state && !state.processed_at) {
     await db
       .prepare(
@@ -47,10 +56,41 @@ export async function beginRawEventProcessing(db, message, receivedAt = message.
       .bind(receivedAt, receivedAt, idempotencyKey)
       .run();
   }
+
+  const processedAlready = Boolean(state?.processed_at);
+  let duplicate;
+  if (processedAlready) {
+    // Terminal: already processed (or marked failed). Never reprocess.
+    duplicate = true;
+  } else if (inserted) {
+    // We own this row.
+    duplicate = false;
+  } else {
+    // An in-flight 'processing' row already exists and was not inserted by us.
+    // If it is stale, a prior attempt died mid-flight: reclaim and reprocess.
+    // If it is recent, treat as a concurrent duplicate to avoid double work.
+    const startedAt = state?.processing_started_at ? Date.parse(state.processing_started_at) : NaN;
+    const ageMs = Number.isFinite(startedAt) ? Date.parse(receivedAt) - startedAt : Infinity;
+    const stale = ageMs >= STALE_PROCESSING_MS;
+    if (stale) {
+      await db
+        .prepare(
+          `UPDATE raw_event_dedupe
+           SET processing_started_at = ?, updated_at = ?
+           WHERE idempotency_key = ? AND processed_at IS NULL`,
+        )
+        .bind(receivedAt, receivedAt, idempotencyKey)
+        .run();
+      duplicate = false;
+    } else {
+      duplicate = true;
+    }
+  }
+
   return {
     ok: true,
     idempotency_key: idempotencyKey,
-    duplicate: Boolean(state?.processed_at) || (!inserted && !state?.aggregate_applied_at),
+    duplicate,
     status: state?.status || 'processing',
     aggregate_applied: Boolean(state?.aggregate_applied_at),
     inserted,
@@ -93,4 +133,22 @@ export function markRawEventProcessedStatement(db, idempotencyKey, now = new Dat
        WHERE idempotency_key = ?`,
     )
     .bind(now, now, now, idempotencyKey);
+}
+
+// Terminal failure: the event cannot be processed (e.g. unparseable). Setting
+// processed_at makes it terminal so redeliveries are treated as duplicates and
+// the event never strands a batch or retries forever.
+export function markRawEventFailedStatement(db, idempotencyKey, now = new Date().toISOString()) {
+  return db
+    .prepare(
+      `UPDATE raw_event_dedupe
+       SET status = 'failed', processed_at = ?, updated_at = ?
+       WHERE idempotency_key = ?`,
+    )
+    .bind(now, now, idempotencyKey);
+}
+
+export async function markRawEventFailed(db, idempotencyKey, now = new Date().toISOString()) {
+  await markRawEventFailedStatement(db, idempotencyKey, now).run();
+  return { ok: true, idempotency_key: idempotencyKey };
 }

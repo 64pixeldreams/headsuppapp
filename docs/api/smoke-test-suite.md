@@ -50,6 +50,7 @@ npm run smoke:watch-email-matrix
 npm run smoke:scheduled-email
 npm run smoke:email-inbox-loop
 npm run smoke:event-occurrence
+npm run smoke:valueless-event
 npm run smoke:subscriber-lifecycle
 npm run soak:release
 ```
@@ -95,6 +96,7 @@ smoke:watch-email-matrix Email + deployed real email proof for threshold, window
 smoke:scheduled-email Email + deployed real email proof for MISSING_EXPECTED, REMINDER_DUE, and DIGEST scheduled alert emails
 smoke:email-inbox-loop Email + deployed automated inbox receipt proof through tester@aibox.headsupp.io and email_test_messages
 smoke:event-occurrence D1/HTTP + deployed EVENT_OCCURRENCE dedupe, duplicate suppression, second occurrence alert, and forecast_win_v1 metadata
+smoke:valueless-event  D1/HTTP + deployed value-less (value.num=null) event fires an EVENT_OCCURRENCE alert and reaches raw_event_dedupe status 'processed' (regression guard against queue poisoning / stranded events)
 smoke:subscriber-lifecycle API + deployed  admin.getSubscriber/listSubscribers pending authorization reads; optional confirm + disable when service key and email auth secret configured
 load:smoke               local             10000 synthetic events fold into fewer aggregate deltas
 load:high-volume         local             configurable high-volume synthetic proof, default 100000 events
@@ -180,6 +182,22 @@ CLOUDFLARE_API_TOKEN
 ```
 
 This provisions a `forecast.goal.reached` signal, an `EVENT_OCCURRENCE` watch keyed by `fields.goal_id`, and a smoke webhook subscriber. It sends one goal-reached event, replays the same occurrence with a new raw-event idempotency key, then sends a second goal. The smoke passes only when D1 has one `watch_occurrences` row per goal, the replay creates no duplicate alert, and the second occurrence sends a new alert/delivery.
+
+## Value-less Event (incident regression)
+
+Command:
+
+```bash
+npm run smoke:valueless-event
+```
+
+Requires:
+
+```text
+CLOUDFLARE_API_TOKEN
+```
+
+This is the regression guard for the "no alerts fired" incident. Event-occurrence signals (goal reached, bucket close) arrive with `value.num = null`. Previously the queue consumer threw on the null value, poisoning the whole batch and stranding every event in `raw_event_dedupe` as `processing` forever, so zero alerts fired. The smoke sends the exact value-less shape and passes only when an `EVENT_OCCURRENCE` alert fires, the delivery is `sent`, and the raw event reaches `raw_event_dedupe` status `processed` (proving it was not stranded). It does not write an aggregate row for the value-less event.
 
 ## Local Quality Gates
 

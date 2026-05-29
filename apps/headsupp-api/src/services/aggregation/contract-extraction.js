@@ -36,14 +36,9 @@ export function extractCta(event, contract = {}) {
 }
 
 export function normalizeEventByContract(event, contract = {}) {
+  // A missing numeric value is valid: value-less events drive event-occurrence
+  // watches and must not be rejected here. Only a missing timestamp is fatal.
   const value = extractNumericValue(event, contract);
-  if (value === null) {
-    return {
-      ok: false,
-      code: 'INVALID_VALUE',
-      message: 'Event does not contain a numeric value at contract value_path or value.num.',
-    };
-  }
 
   const occurredAt = extractOccurredAt(event, contract);
   if (!occurredAt) {
@@ -56,6 +51,7 @@ export function normalizeEventByContract(event, contract = {}) {
 
   return {
     ok: true,
+    has_numeric_value: value !== null,
     event: {
       ...event,
       occurred_at: occurredAt,
