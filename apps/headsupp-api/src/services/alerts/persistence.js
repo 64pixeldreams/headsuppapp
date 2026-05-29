@@ -1,6 +1,15 @@
 import { subscriberMatchesAlertFilters } from '../subscribers/alert-filters.js';
 import { cooldownUntil } from '../watches/alert-decision.js';
 
+const SEVERITY_RANK = Object.freeze({
+  recovery: 50,
+  info: 100,
+  watch: 100,
+  warning: 200,
+  critical: 300,
+  success: 300,
+});
+
 function shortHash(value) {
   let hash = 5381;
   const text = String(value || '');
@@ -19,6 +28,58 @@ function compactStableId(prefix, parts) {
     .replace(/^_+|_+$/g, '')
     .slice(0, 52);
   return `${prefix}_${normalized}_${shortHash(seed)}`;
+}
+
+function severityRank(severity) {
+  return SEVERITY_RANK[String(severity || '').toLowerCase()] ?? 0;
+}
+
+function normalizeFingerprintPart(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+}
+
+function resourceIdentity(payload = {}, alert = {}) {
+  const fields = payload.fields || {};
+  return (
+    fields.resource_id ||
+    fields.forecast_id ||
+    fields.job_id ||
+    fields.external_resource_id ||
+    payload.dimensions_hash ||
+    fields.dimensions_hash ||
+    alert.channel_id
+  );
+}
+
+function normalizeWatchPurpose(watchId) {
+  const parts = String(watchId || '').split(':').filter(Boolean);
+  const last = parts[parts.length - 1];
+  const previous = parts[parts.length - 2];
+  if (['warning', 'critical', 'info', 'ahead', 'success'].includes(last) && previous) return previous;
+  return String(watchId || '').replace(/(?:^|[_:-])(warning|critical|info|ahead|success)$/i, '');
+}
+
+export function attentionFingerprint({ alert, subscriber, payload = parseAlertPayload(alert) }) {
+  const fields = payload.fields || {};
+  const family =
+    fields.watch_group?.watch_group_key ||
+    payload.watch_group_key ||
+    fields.attention_family ||
+    payload.attention_family ||
+    normalizeWatchPurpose(payload.watch_id || alert.watch_id);
+  return [
+    subscriber.id || subscriber.subscriber_id,
+    alert.workspace_id,
+    alert.channel_id,
+    alert.signal_id || payload.signal_id,
+    resourceIdentity(payload, alert),
+    family,
+    payload.bucket_type || 'event',
+    payload.bucket_start_at || alert.triggered_at,
+  ].map(normalizeFingerprintPart).join('|');
 }
 
 export function buildAlert({ watch, evaluation, decision, input, now = new Date().toISOString() }) {
@@ -143,6 +204,107 @@ export function buildAlertDeliveries({ alert, subscribers, now = new Date().toIS
   }));
 }
 
+async function loadAttentionCandidates(db, { alert, subscriber, payload }) {
+  const result = await db
+    .prepare(
+      `SELECT d.id AS delivery_id, d.status AS delivery_status, d.subscriber_id,
+              a.id AS alert_id, a.workspace_id, a.channel_id, a.signal_id, a.watch_id,
+              a.severity, a.triggered_at, a.created_at, a.payload_json
+       FROM alert_deliveries d
+       JOIN alerts a ON a.id = d.alert_id
+       WHERE d.subscriber_id = ?
+         AND a.workspace_id = ?
+         AND a.channel_id = ?
+         AND a.signal_id = ?
+         AND a.id <> ?
+         AND d.status IN ('pending', 'retrying', 'sent')
+         AND a.created_at >= ?
+       ORDER BY a.created_at DESC
+       LIMIT 25`,
+    )
+    .bind(
+      subscriber.id || subscriber.subscriber_id,
+      alert.workspace_id,
+      alert.channel_id,
+      alert.signal_id,
+      alert.id,
+      payload.bucket_start_at || alert.triggered_at,
+    )
+    .all();
+  return result?.results || [];
+}
+
+function asCandidateAlert(candidate) {
+  return {
+    id: candidate.alert_id,
+    workspace_id: candidate.workspace_id,
+    channel_id: candidate.channel_id,
+    signal_id: candidate.signal_id,
+    watch_id: candidate.watch_id,
+    severity: candidate.severity,
+    triggered_at: candidate.triggered_at,
+    created_at: candidate.created_at,
+    payload_json: candidate.payload_json,
+  };
+}
+
+async function markDeliverySuppressed(db, { deliveryId, fingerprint, winnerAlertId, now }) {
+  await db
+    .prepare(
+      `UPDATE alert_deliveries
+       SET status = ?, response_body = ?, updated_at = ?
+       WHERE id = ? AND status IN ('pending', 'retrying')`,
+    )
+    .bind(
+      'suppressed_duplicate',
+      JSON.stringify({ reason: 'ATTENTION_DUPLICATE_SUPPRESSED', attention_fingerprint: fingerprint, winner_alert_id: winnerAlertId }),
+      now,
+      deliveryId,
+    )
+    .run();
+}
+
+async function applyAttentionSuppression(db, { alert, deliveries, subscribers, now }) {
+  const payload = parseAlertPayload(alert);
+  const suppressed = [];
+  const deliverable = [];
+  for (const delivery of deliveries) {
+    const subscriber = subscribers.find((item) => (item.id || item.subscriber_id) === delivery.subscriber_id);
+    if (!subscriber) {
+      deliverable.push(delivery);
+      continue;
+    }
+    const fingerprint = attentionFingerprint({ alert, subscriber, payload });
+    const candidates = await loadAttentionCandidates(db, { alert, subscriber, payload });
+    const duplicate = candidates.find((candidate) => {
+      const candidateAlert = asCandidateAlert(candidate);
+      return attentionFingerprint({ alert: candidateAlert, subscriber }) === fingerprint;
+    });
+    if (!duplicate) {
+      deliverable.push(delivery);
+      continue;
+    }
+    const existingRank = severityRank(duplicate.severity);
+    const currentRank = severityRank(alert.severity);
+    if (existingRank >= currentRank) {
+      delivery.status = 'suppressed_duplicate';
+      delivery.next_retry_at = null;
+      delivery.response_body = JSON.stringify({
+        reason: 'ATTENTION_DUPLICATE_SUPPRESSED',
+        attention_fingerprint: fingerprint,
+        winner_alert_id: duplicate.alert_id,
+      });
+      suppressed.push(delivery);
+      continue;
+    }
+    if (['pending', 'retrying'].includes(duplicate.delivery_status)) {
+      await markDeliverySuppressed(db, { deliveryId: duplicate.delivery_id, fingerprint, winnerAlertId: alert.id, now });
+    }
+    deliverable.push(delivery);
+  }
+  return { deliverable, suppressed };
+}
+
 export async function enqueueAlertDeliveries(queue, deliveries) {
   if (!queue?.sendBatch || deliveries.length === 0) return 0;
 
@@ -252,14 +414,16 @@ export async function persistAlertWithDeliveries({
   const alert = buildAlert({ watch, evaluation, decision, input, now });
   const subscribers = await loadAlertSubscribers(db, { workspaceId: alert.workspace_id, channelId: alert.channel_id, alert });
   const deliveries = buildAlertDeliveries({ alert, subscribers, now });
+  const { deliverable, suppressed } = await applyAttentionSuppression(db, { alert, deliveries, subscribers, now });
   const statements = [alertStatement(db, alert), watchStateStatement(db, { watch, decision, now })];
   statements.push(...deliveries.map((delivery) => deliveryStatement(db, delivery)));
   await db.batch(statements);
-  const enqueued_deliveries = await enqueueAlertDeliveries(queue, deliveries);
+  const enqueued_deliveries = await enqueueAlertDeliveries(queue, deliverable);
 
   return {
     alert,
     deliveries,
+    suppressed_deliveries: suppressed,
     enqueued_deliveries,
   };
 }

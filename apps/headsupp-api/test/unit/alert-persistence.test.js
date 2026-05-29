@@ -397,3 +397,255 @@ test('persists deliveries for matching watch group and band filters', async () =
 
   assert.deepEqual(result.deliveries.map((delivery) => delivery.subscriber_id).sort(), ['sub_band', 'sub_group']);
 });
+
+test('suppresses lower-severity duplicate attention deliveries for same subscriber and resource window', async () => {
+  const alerts = [];
+  const deliveries = [];
+  const enqueued = [];
+  const subscriber = { subscriber_id: 'sub_board', destination_url: 'board@example.com', config_json: '{}' };
+  const db = {
+    prepare(sql) {
+      return {
+        bind(...params) {
+          return {
+            sql,
+            params,
+            async run() {
+              if (/UPDATE alert_deliveries/.test(sql)) {
+                const delivery = deliveries.find((row) => row.id === params[3]);
+                if (delivery && ['pending', 'retrying'].includes(delivery.status)) {
+                  delivery.status = params[0];
+                  delivery.response_body = params[1];
+                  delivery.updated_at = params[2];
+                  return { meta: { changes: 1 } };
+                }
+                return { meta: { changes: 0 } };
+              }
+              return { meta: { changes: 1 } };
+            },
+            async first() {
+              if (/FROM signals/.test(sql)) return { signal_key: 'forecast.revenue.pace' };
+              if (/FROM watches/.test(sql)) return { watch_id: params[0] };
+              return null;
+            },
+            async all() {
+              if (/FROM subscribers/.test(sql)) return { results: [subscriber] };
+              if (/FROM alert_deliveries/.test(sql)) {
+                return {
+                  results: deliveries
+                    .filter((delivery) => delivery.subscriber_id === params[0] && ['pending', 'retrying', 'sent'].includes(delivery.status))
+                    .map((delivery) => {
+                      const alert = alerts.find((row) => row.id === delivery.alert_id);
+                      return {
+                        delivery_id: delivery.id,
+                        delivery_status: delivery.status,
+                        subscriber_id: delivery.subscriber_id,
+                        alert_id: alert.id,
+                        workspace_id: alert.workspace_id,
+                        channel_id: alert.channel_id,
+                        signal_id: alert.signal_id,
+                        watch_id: alert.watch_id,
+                        severity: alert.severity,
+                        triggered_at: alert.triggered_at,
+                        created_at: alert.created_at,
+                        payload_json: alert.payload_json,
+                      };
+                    }),
+                };
+              }
+              return { results: [] };
+            },
+          };
+        },
+      };
+    },
+    async batch(items) {
+      for (const item of items) {
+        if (/INSERT INTO alerts/.test(item.sql)) {
+          alerts.push({
+            id: item.params[0],
+            workspace_id: item.params[1],
+            channel_id: item.params[2],
+            signal_id: item.params[3],
+            watch_id: item.params[4],
+            severity: item.params[5],
+            current_value: item.params[6],
+            threshold_value: item.params[7],
+            summary_text: item.params[8],
+            payload_json: item.params[9],
+            cta_label: item.params[10],
+            cta_url: item.params[11],
+            triggered_at: item.params[12],
+            created_at: item.params[13],
+          });
+        }
+        if (/INSERT INTO alert_deliveries/.test(item.sql)) {
+          deliveries.push({
+            id: item.params[0],
+            alert_id: item.params[1],
+            subscriber_id: item.params[2],
+            destination_url: item.params[3],
+            status: item.params[4],
+            attempt_count: item.params[5],
+            next_retry_at: item.params[7],
+            response_body: item.params[9],
+            created_at: item.params[10],
+            updated_at: item.params[11],
+          });
+        }
+      }
+    },
+  };
+  const queue = {
+    async sendBatch(messages) {
+      enqueued.push(...messages);
+    },
+  };
+  const commonInput = {
+    ...input,
+    signalId: 'sig_pace',
+    bucketStartAt: '2026-05-24T10:00:00.000Z',
+  };
+  const commonFields = { forecast_id: 'forecast_123', attention_family: 'pace_health' };
+
+  const warning = await persistAlertWithDeliveries({
+    db,
+    queue,
+    watch: { ...watch, id: 'watch_pace_warning', watch_id: 'watch_pace_warning', signal_id: 'sig_pace', name: 'Pace warning' },
+    evaluation: { threshold: 85, fields: commonFields },
+    decision: { action: 'alert', severity: 'warning', current_value: 64 },
+    input: commonInput,
+    now: '2026-05-24T10:05:00.000Z',
+  });
+  const critical = await persistAlertWithDeliveries({
+    db,
+    queue,
+    watch: { ...watch, id: 'watch_pace_critical', watch_id: 'watch_pace_critical', signal_id: 'sig_pace', name: 'Pace critical' },
+    evaluation: { threshold: 70, fields: commonFields },
+    decision: { action: 'alert', severity: 'critical', current_value: 64 },
+    input: commonInput,
+    now: '2026-05-24T10:05:01.000Z',
+  });
+
+  assert.equal(warning.deliveries.length, 1);
+  assert.equal(critical.deliveries.length, 1);
+  assert.equal(deliveries[0].status, 'suppressed_duplicate');
+  assert.equal(deliveries[1].status, 'pending');
+  assert.equal(enqueued.length, 2);
+  assert.equal(enqueued[0].body.alertDeliveryId, deliveries[0].id);
+  assert.equal(enqueued[1].body.alertDeliveryId, deliveries[1].id);
+});
+
+test('does not enqueue a lower-severity duplicate when a winner already exists', async () => {
+  const alerts = [];
+  const deliveries = [];
+  const enqueued = [];
+  const subscriber = { subscriber_id: 'sub_board', destination_url: 'board@example.com', config_json: '{}' };
+  const db = {
+    prepare(sql) {
+      return {
+        bind(...params) {
+          return {
+            sql,
+            params,
+            async run() {
+              return { meta: { changes: 1 } };
+            },
+            async first() {
+              if (/FROM signals/.test(sql)) return { signal_key: 'forecast.revenue.pace' };
+              if (/FROM watches/.test(sql)) return { watch_id: params[0] };
+              return null;
+            },
+            async all() {
+              if (/FROM subscribers/.test(sql)) return { results: [subscriber] };
+              if (/FROM alert_deliveries/.test(sql)) {
+                return {
+                  results: deliveries
+                    .filter((delivery) => delivery.subscriber_id === params[0] && ['pending', 'retrying', 'sent'].includes(delivery.status))
+                    .map((delivery) => {
+                      const alert = alerts.find((row) => row.id === delivery.alert_id);
+                      return {
+                        delivery_id: delivery.id,
+                        delivery_status: delivery.status,
+                        subscriber_id: delivery.subscriber_id,
+                        alert_id: alert.id,
+                        workspace_id: alert.workspace_id,
+                        channel_id: alert.channel_id,
+                        signal_id: alert.signal_id,
+                        watch_id: alert.watch_id,
+                        severity: alert.severity,
+                        triggered_at: alert.triggered_at,
+                        created_at: alert.created_at,
+                        payload_json: alert.payload_json,
+                      };
+                    }),
+                };
+              }
+              return { results: [] };
+            },
+          };
+        },
+      };
+    },
+    async batch(items) {
+      for (const item of items) {
+        if (/INSERT INTO alerts/.test(item.sql)) {
+          alerts.push({
+            id: item.params[0],
+            workspace_id: item.params[1],
+            channel_id: item.params[2],
+            signal_id: item.params[3],
+            watch_id: item.params[4],
+            severity: item.params[5],
+            current_value: item.params[6],
+            threshold_value: item.params[7],
+            summary_text: item.params[8],
+            payload_json: item.params[9],
+            triggered_at: item.params[12],
+            created_at: item.params[13],
+          });
+        }
+        if (/INSERT INTO alert_deliveries/.test(item.sql)) {
+          deliveries.push({
+            id: item.params[0],
+            alert_id: item.params[1],
+            subscriber_id: item.params[2],
+            destination_url: item.params[3],
+            status: item.params[4],
+            response_body: item.params[9],
+            created_at: item.params[10],
+            updated_at: item.params[11],
+          });
+        }
+      }
+    },
+  };
+  const queue = { async sendBatch(messages) { enqueued.push(...messages); } };
+  const common = {
+    fields: { forecast_id: 'forecast_123', attention_family: 'pace_health' },
+    input: { ...input, signalId: 'sig_pace', bucketStartAt: '2026-05-24T10:00:00.000Z' },
+  };
+
+  await persistAlertWithDeliveries({
+    db,
+    queue,
+    watch: { ...watch, id: 'watch_pace_critical', watch_id: 'watch_pace_critical', signal_id: 'sig_pace' },
+    evaluation: { threshold: 70, fields: common.fields },
+    decision: { action: 'alert', severity: 'critical', current_value: 64 },
+    input: common.input,
+    now: '2026-05-24T10:05:00.000Z',
+  });
+  const warning = await persistAlertWithDeliveries({
+    db,
+    queue,
+    watch: { ...watch, id: 'watch_pace_warning', watch_id: 'watch_pace_warning', signal_id: 'sig_pace' },
+    evaluation: { threshold: 85, fields: common.fields },
+    decision: { action: 'alert', severity: 'warning', current_value: 64 },
+    input: common.input,
+    now: '2026-05-24T10:05:01.000Z',
+  });
+
+  assert.equal(warning.deliveries[0].status, 'suppressed_duplicate');
+  assert.equal(warning.suppressed_deliveries.length, 1);
+  assert.equal(enqueued.length, 1);
+});

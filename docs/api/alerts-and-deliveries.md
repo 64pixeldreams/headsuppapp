@@ -47,6 +47,8 @@ Manual alert ignores use `admin.ignoreAlert`. Pending or retrying deliveries for
 
 Alert delivery volume is governed by the watch decision path before subscribers are dispatched. Cooldowns, grouped winner selection, recovery rules, and subscriber `config.filters` apply equally to email, Slack, and generic webhook alert subscribers.
 
+Heads Up also applies attention-level duplicate suppression before delivery enqueue. If multiple alerts map to the same subscriber, channel, signal, resource identity, attention family, and bucket/window, lower-severity duplicate deliveries are marked `suppressed_duplicate`. This is a final safety net for bad or legacy integrator configurations; grouped watch policies remain the preferred way to pick a winner before an alert row is created.
+
 ## Watch State
 
 ```json

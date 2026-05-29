@@ -18,6 +18,34 @@ const watch = await headsup.createWatch({
 
 Default behavior: repeat alerts respect `cooldown_seconds` while still triggered.
 
+## Group related bands
+
+Warning and critical bands for the same customer moment should be grouped so Heads Up chooses one winner before creating a customer alert:
+
+```js
+await headsup.provisionChannel({
+  workspace,
+  channel,
+  signals: [{ signal_key: 'forecast.revenue.pace' }],
+  watch_groups: [
+    {
+      group_key: 'forecast_pace_health',
+      signal_key: 'forecast.revenue.pace',
+      winner_policy: 'highest_severity_wins',
+      replaces: {
+        watch_id_patterns: [':pace:warning', ':pace:critical'],
+      },
+      bands: [
+        { band_key: 'critical', watch_type: 'LAST_VALUE_LT', config: { threshold: 70, severity: 'critical' } },
+        { band_key: 'warning', watch_type: 'LAST_VALUE_LT', config: { threshold: 85, severity: 'warning' } },
+      ],
+    },
+  ],
+});
+```
+
+`replaces` disables older ungrouped watches for the same workspace/channel/signal, so migrations do not leave legacy rules active next to the grouped policy.
+
 ## Once until recovered
 
 ```js
@@ -124,4 +152,6 @@ const state = await headsup.getWatchState({
 
 - `once_until_recovered`: one alert per incident until recovery fires
 - Snooze: no new deliveries until `snooze_until`
+- Grouped bands: one winning alert, not warning plus critical
+- Attention dedupe: lower-severity duplicate deliveries are marked `suppressed_duplicate`
 - `getWatchState` reflects controls applied to the watch

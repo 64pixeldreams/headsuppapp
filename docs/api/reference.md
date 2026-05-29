@@ -128,7 +128,7 @@ Payload props:
 - `connector` (object, optional): create or reuse a webhook connector.
 - `channel_contract` (object, optional): create the first active channel contract when none exists.
 - `signals` (array, optional): create or reuse signals.
-- `watch_groups` (array, optional): create grouped policy bands. Each group references `signal_key` or `signal_id`, has a stable `group_key`, a `winner_policy`, optional group cooldown/recovery, and `bands`.
+- `watch_groups` (array, optional): create grouped policy bands. Each group references `signal_key` or `signal_id`, has a stable `group_key`, a `winner_policy`, optional group cooldown/recovery, optional `replaces`, and `bands`.
 - `watches` (array, optional): create or reuse watches. Each watch may reference `signal_key`.
 - `subscribers` (array, optional): create or reuse channel-scoped subscribers.
 - `workspace_subscribers` (array, optional): create or reuse workspace-scoped webhook alert subscribers.
@@ -144,9 +144,27 @@ watch:create
 subscriber:create
 ```
 
-Returns `data.created`, `data.reused`, and all materialized resources, including `watch_groups` when provided. Connector secrets are returned only when the connector is newly created.
+Returns `data.created`, `data.reused`, `data.reconciled`, and all materialized resources, including `watch_groups` when provided. Connector secrets are returned only when the connector is newly created.
 
 Use `watch_groups` for related warning/critical bands that should produce one alert. `highest_severity_wins` is the default policy for avoiding duplicate warning plus critical alerts.
+
+When a grouped policy replaces older ungrouped watches, include `replaces` so provisioning durably disables those legacy rows for the same workspace/channel/signal:
+
+```json
+{
+  "group_key": "forecast_pace_health",
+  "signal_key": "forecast.revenue.pace",
+  "replaces": {
+    "watch_id_patterns": [":pace:warning", ":pace:critical"]
+  },
+  "bands": [
+    { "band_key": "critical", "watch_type": "LAST_VALUE_LT", "config": { "threshold": 70, "severity": "critical" } },
+    { "band_key": "warning", "watch_type": "LAST_VALUE_LT", "config": { "threshold": 85, "severity": "warning" } }
+  ]
+}
+```
+
+`data.reconciled.disabled_watches` reports how many active ungrouped watches were turned off. Re-running the same provisioning is idempotent and should return `0` once cleanup is complete.
 
 Subscriber upsert behavior:
 

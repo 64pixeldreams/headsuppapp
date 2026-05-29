@@ -164,6 +164,21 @@ function provisionDb(calls = []) {
                   });
                 }
               }
+              if (/UPDATE watches\s+SET enabled = 0/.test(sql)) {
+                let changes = 0;
+                for (const row of tables.watches) {
+                  const scoped = row.workspace_id === params[1] && row.channel_id === params[2] && row.signal_id === params[3];
+                  const activeUngrouped = Number(row.enabled) === 1 && !row.watch_group_id;
+                  const exactMatch = params.length === 6 && (row.id === params[4] || row.watch_id === params[5]);
+                  const likePattern = params.length === 5 && String(row.watch_id || '').includes(String(params[4]).replaceAll('%', ''));
+                  if (scoped && activeUngrouped && (exactMatch || likePattern)) {
+                    row.enabled = 0;
+                    row.updated_at = params[0];
+                    changes += 1;
+                  }
+                }
+                return { meta: { changes } };
+              }
               return { meta: { changes: 1 } };
             },
             async first() {
@@ -512,6 +527,100 @@ test('admin provisionChannel creates grouped watch policy bands idempotently', a
   assert.equal(second.reused.watches, 2);
   assert.equal(db.tables.watch_groups.length, 1);
   assert.equal(db.tables.watches.length, 2);
+});
+
+test('admin provisionChannel disables replaced legacy ungrouped watches when grouped policy is provisioned', async () => {
+  const db = provisionDb();
+  const permissions = ['workspace:create', 'channel:create', 'connector:create', 'signal:create', 'watch:create', 'subscriber:create'];
+  const base = {
+    workspace: {
+      workspace_key: 'demo:tenant_reconcile',
+      name: 'Reconcile Tenant',
+      source_app: 'demo',
+      external_tenant_id: 'tenant_reconcile',
+      external_user_id: 'user_reconcile',
+    },
+    channel: { channel_key: 'demo:tenant_reconcile:forecast:one', name: 'Forecast One' },
+    signals: [{ signal_key: 'forecast.revenue.pace' }],
+  };
+  const legacy = await provisionAdminChannel({
+    auth: { user_id: 'user_admin', permissions },
+    db,
+    input: {
+      ...base,
+      watches: [
+        {
+          signal_key: 'forecast.revenue.pace',
+          watch_id: 'foretic:user:1:forecast:forecast_1:pace:warning',
+          name: 'Pace warning legacy',
+          watch_type: 'LAST_VALUE_LT',
+          config: { threshold: 90, severity: 'warning' },
+        },
+        {
+          signal_key: 'forecast.revenue.pace',
+          watch_id: 'foretic:user:1:forecast:forecast_1:pace:critical',
+          name: 'Pace critical legacy',
+          watch_type: 'LAST_VALUE_LT',
+          config: { threshold: 70, severity: 'critical' },
+        },
+        {
+          signal_key: 'forecast.revenue.pace',
+          watch_id: 'foretic:user:1:forecast:forecast_1:pace:ahead',
+          name: 'Pace ahead',
+          watch_type: 'LAST_VALUE_GT',
+          config: { threshold: 110, severity: 'info' },
+        },
+      ],
+    },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+  const grouped = await provisionAdminChannel({
+    auth: { user_id: 'user_admin', permissions },
+    db,
+    input: {
+      ...base,
+      watch_groups: [
+        {
+          group_key: 'forecast_pace_health',
+          signal_key: 'forecast.revenue.pace',
+          replaces: { watch_id_patterns: [':pace:warning', ':pace:critical'] },
+          bands: [
+            { band_key: 'critical', severity: 'critical', watch_type: 'LAST_VALUE_LT', config: { threshold: 70 } },
+            { band_key: 'warning', severity: 'warning', watch_type: 'LAST_VALUE_LT', config: { threshold: 85 } },
+          ],
+        },
+      ],
+    },
+    now: '2026-05-24T10:01:00.000Z',
+  });
+  const rerun = await provisionAdminChannel({
+    auth: { user_id: 'user_admin', permissions },
+    db,
+    input: {
+      ...base,
+      watch_groups: [
+        {
+          group_key: 'forecast_pace_health',
+          signal_key: 'forecast.revenue.pace',
+          replaces: { watch_id_patterns: [':pace:warning', ':pace:critical'] },
+          bands: [
+            { band_key: 'critical', severity: 'critical', watch_type: 'LAST_VALUE_LT', config: { threshold: 70 } },
+            { band_key: 'warning', severity: 'warning', watch_type: 'LAST_VALUE_LT', config: { threshold: 85 } },
+          ],
+        },
+      ],
+    },
+    now: '2026-05-24T10:02:00.000Z',
+  });
+
+  assert.equal(legacy.ok, true);
+  assert.equal(grouped.ok, true);
+  assert.equal(grouped.reconciled.disabled_watches, 2);
+  assert.equal(rerun.reconciled.disabled_watches, 0);
+  assert.equal(db.tables.watches.find((row) => row.watch_id.endsWith(':pace:warning')).enabled, 0);
+  assert.equal(db.tables.watches.find((row) => row.watch_id.endsWith(':pace:critical')).enabled, 0);
+  assert.equal(db.tables.watches.find((row) => row.watch_id.endsWith(':pace:ahead')).enabled, 1);
+  assert.equal(db.tables.watches.filter((row) => row.watch_group_id).length, 2);
 });
 
 test('admin provisionChannel rejects duplicate watch group band keys', async () => {

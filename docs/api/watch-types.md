@@ -746,6 +746,29 @@ delete   not yet available; use disable
 
 Disabled watches are skipped by evaluation. Snooze and mute remain the right tools for temporary noise control; use `admin.updateWatch enabled:false` to turn a watch off for migrations or when a user stops wanting an alert. These actions are tenant-scoped and audited.
 
+## Attention-Level Dedupe
+
+Heads Up also applies a final delivery safety net: alerts that map to the same recipient, channel, signal, resource, attention family, and bucket/window are treated as the same customer moment. Lower-severity duplicates are stored with delivery status `suppressed_duplicate` and are not enqueued when a winner already exists. If a higher-severity alert arrives while a lower-severity duplicate is still pending/retrying, the lower delivery is marked `suppressed_duplicate` and the higher-severity alert is allowed through.
+
+Use grouped policies first because they choose the winner before alert creation. Attention-level dedupe is the platform backstop for bad or legacy configurations that would otherwise fan out multiple emails for one moment.
+
+## Provisioning Reconciliation
+
+When moving from ungrouped bands to grouped policies, declare the replacement relationship in `admin.provisionChannel`:
+
+```json
+{
+  "group_key": "forecast_pace_health",
+  "signal_key": "forecast.revenue.pace",
+  "replaces": {
+    "watch_id_patterns": [":pace:warning", ":pace:critical"]
+  },
+  "bands": []
+}
+```
+
+Provisioning disables matching active ungrouped watches for the same workspace/channel/signal and reports `reconciled.disabled_watches`. It does not hard-delete historical alerts.
+
 ## Channel Contracts
 
 Channel contracts define expected signal types, default dimensions, CTA policy, and default watch templates. They help bootstrap a channel consistently.

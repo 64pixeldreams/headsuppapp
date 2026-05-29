@@ -37,7 +37,7 @@ export async function processAlertDeliveryMessage(message, env, options = {}) {
       reason: 'SUBSCRIBER_NOT_FOUND',
     };
   }
-  if (['sent', 'failed'].includes(bundle.delivery.status)) {
+  if (['sent', 'failed', 'suppressed_duplicate', 'ignored'].includes(bundle.delivery.status)) {
     return {
       processed: true,
       reason: 'DELIVERY_TERMINAL_STATE',

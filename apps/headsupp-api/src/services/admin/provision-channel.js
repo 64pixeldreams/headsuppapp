@@ -121,9 +121,56 @@ function updatedCounter() {
   };
 }
 
+function reconciledCounter() {
+  return {
+    disabled_watches: 0,
+  };
+}
+
 function asArray(value) {
   if (value === undefined || value === null) return [];
   return Array.isArray(value) ? value : null;
+}
+
+function replacementRules(replaces = {}) {
+  if (!replaces || typeof replaces !== 'object' || Array.isArray(replaces)) return [];
+  const rules = [];
+  for (const watchId of asArray(replaces.watch_ids) || []) {
+    if (typeof watchId === 'string' && watchId.trim()) rules.push({ type: 'exact', value: watchId.trim() });
+  }
+  for (const pattern of asArray(replaces.watch_id_patterns) || []) {
+    if (typeof pattern === 'string' && pattern.trim()) rules.push({ type: 'like', value: `%${pattern.trim()}%` });
+  }
+  for (const prefix of asArray(replaces.watch_key_prefixes) || []) {
+    if (typeof prefix === 'string' && prefix.trim()) rules.push({ type: 'like', value: `%${prefix.trim()}%` });
+  }
+  return rules;
+}
+
+async function reconcileReplacedWatches({ db, workspaceId, channelId, signalId, replaces, now }) {
+  const rules = replacementRules(replaces);
+  let disabled = 0;
+  for (const rule of rules) {
+    const sql = rule.type === 'exact'
+      ? `UPDATE watches
+         SET enabled = 0, updated_at = ?
+         WHERE workspace_id = ? AND channel_id = ? AND signal_id = ?
+           AND enabled = 1
+           AND watch_group_id IS NULL
+           AND (id = ? OR watch_id = ?)`
+      : `UPDATE watches
+         SET enabled = 0, updated_at = ?
+         WHERE workspace_id = ? AND channel_id = ? AND signal_id = ?
+           AND enabled = 1
+           AND watch_group_id IS NULL
+           AND watch_id LIKE ?`;
+    const params = rule.type === 'exact'
+      ? [now, workspaceId, channelId, signalId, rule.value, rule.value]
+      : [now, workspaceId, channelId, signalId, rule.value];
+    const result = await db.prepare(sql).bind(...params).run();
+    disabled += Number(result?.meta?.changes || 0);
+  }
+  return disabled;
 }
 
 export async function provisionAdminChannel({ auth, db, env = {}, store, input, now }) {
@@ -151,6 +198,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
   const created = createdCounter();
   const reused = reusedCounter();
   const updated = updatedCounter();
+  const reconciled = reconciledCounter();
   let workspace = null;
 
   if (workspaceInput) {
@@ -289,6 +337,14 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
       bandKeys.add(bandKey);
     }
     const signalId = signal.id || signal.signal_id;
+    reconciled.disabled_watches += await reconcileReplacedWatches({
+      db,
+      workspaceId: workspace.workspace_id || workspace.id,
+      channelId: channel.channel_id || channel.id,
+      signalId,
+      replaces: groupInput.replaces,
+      now,
+    });
     const groupResult = await createAdminWatchGroup({
       auth,
       db,
@@ -432,6 +488,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
     created,
     reused,
     updated,
+    reconciled,
     workspace,
     channel,
     channel_contract: channelContract,
