@@ -49,6 +49,7 @@ npm run smoke:email-subscriber
 npm run smoke:watch-email-matrix
 npm run smoke:scheduled-email
 npm run smoke:email-inbox-loop
+npm run smoke:event-occurrence
 npm run smoke:subscriber-lifecycle
 npm run soak:release
 ```
@@ -93,6 +94,7 @@ smoke:email-subscriber  Email + deployed  provisions email subscriber, renders {
 smoke:watch-email-matrix Email + deployed real email proof for threshold, window, delta, percent change, trend, forecast template, and grouped winner alerts
 smoke:scheduled-email Email + deployed real email proof for MISSING_EXPECTED, REMINDER_DUE, and DIGEST scheduled alert emails
 smoke:email-inbox-loop Email + deployed automated inbox receipt proof through tester@aibox.headsupp.io and email_test_messages
+smoke:event-occurrence D1/HTTP + deployed EVENT_OCCURRENCE dedupe, duplicate suppression, second occurrence alert, and forecast_win_v1 metadata
 smoke:subscriber-lifecycle API + deployed  admin.getSubscriber/listSubscribers pending authorization reads; optional confirm + disable when service key and email auth secret configured
 load:smoke               local             10000 synthetic events fold into fewer aggregate deltas
 load:high-volume         local             configurable high-volume synthetic proof, default 100000 events
@@ -162,6 +164,22 @@ HEADSUPP_SMOKE_INBOX_EMAIL=tester@aibox.headsupp.io
 ```
 
 This is the preferred broad email regression proof. Each case sends a test-mode JSON email to the controlled inbox. The Email Worker extracts the marked JSON block, posts a signed receipt to `POST /internal/email/test-receipts`, and the smoke polls `email_test_messages` until every case reaches `tested`. The matrix covers threshold, window, delta, percent change, trend, `MISSING_EXPECTED`, `REMINDER_DUE`, and `DIGEST`.
+
+## Event Occurrence
+
+Command:
+
+```bash
+npm run smoke:event-occurrence
+```
+
+Requires:
+
+```text
+CLOUDFLARE_API_TOKEN
+```
+
+This provisions a `forecast.goal.reached` signal, an `EVENT_OCCURRENCE` watch keyed by `fields.goal_id`, and a smoke webhook subscriber. It sends one goal-reached event, replays the same occurrence with a new raw-event idempotency key, then sends a second goal. The smoke passes only when D1 has one `watch_occurrences` row per goal, the replay creates no duplicate alert, and the second occurrence sends a new alert/delivery.
 
 ## Local Quality Gates
 

@@ -4,7 +4,7 @@ Primary docs: use [quickstart.md](quickstart.md) for setup flow and [reference.m
 
 For scenario-first guidance, use [use-cases.md](use-cases.md).
 
-This guide explains what Heads Up can do after events are aggregated.
+This guide explains what Heads Up can do with raw event occurrences and aggregate rows.
 
 Heads Up watches evaluate aggregate rows, not individual raw events. Most watch configs use:
 
@@ -32,6 +32,7 @@ Week buckets use UTC Monday boundaries.
 
 ```text
 Latest value above/below a threshold     LAST_VALUE_GT / LAST_VALUE_LT
+Each distinct business event occurrence  EVENT_OCCURRENCE
 Total in a period                        WINDOW_SUM_GT
 Average over recent buckets              WINDOW_AVG_GT / WINDOW_AVG_LT
 Number of events in a period             WINDOW_COUNT_GT
@@ -46,7 +47,7 @@ Scheduled rollup alert                    DIGEST
 Forward a closed aggregate bucket         AGGREGATE_FORWARD
 ```
 
-There is no `WINDOW_MAX_GT` watch type. If you need the highest value in a closed bucket, use `AGGREGATE_FORWARD` and read `values.max`, or model a spike/threshold watch depending on the product need.
+Use `EVENT_OCCURRENCE` for one-shot business events such as `goal_reached`, `bucket_closed`, `payment_failed`, or `job_completed`. It dedupes by occurrence key, so the next real event can alert without a recovery dip. There is no `WINDOW_MAX_GT` watch type. If you need the highest value in a closed bucket, use `AGGREGATE_FORWARD` and read `values.max`, or model a spike/threshold watch depending on the product need.
 
 ## Avoid Noisy Alerts
 
@@ -202,6 +203,10 @@ See [Latest Value Threshold](#latest-value-threshold).
 
 See [Latest Value Threshold](#latest-value-threshold).
 
+### EVENT_OCCURRENCE
+
+See [Event Occurrence](#event-occurrence).
+
 ### WINDOW_SUM_GT
 
 See [Total In A Period](#total-in-a-period).
@@ -303,6 +308,71 @@ Optional recovery:
 ```
 
 Recovery only fires after the watch previously triggered.
+
+## Event Occurrence
+
+Use `EVENT_OCCURRENCE` when a customer should be notified once for each distinct business event, not when an aggregate crosses a threshold.
+
+Good fits:
+
+```text
+forecast.goal.reached
+forecast.bucket.closed
+payment.failed
+job.completed
+import.failed
+```
+
+Goal reached example:
+
+```json
+{
+  "watch_type": "EVENT_OCCURRENCE",
+  "config": {
+    "event_type": "goal_reached",
+    "dedupe_key_path": "fields.goal_id",
+    "severity": "success",
+    "template_id": "forecast_win_v1"
+  }
+}
+```
+
+Send a matching event:
+
+```json
+{
+  "idempotency_key": "foretic:forecast_123:goal_reached:goal_456",
+  "signal_key": "forecast.goal.reached",
+  "occurred_at": "2026-06-24T12:00:00.000Z",
+  "value": { "num": 1 },
+  "fields": {
+    "event_type": "goal_reached",
+    "goal_id": "goal_456",
+    "tone": "success",
+    "icon_variant": "trophy",
+    "notification": {
+      "title": "Q2 Revenue",
+      "summary": "Goal reached: £10,000 hit 6 days early.",
+      "headline_value": "£10,000",
+      "headline_label": "Goal reached"
+    }
+  },
+  "cta": {
+    "label": "View forecast",
+    "url": "https://example.com/forecasts/forecast_123",
+    "variant": "success"
+  }
+}
+```
+
+Behavior:
+
+- `config.event_type` must match `fields.event_type` when present.
+- `config.dedupe_key_path` defaults to `idempotency_key`.
+- Dedupe is persisted in D1 as `(workspace_id, channel_id, watch_id, occurrence_key)`.
+- Replaying the same occurrence key does not create another alert or delivery.
+- A new occurrence key can alert immediately without recovery.
+- `severity_path`, `template_id`, `template_by_outcome`, `outcome_path`, and `required_fields` are supported for richer routing.
 
 ## Total In A Period
 

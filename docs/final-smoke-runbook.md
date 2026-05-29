@@ -37,6 +37,9 @@ $env:HEADSUPP_SMOKE_EMAIL_DESTINATION='martin@inc64.com'
 npm run smoke:email-real
 npm run smoke:watch-email-matrix
 npm run smoke:scheduled-email
+$env:HEADSUPP_SMOKE_EMAIL_TEMPLATE='forecast_win_v1'
+npm run smoke:email-design
+Remove-Item Env:HEADSUPP_SMOKE_EMAIL_TEMPLATE
 Remove-Item Env:HEADSUPP_SMOKE_EMAIL_DESTINATION
 ```
 
@@ -46,7 +49,28 @@ Expected:
 smoke:email-real sends one template/action-button email and verifies delivery.status = sent
 smoke:watch-email-matrix sends real emails for threshold, window, delta, percent change, trend, forecast template, and grouped winner cases
 smoke:scheduled-email sends real scheduled alert emails for missing expected, reminder, and digest
+smoke:email-design with forecast_win_v1 sends a real EVENT_OCCURRENCE goal-reached success email
 each script exits non-zero if an expected delivery is missing, retrying, failed, or duplicated
+```
+
+## Event Occurrence Proof
+
+Run after deploying `headsupp_app` and applying `migrations/0010_watch_occurrences.sql`:
+
+```powershell
+cd apps/headsupp-api
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+npm run smoke:event-occurrence
+Remove-Item Env:CLOUDFLARE_API_TOKEN
+```
+
+Expected:
+
+```text
+one EVENT_OCCURRENCE alert is sent for the first goal_id
+replaying the same goal_id with a different raw idempotency_key does not create a duplicate alert
+a second goal_id creates a second alert and delivery without any recovery event
+watch_occurrences contains one persisted dedupe row per goal_id
 ```
 
 ## Automated Email Inbox Loop Proof

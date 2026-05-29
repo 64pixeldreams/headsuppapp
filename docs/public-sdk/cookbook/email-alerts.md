@@ -107,6 +107,8 @@ await headsup.sendEvent({
 
 Use the Heads Up-owned success template for goal reached, target beaten, or strongly ahead-of-pace events:
 
+For production goal-reached or bucket-closed alerts, create the watch as `EVENT_OCCURRENCE` with `dedupe_key_path` such as `fields.goal_id` or `fields.bucket_end`. That sends one success email per real occurrence and does not need a threshold recovery dip.
+
 ```js
 await headsup.sendEvent({
   connectorKey: connector.connector_key,

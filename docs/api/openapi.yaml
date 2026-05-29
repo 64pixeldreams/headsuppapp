@@ -267,6 +267,20 @@ paths:
                       bucket_type: week
                       window:
                         size: 1
+              createEventOccurrenceWatch:
+                value:
+                  action: admin.createWatch
+                  payload:
+                    workspace_id: ws_demo
+                    channel_id: ch_demo
+                    signal_id: sig_goal
+                    name: Forecast goal reached
+                    watch_type: EVENT_OCCURRENCE
+                    config:
+                      event_type: goal_reached
+                      dedupe_key_path: fields.goal_id
+                      severity: success
+                      template_id: forecast_win_v1
               createAggregateForwardWatch:
                 value:
                   action: admin.createWatch

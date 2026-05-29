@@ -22,7 +22,7 @@ function compactStableId(prefix, parts) {
 }
 
 export function buildAlert({ watch, evaluation, decision, input, now = new Date().toISOString() }) {
-  const alertId = compactStableId('alert', [now, decision.action, watch.id || watch.watch_id]);
+  const alertId = compactStableId('alert', [now, decision.action, watch.id || watch.watch_id, decision.occurrence_key || evaluation.occurrence_key]);
   const payload = {
     watch_id: watch.id || watch.watch_id,
     signal_id: watch.signal_id || input.signalId,
@@ -32,6 +32,7 @@ export function buildAlert({ watch, evaluation, decision, input, now = new Date(
     bucket_start_at: input.bucketStartAt,
     current_value: decision.current_value,
     threshold: evaluation.threshold,
+    occurrence_key: decision.occurrence_key || evaluation.occurrence_key || null,
     cta: evaluation.cta || null,
     fields: evaluation.fields || {},
   };
@@ -45,7 +46,7 @@ export function buildAlert({ watch, evaluation, decision, input, now = new Date(
     severity: decision.severity,
     current_value: decision.current_value,
     threshold_value: evaluation.threshold,
-    summary_text: `${watch.name || 'Watch'} is ${decision.severity} at ${decision.current_value}.`,
+    summary_text: evaluation.summary_text || `${watch.name || 'Watch'} is ${decision.severity} at ${decision.current_value}.`,
     payload_json: JSON.stringify(payload),
     cta_label: payload.cta?.label || null,
     cta_url: payload.cta?.url || null,

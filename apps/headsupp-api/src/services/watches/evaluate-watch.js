@@ -1,4 +1,5 @@
 const WATCH_TYPES = new Set([
+  'EVENT_OCCURRENCE',
   'LAST_VALUE_LT',
   'LAST_VALUE_GT',
   'WINDOW_AVG_LT',
@@ -35,6 +36,113 @@ export function watchConfig(watch) {
     severity: config.severity || watch.severity || 'warning',
     window: config.window || watch.window || null,
     method: config.method || 'first_last_percent_change',
+  };
+}
+
+function getPathValue(source, path) {
+  if (!path) return undefined;
+  if (path === 'idempotency_key') return source?.idempotency_key;
+  const parts = String(path).split('.').filter(Boolean);
+  const value = parts.reduce((current, segment) => {
+    if (current === null || current === undefined) return undefined;
+    return current[segment];
+  }, source);
+  if (value === undefined && parts.length === 1) return source?.fields?.[path];
+  return value;
+}
+
+function hasValue(value) {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'string') return value.trim().length > 0;
+  return true;
+}
+
+function normalizeArray(value) {
+  if (value === undefined || value === null) return [];
+  return Array.isArray(value) ? value : [];
+}
+
+export function evaluateEventOccurrence(watch, eventContext = {}) {
+  const config = parseWatchJson(watch.config_json);
+  const fields = eventContext?.fields && typeof eventContext.fields === 'object' ? eventContext.fields : {};
+  const eventType = fields.event_type || eventContext.event_type || null;
+  if (config.event_type && eventType !== config.event_type) {
+    return {
+      supported: true,
+      triggered: false,
+      reason: 'EVENT_TYPE_NOT_MATCHED',
+      current_value: null,
+      threshold: null,
+      severity: config.severity || 'info',
+      bucket_type: config.bucket_type || 'event',
+      fields,
+    };
+  }
+
+  const missingField = normalizeArray(config.required_fields).find((path) => !hasValue(getPathValue(eventContext, path)));
+  if (missingField) {
+    return {
+      supported: true,
+      triggered: false,
+      reason: 'REQUIRED_FIELD_MISSING',
+      missing_field: missingField,
+      current_value: null,
+      threshold: null,
+      severity: config.severity || 'info',
+      bucket_type: config.bucket_type || 'event',
+      fields,
+    };
+  }
+
+  const dedupePath = config.dedupe_key_path || 'idempotency_key';
+  const occurrenceKey = getPathValue(eventContext, dedupePath);
+  if (!hasValue(occurrenceKey)) {
+    return {
+      supported: true,
+      triggered: false,
+      reason: 'OCCURRENCE_KEY_MISSING',
+      current_value: null,
+      threshold: null,
+      severity: config.severity || 'info',
+      bucket_type: config.bucket_type || 'event',
+      fields,
+    };
+  }
+
+  const outcomePath = config.outcome_path || 'fields.outcome';
+  const outcome = getPathValue(eventContext, outcomePath);
+  const templateByOutcome = config.template_by_outcome && typeof config.template_by_outcome === 'object'
+    ? config.template_by_outcome
+    : {};
+  const selectedTemplate = templateByOutcome[outcome] || config.template_id || fields.email?.template_id || null;
+  const severityFromPath = config.severity_path ? getPathValue(eventContext, config.severity_path) : null;
+  const severity = severityFromPath || config.severity || fields.severity || (fields.tone === 'success' ? 'success' : 'info');
+  const value = Number(eventContext?.value?.num ?? eventContext?.value ?? 1);
+  const currentValue = Number.isFinite(value) ? value : 1;
+  const nextFields = {
+    ...fields,
+    ...(selectedTemplate ? { email: { ...(fields.email || {}), template_id: selectedTemplate } } : {}),
+    occurrence: {
+      key: String(occurrenceKey),
+      dedupe_key_path: dedupePath,
+      event_type: eventType,
+      outcome: outcome || null,
+    },
+  };
+
+  return {
+    supported: true,
+    triggered: true,
+    reason: null,
+    current_value: currentValue,
+    threshold: null,
+    severity,
+    bucket_type: 'event',
+    occurrence_key: String(occurrenceKey),
+    occurrence_dedupe_key_path: dedupePath,
+    summary_text: fields.notification?.summary || `${watch.name || 'Event occurrence'} occurred.`,
+    cta: eventContext.cta || null,
+    fields: nextFields,
   };
 }
 
@@ -79,6 +187,14 @@ function trendStats(aggregates, field) {
 }
 
 export function evaluateWatchAgainstAggregates(watch, aggregates = []) {
+  if (watch.watch_type === 'EVENT_OCCURRENCE') {
+    return {
+      supported: false,
+      triggered: false,
+      reason: 'EVENT_CONTEXT_REQUIRED',
+    };
+  }
+
   if (!WATCH_TYPES.has(watch.watch_type)) {
     return {
       supported: false,

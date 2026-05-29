@@ -20,6 +20,7 @@ Do not commit secret values. Set runtime secrets with Wrangler.
 ```powershell
 cd apps/headsupp-api
 npx wrangler d1 execute headsup_db --remote --file "migrations/0009_email_test_messages.sql"
+npx wrangler d1 execute headsup_db --remote --file "migrations/0010_watch_occurrences.sql"
 npx wrangler secret put HEADSUPP_EMAIL_WORKER_WEBHOOK_SECRET
 npx wrangler deploy
 
@@ -48,11 +49,21 @@ npm run smoke:email-inbox-loop
 Remove-Item Env:CLOUDFLARE_API_TOKEN
 ```
 
+Run the event-occurrence dedupe proof after applying `0010_watch_occurrences.sql`:
+
+```powershell
+cd apps/headsupp-api
+$env:CLOUDFLARE_API_TOKEN='<runtime cloudflare token>'
+npm run smoke:event-occurrence
+Remove-Item Env:CLOUDFLARE_API_TOKEN
+```
+
 Expected result:
 
 ```text
 "ok": true
 "tested": 13
+smoke:event-occurrence final_alerts = 2 and duplicate_alerts_still = 1
 ```
 
 The deployed proof must include:

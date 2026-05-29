@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { evaluateWatchAgainstAggregates } from '../../src/services/watches/evaluate-watch.js';
+import { evaluateEventOccurrence, evaluateWatchAgainstAggregates } from '../../src/services/watches/evaluate-watch.js';
 
 test('triggers LAST_VALUE_LT when aggregate last value is below threshold', () => {
   const result = evaluateWatchAgainstAggregates(
@@ -231,4 +231,60 @@ test('trend watches stay quiet for flat or insufficient data', () => {
   assert.equal(insufficient.reason, 'INSUFFICIENT_TREND_BUCKETS');
   assert.equal(firstZero.triggered, false);
   assert.equal(firstZero.reason, 'TREND_FIRST_VALUE_ZERO');
+});
+
+test('event occurrence watch matches event type and builds occurrence context', () => {
+  const result = evaluateEventOccurrence(
+    {
+      name: 'Goal reached',
+      watch_type: 'EVENT_OCCURRENCE',
+      config_json: JSON.stringify({
+        event_type: 'goal_reached',
+        dedupe_key_path: 'fields.goal_id',
+        severity: 'success',
+        template_id: 'forecast_win_v1',
+      }),
+    },
+    {
+      idempotency_key: 'evt_123',
+      value: { num: 1 },
+      fields: {
+        event_type: 'goal_reached',
+        goal_id: 'goal_123',
+        tone: 'success',
+        notification: {
+          summary: 'Goal reached.',
+        },
+      },
+      cta: { label: 'View forecast', url: 'https://example.com/forecast', variant: 'success' },
+    },
+  );
+
+  assert.equal(result.supported, true);
+  assert.equal(result.triggered, true);
+  assert.equal(result.occurrence_key, 'goal_123');
+  assert.equal(result.severity, 'success');
+  assert.equal(result.fields.email.template_id, 'forecast_win_v1');
+  assert.equal(result.fields.occurrence.event_type, 'goal_reached');
+  assert.equal(result.summary_text, 'Goal reached.');
+});
+
+test('event occurrence watch ignores non-matching event types and missing dedupe keys', () => {
+  const watch = {
+    watch_type: 'EVENT_OCCURRENCE',
+    config_json: JSON.stringify({ event_type: 'goal_reached', dedupe_key_path: 'fields.goal_id' }),
+  };
+  const wrongType = evaluateEventOccurrence(watch, {
+    idempotency_key: 'evt_123',
+    fields: { event_type: 'bucket_closed', goal_id: 'goal_123' },
+  });
+  const missingKey = evaluateEventOccurrence(watch, {
+    idempotency_key: 'evt_124',
+    fields: { event_type: 'goal_reached' },
+  });
+
+  assert.equal(wrongType.triggered, false);
+  assert.equal(wrongType.reason, 'EVENT_TYPE_NOT_MATCHED');
+  assert.equal(missingKey.triggered, false);
+  assert.equal(missingKey.reason, 'OCCURRENCE_KEY_MISSING');
 });

@@ -46,12 +46,19 @@ const setup = await provisionGenericScenario({
   subscriberName: 'Design Review Email Alerts',
   signalKey: effectiveSignalKey,
   watchName: isForecastWin ? 'Q2 Revenue goal reached' : 'Business metric health',
-  watchType: 'LAST_VALUE_GT',
-  watchConfig: {
-    threshold: 50,
-    severity: isForecastWin ? 'success' : 'warning',
-    bucket_type: 'minute',
-  },
+  watchType: isForecastWin ? 'EVENT_OCCURRENCE' : 'LAST_VALUE_GT',
+  watchConfig: isForecastWin
+    ? {
+        event_type: 'goal_reached',
+        dedupe_key_path: 'fields.goal_id',
+        severity: 'success',
+        template_id: 'forecast_win_v1',
+      }
+    : {
+        threshold: 50,
+        severity: 'warning',
+        bucket_type: 'minute',
+      },
   cooldownSeconds: 1,
 });
 
@@ -97,6 +104,7 @@ const triggerAccepted = await sendSignedEvents({
               event_type: 'goal_reached',
               tone: 'success',
               icon_variant: 'trophy',
+              goal_id: `email_design_goal_${Date.now()}`,
               forecast_name: 'Q2 Revenue',
               resource_name: 'Q2 Revenue',
             }
@@ -170,7 +178,7 @@ console.log(
         channel_id: ids.channel,
         connector_key: setup.connectorKey,
         signal_key: effectiveSignalKey,
-        watch: 'LAST_VALUE_GT threshold 50',
+        watch: isForecastWin ? 'EVENT_OCCURRENCE goal_reached by fields.goal_id' : 'LAST_VALUE_GT threshold 50',
         subscriber_type: 'email',
       },
       ingest: {

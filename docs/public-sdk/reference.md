@@ -314,6 +314,8 @@ For market-price or tick-style signals, prefer movement watch types such as `PER
 
 For multi-bucket direction such as website views trending up/down or market feeds trending over days, use `TREND_UP_GT` or `TREND_DOWN_GT`.
 
+For discrete business events such as goal reached, bucket closed, payment failed, or job completed, use `EVENT_OCCURRENCE` with `config.event_type` and `config.dedupe_key_path`. Heads Up persists the occurrence key, suppresses replays, and lets the next distinct occurrence alert without recovery.
+
 Supported `renotify_policy` values:
 
 ```text
@@ -331,6 +333,7 @@ Supported watch types (explained in [watch-types.md](watch-types.md)):
 
 - [`LAST_VALUE_GT`](watch-types.md#last_value_gt)
 - [`LAST_VALUE_LT`](watch-types.md#last_value_lt)
+- [`EVENT_OCCURRENCE`](watch-types.md#event_occurrence)
 - [`WINDOW_SUM_GT`](watch-types.md#window_sum_gt)
 - [`WINDOW_AVG_GT`](watch-types.md#window_avg_gt)
 - [`WINDOW_AVG_LT`](watch-types.md#window_avg_lt)

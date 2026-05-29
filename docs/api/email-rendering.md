@@ -196,6 +196,8 @@ The same shape works for any forecast or goal integration.
 
 Use `forecast_win_v1` for positive milestones such as goal reached, target beaten, period closed above target, or strongly ahead of pace. It uses the same shell, header, footer, brand block, unsubscribe link, and powered-by layout as `forecast_alert_v1`, but with success styling and a large headline value.
 
+For one-shot milestones, pair this template with an `EVENT_OCCURRENCE` watch. That lets `forecast.goal.reached` or `forecast.bucket.closed` alert once per real occurrence key instead of relying on `LAST_VALUE_*` threshold recovery.
+
 Template selection:
 
 ```text

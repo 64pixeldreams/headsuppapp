@@ -33,6 +33,7 @@
     "smoke:scheduled-email": "node scripts/scheduled-email-smoke.mjs",
     "smoke:email-inbox-loop": "node scripts/email-inbox-loop-smoke.mjs",
     "smoke:email-design": "node scripts/email-design-smoke.mjs",
+    "smoke:event-occurrence": "node scripts/event-occurrence-smoke.mjs",
     "smoke:provision-channel": "node scripts/provision-channel-smoke.mjs",
     "smoke:workspace-subscriber": "node scripts/workspace-subscriber-smoke.mjs",
     "smoke:subscriber-filters": "node scripts/subscriber-filters-smoke.mjs",

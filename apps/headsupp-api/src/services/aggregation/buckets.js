@@ -86,6 +86,10 @@ export function eventToAggregateDeltas({ message, signal, contract, now = new Da
     event_context: {
       cta: message.event.cta || null,
       fields: message.event.fields || {},
+      idempotency_key: message.event.idempotency_key || null,
+      occurred_at: message.event.occurred_at || null,
+      signal_key: message.event.signal_key || null,
+      value: message.event.value || null,
     },
     sum_value: value,
     count_value: 1,

@@ -141,6 +141,8 @@ const setup = await headsup.provisionChannel({
 
 Use `watch_groups` for related bands such as warning and critical. With `highest_severity_wins`, a critical value sends only the critical alert; the warning band is suppressed for that evaluation. Keep `watches` for independent policies that should alert separately.
 
+Use `EVENT_OCCURRENCE` in `watches` for one-shot business events such as `forecast.goal.reached` or `forecast.bucket.closed`. Configure `event_type` and `dedupe_key_path`; Heads Up persists the occurrence key and suppresses replays while allowing the next distinct occurrence to alert without recovery.
+
 Use subscriber `config.filters` when each recipient chooses alert types. Supported filter fields are `signal_keys`, `watch_group_keys`, `watch_keys`, and `band_keys`. No filters means the subscriber receives all matching channel alerts. Rerun `provisionChannel` with the same `subscriber_key` to update filters idempotently.
 
 For SaaS integrations, start with [cookbook/saas-integration.md](cookbook/saas-integration.md). It explains when to use one channel per resource versus one channel per alert board. Repeat provisioning with the same `subscriber_key` updates subscriber config such as filters without sending another opt-in email; changing an email destination should be treated as a new subscriber or reauthorization flow.
