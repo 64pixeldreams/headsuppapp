@@ -88,4 +88,13 @@ SDK docs:
 
 ## Status
 
-Pending.
+Implemented (`admin.updateWatch`). `admin.deleteWatch` deferred — durable disable via `enabled: false` is the supported off switch; historical alerts are retained.
+
+Implemented in:
+
+- `apps/headsupp-api/src/services/admin/control-plane.js` (`updateAdminWatch`, `denyUnlessWatchUpdate`)
+- `apps/headsupp-api/src/functions/admin-functions.js` (`admin.updateWatch`)
+- `apps/headsupp-api/src/services/auth/permissions.js` (`watch:update`)
+- `packages/headsupp-client/src/client.js` (`updateWatch` / `disableWatch` / `enableWatch`)
+- `apps/headsupp-api/test/unit/admin-control-plane.test.js`
+- `docs/api/reference.md`, `docs/api/admin.md`, `docs/api/watch-types.md`, `docs/public-sdk/client-reference.md`, `docs/public-sdk/reference.md`, `docs/public-sdk/cookbook/noise-control.md`, `docs/public-sdk/appendix/raw-api-actions.md`, `docs/public-sdk/appendix/audit-matrix.md`

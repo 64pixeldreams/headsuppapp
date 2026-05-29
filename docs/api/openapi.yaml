@@ -201,6 +201,9 @@ paths:
                             band_keys:
                               - warning
                               - critical
+                            dimensions:
+                              forecast_id:
+                                - forecast_123
                     workspace_subscribers:
                       - subscriber_scope: workspace
                         subscriber_type: webhook

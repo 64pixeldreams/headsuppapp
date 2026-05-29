@@ -260,6 +260,39 @@ test('supports disable/delete subscriber wrappers', async () => {
   });
 });
 
+test('supports updateWatch, disableWatch, and enableWatch wrappers', async () => {
+  const calls = [];
+  const client = createHeadsUpClient({
+    baseUrl: 'https://headsupp.example',
+    apiKey: 'hu_api_test',
+    fetch: async (url, init) => {
+      calls.push({ url, init });
+      return jsonResponse({
+        success: true,
+        data: { ok: true, watch: { watch_id: 'watch_demo', enabled: 0 }, changed: true },
+      });
+    },
+  });
+
+  const updated = await client.updateWatch({ workspace_id: 'ws_demo', channel_id: 'ch_demo', watch_id: 'watch_demo', cooldown_seconds: 7200 });
+  await client.disableWatch({ workspace_id: 'ws_demo', channel_id: 'ch_demo', watch_id: 'watch_demo' });
+  await client.enableWatch({ workspace_id: 'ws_demo', channel_id: 'ch_demo', watch_id: 'watch_demo' });
+
+  assert.equal(updated.watch_id, 'watch_demo');
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    action: 'admin.updateWatch',
+    payload: { workspace_id: 'ws_demo', channel_id: 'ch_demo', watch_id: 'watch_demo', cooldown_seconds: 7200 },
+  });
+  assert.deepEqual(JSON.parse(calls[1].init.body), {
+    action: 'admin.updateWatch',
+    payload: { workspace_id: 'ws_demo', channel_id: 'ch_demo', watch_id: 'watch_demo', enabled: false },
+  });
+  assert.deepEqual(JSON.parse(calls[2].init.body), {
+    action: 'admin.updateWatch',
+    payload: { workspace_id: 'ws_demo', channel_id: 'ch_demo', watch_id: 'watch_demo', enabled: true },
+  });
+});
+
 test('throws useful API errors', async () => {
   const client = createHeadsUpClient({
     baseUrl: 'https://headsupp.example',

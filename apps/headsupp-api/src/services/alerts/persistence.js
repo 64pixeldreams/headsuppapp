@@ -100,6 +100,7 @@ export async function loadAlertRoutingContext(db, alert) {
     watch_group_key: watchGroup?.group_key || payload.watch_group_key || payload.fields?.watch_group?.watch_group_key || null,
     band_key: payload.band_key || watch?.band_key || payload.fields?.watch_group?.band_key || null,
     severity: alert.severity || null,
+    fields: payload.fields || {},
   };
 }
 

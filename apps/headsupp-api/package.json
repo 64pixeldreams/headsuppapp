@@ -35,6 +35,7 @@
     "smoke:email-design": "node scripts/email-design-smoke.mjs",
     "smoke:event-occurrence": "node scripts/event-occurrence-smoke.mjs",
     "smoke:valueless-event": "node scripts/valueless-event-smoke.mjs",
+    "smoke:subscriber-dimension-filters": "node scripts/subscriber-dimension-filters-smoke.mjs",
     "smoke:provision-channel": "node scripts/provision-channel-smoke.mjs",
     "smoke:workspace-subscriber": "node scripts/workspace-subscriber-smoke.mjs",
     "smoke:subscriber-filters": "node scripts/subscriber-filters-smoke.mjs",

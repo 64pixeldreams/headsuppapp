@@ -728,13 +728,23 @@ recovery
 Operators can control noisy watches:
 
 ```text
-admin.snoozeWatch  temporarily suppress one watch
+admin.snoozeWatch  temporarily suppress one watch (until snooze_until)
 admin.muteWatch    suppress a watch or signal until resumed or expiry
 admin.resumeWatch  clear active snooze/mute controls
+admin.updateWatch  durably disable (enabled:false) or re-enable (enabled:true) a watch, or update its fields
 admin.ignoreAlert  mark pending/retrying deliveries for one alert as ignored
 ```
 
-These actions are tenant-scoped and audited.
+Control durability:
+
+```text
+snooze   temporary, time-boxed
+mute     until resumed
+disable  durable off via admin.updateWatch enabled:false (reversible)
+delete   not yet available; use disable
+```
+
+Disabled watches are skipped by evaluation. Snooze and mute remain the right tools for temporary noise control; use `admin.updateWatch enabled:false` to turn a watch off for migrations or when a user stops wanting an alert. These actions are tenant-scoped and audited.
 
 ## Channel Contracts
 

@@ -35,6 +35,7 @@ admin.disableSubscriber
 admin.deleteSubscriber
 admin.createSignal
 admin.createWatch
+admin.updateWatch
 admin.createChannelContract
 admin.updateChannelContract
 admin.getChannelContract
@@ -357,9 +358,27 @@ Alert and quiet-state reads are safe control-plane functions. They return alert 
 
 `admin.listAlertTimeline` returns the same safe alert shape ordered by `triggered_at` for recent channel history. `admin.listChannelAlerts` includes `metadata.suppressed_watch_count` when watches are currently in cooldown.
 
+## Watch Lifecycle
+
+`admin.updateWatch` durably changes a watch. The most common use is turning a watch off without deleting it (for example when migrating a recipient between channels):
+
+```json
+{
+  "action": "admin.updateWatch",
+  "payload": {
+    "workspace_id": "ws_123",
+    "channel_id": "ch_123",
+    "watch_id": "watch_123",
+    "enabled": false
+  }
+}
+```
+
+Only provided fields change (`enabled`, `name`, `cooldown_seconds`, `config`, `escalation`, `recovery`). Re-enable with `enabled: true`. Returns `data.watch` and `data.changed`. Requires `watch:update` (existing `watch:create` / `watch:control` keys are accepted until rotated). Cross-tenant updates are denied and the action is audited. Disabled watches are skipped by evaluation. Hard delete is not yet available; prefer disable.
+
 ## Watch Action Controls
 
-Manual attention controls are tenant-scoped and audited. They write durable action rows that the watch decision path reads before cooldown/escalation logic.
+Manual attention controls are tenant-scoped and audited. They write durable action rows that the watch decision path reads before cooldown/escalation logic. Snooze and mute are temporary; durable off is `admin.updateWatch enabled:false`.
 
 Snooze a watch until a timestamp:
 

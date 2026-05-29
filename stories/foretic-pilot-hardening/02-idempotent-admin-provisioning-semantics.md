@@ -85,7 +85,12 @@ SDK docs:
 
 ## Status
 
-Pending.
+Implemented. Idempotent create semantics ship in `apps/headsupp-api/src/services/admin/control-plane.js`: `createAdminWorkspace`, `createAdminChannel`, `createAdminConnector`, `createAdminSignal`, `createAdminWatch`, and `createAdminSubscriber` all return the canonical stored row with `created: false` on repeat. `createAdminConnector` returns `connector_secret` only on a true first create (`secret_returned`). `createAdminSubscriber` supports `upsert_existing` to update mutable fields under a stable `subscriber_key` while preserving email authorization and suppressing duplicate opt-in email.
+
+Verified by:
+
+- `apps/headsupp-api/test/unit/admin-control-plane.test.js` (direct create-twice coverage for workspace, watch, subscriber; connector secret protection; provisionChannel idempotency).
+- Docs: `docs/api/admin.md` (Validation And Idempotent Creates), `docs/api/reference.md`, `docs/api/subscribers.md`.
 
 ## Depends On
 

@@ -19,6 +19,7 @@ import {
   snoozeAdminWatch,
   updateAdminChannel,
   updateAdminChannelContract,
+  updateAdminWatch,
 } from '../services/admin/control-plane.js';
 import { provisionAdminChannel } from '../services/admin/provision-channel.js';
 import { getAdminWatchState, listAdminAlertTimeline, listAdminChannelAlerts, traceAdminEvent } from '../services/admin/read-models.js';
@@ -133,6 +134,7 @@ export async function registerAdminFunctions(cloudFunction) {
   defineAdmin('admin.deleteSubscriber', deleteAdminSubscriber);
   defineAdmin('admin.createSignal', createAdminSignal);
   defineAdmin('admin.createWatch', createAdminWatch);
+  defineAdmin('admin.updateWatch', updateAdminWatch);
   defineAdmin('admin.createChannelContract', createAdminChannelContract);
   defineAdmin('admin.updateChannelContract', updateAdminChannelContract);
   defineAdmin('admin.getChannelContract', getAdminChannelContract);

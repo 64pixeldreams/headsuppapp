@@ -151,6 +151,18 @@ Payload props:
 
 Returns `data.watch` and `data.created`.
 
+### `admin.updateWatch`
+
+Payload props:
+
+- `workspace_id` (string, required).
+- `channel_id` (string, required).
+- `watch_id` (string, required).
+- `enabled` (boolean, optional): durable disable/enable.
+- `name`, `cooldown_seconds`, `config`, `escalation`, `recovery` (optional; only provided fields change).
+
+Returns `data.watch` and `data.changed`. Requires `watch:update` (existing `watch:create` / `watch:control` keys accepted until rotated).
+
 Supported watch types (explained in [watch-types.md](watch-types.md)):
 
 - [`LAST_VALUE_GT`](watch-types.md#last_value_gt)

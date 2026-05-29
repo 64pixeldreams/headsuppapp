@@ -61,7 +61,10 @@ If no filters are configured, the subscriber receives every alert that matches t
       "signal_keys": ["forecast.goal.risk"],
       "watch_group_keys": ["forecast_goal_health"],
       "watch_keys": ["watch_goal_risk_warning"],
-      "band_keys": ["warning", "critical"]
+      "band_keys": ["warning", "critical"],
+      "dimensions": {
+        "forecast_id": ["forecast_123", "forecast_999"]
+      }
     }
   }
 }
@@ -81,11 +84,31 @@ watch_keys
 
 band_keys
   Match grouped band keys, such as warning or critical.
+
+dimensions   (alias: fields)
+  Scope alerts by event dimension value, such as forecast_id. An object of
+  dimension name -> allowed string values. The value is read from the alert
+  event fields (for example fields.forecast_id).
 ```
 
-Filter matching is OR across dimensions. For example, `signal_keys: ["forecast.goal.risk"]` receives all goal-risk alerts without also listing every watch group or band. Adding `band_keys: ["critical"]` also receives any critical grouped alert that exposes `band_key = critical`.
+Matching semantics:
 
-Empty arrays are treated as unset. Invalid filter values are rejected when the subscriber is created or updated.
+```text
+delivered = typeMatch AND dimensionMatch
+
+typeMatch
+  true if no type filters (signal_keys / watch_group_keys / watch_keys / band_keys) are set,
+  otherwise OR across the type filters that are set.
+
+dimensionMatch
+  true if no dimensions are set,
+  otherwise AND across each configured dimension key (OR within one key's values).
+  An alert that does not carry a configured dimension value never matches.
+```
+
+The type filters keep OR semantics, so `signal_keys: ["forecast.goal.risk"]` still receives all goal-risk alerts. `dimensions` adds an AND scope on top, so `signal_keys: ["forecast.goal.risk"]` with `dimensions: { forecast_id: ["forecast_123"] }` receives only goal-risk alerts about forecast_123. This is what lets one shared channel-per-user carry many forecasts while each recipient scopes to the forecasts they care about.
+
+Empty arrays are treated as unset. Invalid filter values are rejected when the subscriber is created or updated. Subscribers with no `dimensions` are unaffected and keep the previous OR-only behavior.
 
 When using `admin.provisionChannel`, set a stable `subscriber_key` per recipient. Rerunning provisioning with the same `subscriber_key` updates mutable subscriber fields such as `name`, `mode`, `enabled`, and `config.filters`, so integrators can change recipient alert preferences idempotently. Updating filters preserves email authorization and does not send another opt-in email. Changing an email destination should create a new subscriber or use an explicit reauthorization flow.
 

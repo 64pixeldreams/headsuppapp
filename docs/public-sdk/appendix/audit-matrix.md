@@ -14,6 +14,7 @@ Source: [`src/client.js`](../../src/client.js) and [`admin-functions.js`](https:
 | `createConnector` | `admin.createConnector` | getting-started |
 | `createSignal` | `admin.createSignal` | getting-started |
 | `createWatch` | `admin.createWatch` | getting-started, [concepts/watch-types.md](../concepts/watch-types.md) |
+| `updateWatch` / `disableWatch` / `enableWatch` | `admin.updateWatch` | [cookbook/noise-control.md](../cookbook/noise-control.md) |
 | `createSubscriber` | `admin.createSubscriber` | cookbooks |
 | `getSubscriber` | `admin.getSubscriber` | [client-reference.md](../client-reference.md), [email-subscribers.md](../../api/email-subscribers.md) |
 | `listSubscribers` | `admin.listSubscribers` | client-reference |

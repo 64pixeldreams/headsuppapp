@@ -176,7 +176,7 @@ Payload props:
 - `display_name` (string, optional).
 - `mode` (string, optional): `alert`, `aggregate_forward`, `quiet_summary`. Defaults to `alert`.
 - `subscriber_key` (string, optional): stable subscriber identity for idempotent provisioning/upsert.
-- `config` (object, optional): receiver settings (`signing_secret` for webhook, `template_id`/`value_format`/`locale`/template labels/standard action buttons for email). For `mode = alert`, `config.filters` can restrict deliveries by `signal_keys`, `watch_group_keys`, `watch_keys`, or `band_keys`.
+- `config` (object, optional): receiver settings (`signing_secret` for webhook, `template_id`/`value_format`/`locale`/template labels/standard action buttons for email). For `mode = alert`, `config.filters` can restrict deliveries by `signal_keys`, `watch_group_keys`, `watch_keys`, or `band_keys` (OR semantics), and scope by `dimensions` such as `forecast_id` (AND scope; alias `fields`).
 - `enabled` (boolean, optional): defaults to true.
 
 Returns `data.subscriber` (redacted destination only), `data.created`, and optional `data.authorization`.
@@ -190,10 +190,13 @@ Alert filter example:
   "filters": {
     "signal_keys": ["forecast.goal.risk"],
     "watch_group_keys": ["forecast_goal_health"],
-    "band_keys": ["warning", "critical"]
+    "band_keys": ["warning", "critical"],
+    "dimensions": { "forecast_id": ["forecast_123"] }
   }
 }
 ```
+
+Type filters (`signal_keys`/`watch_group_keys`/`watch_keys`/`band_keys`) are OR'd together. `dimensions` is an AND scope applied on top: the example above delivers goal-risk alerts only for `forecast_123`. The dimension value is read from the alert event fields (`fields.forecast_id`).
 
 No filters preserves current behavior and receives all matching channel/workspace alerts. Filters match with OR semantics across dimensions.
 
@@ -360,6 +363,35 @@ Payload props:
 - `enabled` (boolean, optional).
 
 Returns `data.watch` and `data.created`.
+
+### `admin.updateWatch`
+
+Updates a watch in place. Use this for durable lifecycle control, including turning a watch off without deleting it.
+
+Payload props:
+
+- `workspace_id` (string, required).
+- `channel_id` (string, required).
+- `watch_id` (string, required).
+- `enabled` (boolean, optional): `false` durably disables future evaluation; `true` re-enables.
+- `name` (string, optional).
+- `cooldown_seconds` (number, optional).
+- `config` (object, optional): replaces the stored watch config.
+- `escalation` (object, optional): pass `null` to clear.
+- `recovery` (object, optional): pass `null` to clear.
+
+Only provided fields change; omitted fields keep their stored value. Returns `data.watch` and `data.changed` (true when `enabled` flipped). Requires `watch:update`; existing keys with `watch:create` or `watch:control` are accepted until rotated. Cross-tenant updates are denied.
+
+Lifecycle vs temporary controls:
+
+```text
+admin.updateWatch enabled:false   durable off (reversible with enabled:true)
+admin.snoozeWatch                  temporary suppression until snooze_until
+admin.muteWatch                    suppression until resumed
+admin.resumeWatch                  clears active snooze/mute
+```
+
+Hard delete (`admin.deleteWatch`) is not yet available; disable is the supported way to turn a watch off. Historical alerts are retained.
 
 Noise-control props:
 

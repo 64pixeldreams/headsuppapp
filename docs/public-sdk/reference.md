@@ -297,6 +297,20 @@ Payload props:
 
 Returns `data.watch` and `data.created`.
 
+### `admin.updateWatch`
+
+Durably update a watch. SDK wrappers: `updateWatch`, plus `disableWatch` / `enableWatch` convenience.
+
+Payload props:
+
+- `workspace_id` (string, required).
+- `channel_id` (string, required).
+- `watch_id` (string, required).
+- `enabled` (boolean, optional): `false` durably disables, `true` re-enables.
+- `name`, `cooldown_seconds`, `config`, `escalation`, `recovery` (all optional; only provided fields change).
+
+Returns `data.watch` and `data.changed`. Requires `watch:update` (existing `watch:create` / `watch:control` keys accepted until rotated). Disable is the durable off switch; snooze/mute are temporary. No hard delete yet.
+
 Noise-control props:
 
 ```text

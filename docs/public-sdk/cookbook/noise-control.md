@@ -65,6 +65,32 @@ await headsup.resumeWatch({
 });
 ```
 
+## Disable durably (vs snooze/mute)
+
+Snooze and mute are temporary. To turn a watch off for good (until you re-enable it) — for example when migrating a user off an old channel — use `disableWatch`:
+
+```js
+await headsup.disableWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  watch_id: watch.watch_id,
+});
+
+// Reversible:
+await headsup.enableWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  watch_id: watch.watch_id,
+});
+```
+
+```text
+snooze   temporary, until snooze_until
+mute     until you resume
+disable  durable off, reversible with enableWatch
+delete   not available yet — disable instead
+```
+
 ## Ignore one alert
 
 ```js

@@ -476,6 +476,14 @@ function denyUnlessSubscriberRead(auth) {
   return requirePermission(auth, 'subscriber:read');
 }
 
+function denyUnlessWatchUpdate(auth) {
+  if (hasPermission(auth, 'watch:update')) return null;
+  // Existing integration keys that can create or control watches may update them
+  // before they are rotated to include the new watch:update permission.
+  if (hasPermission(auth, 'watch:create') || hasPermission(auth, 'watch:control')) return null;
+  return requirePermission(auth, 'watch:update');
+}
+
 async function insertRow(db, table, row) {
   const columns = Object.keys(row);
   const placeholders = columns.map(() => '?').join(', ');
@@ -1171,6 +1179,57 @@ export async function createAdminWatch({ auth, db, input, now }) {
   if (existing) return { ok: true, created: false, watch: existing };
   await insertRow(db, 'watches', row);
   return { ok: true, created: true, watch: (await loadWatch(db, row.watch_id)) || row };
+}
+
+export async function updateAdminWatch({ auth, db, input, now }) {
+  const denied = denyUnlessWatchUpdate(auth);
+  if (denied) return denied;
+  const action = 'admin.updateWatch';
+  for (const field of ['workspace_id', 'channel_id', 'watch_id']) {
+    const required = requireString(input, field, action);
+    if (!required.ok) return required;
+  }
+  if (input.config !== undefined && (typeof input.config !== 'object' || Array.isArray(input.config) || input.config === null)) {
+    return validationError(action, 'config', 'config must be an object when provided.');
+  }
+  const scopeDenied =
+    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id })) ||
+    (await requireWatchScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id, watchId: input.watch_id }));
+  if (scopeDenied) return scopeDenied;
+  const watch = await loadWatch(db, input.watch_id);
+  if (!watch) return { ok: false, status: 404, code: 'WATCH_NOT_FOUND', message: 'Watch was not found.' };
+
+  const next = {
+    name: input.name ?? watch.name,
+    enabled: input.enabled === undefined ? watch.enabled : input.enabled === false ? 0 : 1,
+    cooldown_seconds: input.cooldown_seconds === undefined ? watch.cooldown_seconds : Number(input.cooldown_seconds),
+    config_json: input.config === undefined ? watch.config_json : JSON.stringify(input.config),
+    escalation_json: input.escalation === undefined ? watch.escalation_json : input.escalation ? JSON.stringify(input.escalation) : null,
+    recovery_json: input.recovery === undefined ? watch.recovery_json : input.recovery ? JSON.stringify(input.recovery) : null,
+    updated_at: now,
+  };
+  await db
+    .prepare(
+      `UPDATE watches
+       SET name = ?, enabled = ?, cooldown_seconds = ?, config_json = ?, escalation_json = ?, recovery_json = ?, updated_at = ?
+       WHERE id = ? OR watch_id = ?`,
+    )
+    .bind(
+      next.name,
+      next.enabled,
+      next.cooldown_seconds,
+      next.config_json,
+      next.escalation_json,
+      next.recovery_json,
+      next.updated_at,
+      watch.id || watch.watch_id,
+      watch.watch_id || watch.id,
+    )
+    .run();
+
+  const updated = (await loadWatch(db, watch.id || watch.watch_id)) || { ...watch, ...next };
+  return { ok: true, watch: updated, changed: Number(watch.enabled) !== Number(next.enabled) };
 }
 
 export async function createAdminWatchGroup({ auth, db, input, now }) {

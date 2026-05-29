@@ -13,6 +13,7 @@ const context = {
   watch_key: 'watch_goal_warning',
   watch_id: 'watch_goal_warning',
   band_key: 'critical',
+  fields: { forecast_id: 'forecast_123' },
 };
 
 function subscriber(filters) {
@@ -76,6 +77,55 @@ test('subscriber alert filters reject malformed filter arrays', () => {
     },
   });
 
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'INVALID_SUBSCRIBER_FILTERS');
+});
+
+test('subscriber alert filters scope by dimension value', () => {
+  assert.equal(subscriberMatchesAlertFilters(subscriber({ dimensions: { forecast_id: ['forecast_123'] } }), context), true);
+  assert.equal(subscriberMatchesAlertFilters(subscriber({ dimensions: { forecast_id: ['forecast_999'] } }), context), false);
+});
+
+test('subscriber alert filters AND type with dimension scope', () => {
+  // goal-risk on forecast_123 -> delivered
+  assert.equal(
+    subscriberMatchesAlertFilters(
+      subscriber({ signal_keys: ['forecast.goal.risk'], dimensions: { forecast_id: ['forecast_123'] } }),
+      context,
+    ),
+    true,
+  );
+  // right type, wrong forecast -> not delivered (dimension is an AND scope)
+  assert.equal(
+    subscriberMatchesAlertFilters(
+      subscriber({ signal_keys: ['forecast.goal.risk'], dimensions: { forecast_id: ['forecast_999'] } }),
+      context,
+    ),
+    false,
+  );
+  // right forecast, wrong type -> not delivered
+  assert.equal(
+    subscriberMatchesAlertFilters(
+      subscriber({ signal_keys: ['forecast.revenue.pace'], dimensions: { forecast_id: ['forecast_123'] } }),
+      context,
+    ),
+    false,
+  );
+});
+
+test('subscriber alert dimension filter requires the dimension to be present on the alert', () => {
+  const withoutField = { ...context, fields: {} };
+  assert.equal(subscriberMatchesAlertFilters(subscriber({ dimensions: { forecast_id: ['forecast_123'] } }), withoutField), false);
+});
+
+test('subscriber alert filters accept fields as an alias for dimensions', () => {
+  const result = normalizeSubscriberAlertFilters({ fields: { forecast_id: ['forecast_123'] } });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.filters, { dimensions: { forecast_id: ['forecast_123'] } });
+});
+
+test('subscriber alert filters reject malformed dimension shapes', () => {
+  const result = normalizeSubscriberConfigAlertFilters({ filters: { dimensions: { forecast_id: 'forecast_123' } } });
   assert.equal(result.ok, false);
   assert.equal(result.code, 'INVALID_SUBSCRIBER_FILTERS');
 });

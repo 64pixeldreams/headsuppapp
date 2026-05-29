@@ -63,6 +63,23 @@ When `authorization.required` is true, the subscriber starts disabled until the 
 
 **Batch subscribe:** consent is per subscriber row, not per email globally. To subscribe a user to many alerts with **one** opt-in email, use one channel + one email subscriber + `config.filters`, not one email subscriber per channel. See [email-subscribers.md](../../api/email-subscribers.md#batch-subscribe-and-one-opt-in-email) (API repo) or provision with `admin.provisionChannel` and a stable `subscriber_key`.
 
+**Per-recipient resource preferences (one shared channel, many forecasts):** scope a recipient to specific resources with `config.filters.dimensions`. Type filters are OR'd; `dimensions` is an AND scope read from the alert event fields. For "only goal-risk on forecast_123":
+
+```json
+{
+  "mode": "alert",
+  "subscriber_key": "acme:user_42:board@example.com",
+  "config": {
+    "filters": {
+      "signal_keys": ["forecast.goal.risk"],
+      "dimensions": { "forecast_id": ["forecast_123"] }
+    }
+  }
+}
+```
+
+Re-provisioning the same `subscriber_key` with updated `dimensions` changes preferences idempotently and does not re-send an opt-in email.
+
 ## Watch and send (same as webhook path)
 
 ```js

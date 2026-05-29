@@ -284,6 +284,57 @@ test('persists deliveries only for matching subscriber alert filters', async () 
   assert.equal(statements.filter((statement) => /INSERT INTO alert_deliveries/.test(statement.sql)).length, 2);
 });
 
+test('persists deliveries only for subscribers whose dimension filter matches the alert forecast', async () => {
+  const db = {
+    prepare(sql) {
+      return {
+        bind(...params) {
+          return {
+            sql,
+            params,
+            async first() {
+              if (/FROM signals/.test(sql)) return { signal_key: 'forecast.goal.risk' };
+              if (/FROM watches/.test(sql)) return { watch_id: 'watch_goal_critical' };
+              return null;
+            },
+            async all() {
+              if (/FROM subscribers/.test(sql)) {
+                return {
+                  results: [
+                    {
+                      subscriber_id: 'sub_forecast_123',
+                      destination_url: 'a@example.com',
+                      config_json: JSON.stringify({ filters: { dimensions: { forecast_id: ['forecast_123'] } } }),
+                    },
+                    {
+                      subscriber_id: 'sub_forecast_999',
+                      destination_url: 'b@example.com',
+                      config_json: JSON.stringify({ filters: { dimensions: { forecast_id: ['forecast_999'] } } }),
+                    },
+                  ],
+                };
+              }
+              return { results: [] };
+            },
+          };
+        },
+      };
+    },
+    async batch() {},
+  };
+
+  const result = await persistAlertWithDeliveries({
+    db,
+    watch: { ...watch, id: 'watch_goal_critical', watch_id: 'watch_goal_critical', signal_id: 'sig_goal' },
+    evaluation: { ...evaluation, fields: { forecast_id: 'forecast_123' } },
+    decision,
+    input: { ...input, signalId: 'sig_goal' },
+    now: '2026-05-24T10:05:00.000Z',
+  });
+
+  assert.deepEqual(result.deliveries.map((delivery) => delivery.subscriber_id), ['sub_forecast_123']);
+});
+
 test('persists deliveries for matching watch group and band filters', async () => {
   const db = {
     prepare(sql) {

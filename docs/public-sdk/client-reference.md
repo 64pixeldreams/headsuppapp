@@ -357,6 +357,37 @@ const watch = await headsup.createWatch({
 
 Watch types and config: [concepts/watch-types.md](concepts/watch-types.md).
 
+### updateWatch(payload) → watch
+
+Durably update a watch. Only provided fields change; `data.changed` reports whether `enabled` flipped.
+
+```js
+// Durably turn a watch off (reversible) — e.g. during a migration.
+await headsup.disableWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  watch_id: watch.watch_id,
+});
+
+// Re-enable it later.
+await headsup.enableWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  watch_id: watch.watch_id,
+});
+
+// Or update fields directly.
+await headsup.updateWatch({
+  workspace_id: workspace.workspace_id,
+  channel_id: channel.channel_id,
+  watch_id: watch.watch_id,
+  cooldown_seconds: 7200,
+  enabled: true,
+});
+```
+
+`disableWatch` / `enableWatch` are convenience wrappers over `updateWatch` with `enabled` set. Disable is durable and reversible; for temporary suppression use `snoozeWatch` / `muteWatch`. There is no hard delete yet — disable instead.
+
 ## Read models
 
 ### listChannelAlerts(payload) → { alerts, metadata }

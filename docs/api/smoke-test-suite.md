@@ -52,6 +52,7 @@ npm run smoke:email-inbox-loop
 npm run smoke:event-occurrence
 npm run smoke:valueless-event
 npm run smoke:subscriber-lifecycle
+npm run smoke:subscriber-dimension-filters
 npm run soak:release
 ```
 
@@ -98,6 +99,7 @@ smoke:email-inbox-loop Email + deployed automated inbox receipt proof through te
 smoke:event-occurrence D1/HTTP + deployed EVENT_OCCURRENCE dedupe, duplicate suppression, second occurrence alert, and forecast_win_v1 metadata
 smoke:valueless-event  D1/HTTP + deployed value-less (value.num=null) event fires an EVENT_OCCURRENCE alert and reaches raw_event_dedupe status 'processed' (regression guard against queue poisoning / stranded events)
 smoke:subscriber-lifecycle API + deployed  admin.getSubscriber/listSubscribers pending authorization reads; optional confirm + disable when service key and email auth secret configured
+smoke:subscriber-dimension-filters D1/HTTP + deployed one shared channel with two forecast-scoped subscribers (config.filters.dimensions.forecast_id); each recipient receives only their forecast's alert
 load:smoke               local             10000 synthetic events fold into fewer aggregate deltas
 load:high-volume         local             configurable high-volume synthetic proof, default 100000 events
 soak:release             local             bounded throughput and fold-compression release proof

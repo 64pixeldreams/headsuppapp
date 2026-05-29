@@ -26,6 +26,7 @@ import {
   snoozeAdminWatch,
   updateAdminChannel,
   updateAdminChannelContract,
+  updateAdminWatch,
 } from '../../src/services/admin/control-plane.js';
 import { provisionAdminChannel } from '../../src/services/admin/provision-channel.js';
 
@@ -1291,6 +1292,147 @@ test('admin watch rejects signal outside channel scope', async () => {
 
   assert.equal(result.ok, false);
   assert.equal(result.code, 'SIGNAL_SCOPE_MISMATCH');
+});
+
+test('admin updateWatch disables a watch and reports the change', async () => {
+  const calls = [];
+  const result = await updateAdminWatch({
+    auth: { user_id: 'user_admin', permissions: ['watch:update'] },
+    db: scopedDb(
+      {
+        workspace: { id: 'ws_a', workspace_id: 'ws_a' },
+        channel: { id: 'ch_a', channel_id: 'ch_a', workspace_id: 'ws_a' },
+        watch: {
+          id: 'watch_a',
+          watch_id: 'watch_a',
+          workspace_id: 'ws_a',
+          channel_id: 'ch_a',
+          signal_id: 'sig_a',
+          name: 'Pace warning',
+          watch_type: 'LAST_VALUE_GT',
+          config_json: '{"threshold":10}',
+          cooldown_seconds: 3600,
+          enabled: 1,
+        },
+      },
+      calls,
+    ),
+    input: { workspace_id: 'ws_a', channel_id: 'ch_a', watch_id: 'watch_a', enabled: false },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.changed, true);
+  assert.ok(calls.some((call) => /UPDATE watches/.test(call.sql)));
+});
+
+test('admin updateWatch is allowed for existing watch:create keys before rotation', async () => {
+  const result = await updateAdminWatch({
+    auth: { user_id: 'user_admin', permissions: ['watch:create'] },
+    db: scopedDb({
+      workspace: { id: 'ws_a', workspace_id: 'ws_a' },
+      channel: { id: 'ch_a', channel_id: 'ch_a', workspace_id: 'ws_a' },
+      watch: { id: 'watch_a', watch_id: 'watch_a', workspace_id: 'ws_a', channel_id: 'ch_a', enabled: 1, cooldown_seconds: 60 },
+    }),
+    input: { workspace_id: 'ws_a', channel_id: 'ch_a', watch_id: 'watch_a', name: 'Renamed' },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+});
+
+test('admin updateWatch denies cross-tenant updates', async () => {
+  const result = await updateAdminWatch({
+    auth: { user_id: 'user_admin', permissions: ['watch:update'], external_tenant_id: 'tenant_1' },
+    db: scopedDb({
+      workspace: { id: 'ws_a', workspace_id: 'ws_a', external_tenant_id: 'tenant_2' },
+      channel: { id: 'ch_a', channel_id: 'ch_a', workspace_id: 'ws_a', external_tenant_id: 'tenant_2' },
+      watch: { id: 'watch_a', watch_id: 'watch_a', workspace_id: 'ws_a', channel_id: 'ch_a', external_tenant_id: 'tenant_2', enabled: 1 },
+    }),
+    input: { workspace_id: 'ws_a', channel_id: 'ch_a', watch_id: 'watch_a', enabled: false },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'TENANT_SCOPE_MISMATCH');
+});
+
+test('admin updateWatch requires watch_id', async () => {
+  const result = await updateAdminWatch({
+    auth: { user_id: 'user_admin', permissions: ['watch:update'] },
+    db: scopedDb({ workspace: { id: 'ws_a', workspace_id: 'ws_a' }, channel: { id: 'ch_a', channel_id: 'ch_a', workspace_id: 'ws_a' } }),
+    input: { workspace_id: 'ws_a', channel_id: 'ch_a' },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'VALIDATION_ERROR');
+});
+
+test('admin createWorkspace returns the stored row and created:false on repeat', async () => {
+  const result = await createAdminWorkspace({
+    auth: { user_id: 'user_admin', permissions: ['workspace:create'] },
+    db: scopedDb({ workspace: { id: 'ws_a', workspace_id: 'ws_a', workspace_key: 'demo:acme' } }),
+    input: { name: 'Acme', source_app: 'demo', external_tenant_id: 'tenant_1', external_user_id: 'user_1', workspace_key: 'demo:acme' },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.created, false);
+  assert.equal(result.workspace.workspace_id, 'ws_a');
+});
+
+test('admin createWatch returns the stored watch and created:false on repeat', async () => {
+  const result = await createAdminWatch({
+    auth: { user_id: 'user_admin', permissions: ['watch:create'] },
+    db: scopedDb({
+      workspace: { id: 'ws_a', workspace_id: 'ws_a' },
+      channel: { id: 'ch_a', channel_id: 'ch_a', workspace_id: 'ws_a' },
+      signal: { id: 'sig_a', signal_id: 'sig_a', workspace_id: 'ws_a', channel_id: 'ch_a' },
+      watch: { id: 'watch_a', watch_id: 'watch_a', workspace_id: 'ws_a', channel_id: 'ch_a' },
+    }),
+    input: { workspace_id: 'ws_a', channel_id: 'ch_a', signal_id: 'sig_a', name: 'Pace high', watch_type: 'LAST_VALUE_GT', watch_id: 'watch_a' },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.created, false);
+  assert.equal(result.watch.watch_id, 'watch_a');
+});
+
+test('admin createSubscriber is idempotent and does not resend authorization on repeat', async () => {
+  let authEmails = 0;
+  const result = await createAdminSubscriber({
+    auth: { user_id: 'user_admin', permissions: ['subscriber:create'] },
+    db: scopedDb({
+      workspace: { id: 'ws_a', workspace_id: 'ws_a' },
+      channel: { id: 'ch_a', channel_id: 'ch_a', workspace_id: 'ws_a' },
+      subscriber: {
+        id: 'sub_a',
+        subscriber_id: 'sub_a',
+        workspace_id: 'ws_a',
+        channel_id: 'ch_a',
+        subscriber_type: 'email',
+        normalized_destination: 'board@example.com',
+        config_json: JSON.stringify({ authorization: { required: true, status: 'authorized' } }),
+        enabled: 1,
+      },
+    }),
+    env: { sendAuthorizationEmailFn: () => { authEmails += 1; } },
+    input: {
+      workspace_id: 'ws_a',
+      channel_id: 'ch_a',
+      subscriber_type: 'email',
+      destination_url: 'board@example.com',
+      mode: 'alert',
+    },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.created, false);
+  assert.equal(result.authorization, null);
+  assert.equal(authEmails, 0);
 });
 
 test('admin signal creation inherits channel contract defaults and materializes watch templates', async () => {
