@@ -444,3 +444,148 @@ test('infers forecast alert from generic forecast fields without Foretic-specifi
   assert.match(rendered.html, /\$7,500/);
   assert.match(rendered.html, /View forecast/);
 });
+
+test('renders forecast win template from success tone with shared shell', () => {
+  const rendered = renderAlertEmail({
+    alert: {
+      ...baseAlert,
+      severity: 'success',
+      current_value: 1,
+      threshold_value: 1,
+      cta_label: 'View forecast',
+      cta_url: 'https://example.com/forecasts/q2-revenue',
+      payload_json: JSON.stringify({
+        cta: {
+          label: 'View forecast',
+          url: 'https://example.com/forecasts/q2-revenue',
+          variant: 'success',
+        },
+        fields: {
+          event_type: 'goal_reached',
+          tone: 'success',
+          icon_variant: 'trophy',
+          forecast_name: 'Q2 Revenue',
+          resource_name: 'Q2 Revenue',
+          notification: {
+            title: 'Q2 Revenue',
+            summary: 'Goal reached: £10,000 hit 6 days early.',
+            detail: 'Best value to date is £10,250 against a £10,000 goal.',
+            headline_value: '£10,000',
+            headline_label: 'Goal reached',
+          },
+          display: {
+            goal_value: '£10,000',
+            observed_to_date: '£10,250',
+            reached_on: '24 Jun 2026',
+            days_early: '6 days early',
+          },
+          metrics: [
+            { label: 'Goal', value: '£10,000' },
+            { label: 'Observed', value: '£10,250' },
+            { label: 'Reached on', value: '24 Jun 2026' },
+            { label: 'Days early', value: '6' },
+          ],
+        },
+      }),
+    },
+    subscriber: {
+      destination_url: 'martin@inc64.com',
+      config_json: JSON.stringify({
+        template_id: 'forecast_alert_v1',
+        branding: {
+          brand_name: 'Foretic',
+          brand_url: 'https://foretic.io',
+          logo_url: 'https://example.com/foretic-logo.png',
+        },
+      }),
+    },
+    channel: { name: 'Revenue goals' },
+  });
+
+  assert.equal(rendered.template_id, 'forecast_win_v1');
+  assert.equal(rendered.subject, 'Success: Q2 Revenue');
+  assert.match(rendered.html, /Foretic/);
+  assert.match(rendered.html, /https:\/\/example\.com\/foretic-logo\.png/);
+  assert.match(rendered.html, /Goal reached/);
+  assert.match(rendered.html, /£10,000/);
+  assert.match(rendered.html, /Best value to date is £10,250/);
+  assert.match(rendered.html, /data-cta-variant="success"/);
+  assert.match(rendered.html, /background:#198754;color:#ffffff/);
+  assert.match(rendered.html, /ce7f99d4-1b03-403d-79a0-7e2084346100/);
+  assert.doesNotMatch(rendered.html, />WIN<\/div>/);
+  assert.match(rendered.html, /Powered by <a href="https:\/\/headsupp\.io\/"/);
+  assert.match(rendered.html, /INC64 LLC\. 30N St Ste N, Sheridan, WY 82801\./);
+});
+
+test('renders forecast win fallback icon and display metrics when headline is absent', () => {
+  const rendered = renderAlertEmail({
+    alert: {
+      ...baseAlert,
+      severity: 'info',
+      current_value: 1,
+      threshold_value: 1,
+      payload_json: JSON.stringify({
+        fields: {
+          template_kind: 'forecast_win',
+          icon_variant: 'target_hit',
+          forecast_name: 'Q3 Pipeline',
+          notification: {
+            summary: 'Target met for the quarter.',
+          },
+          display: {
+            goal_value: '$20,000',
+            observed_to_date: '$21,500',
+            reached_on: '30 Sep 2026',
+          },
+        },
+      }),
+    },
+    subscriber: { config_json: '{}' },
+    channel: {},
+  });
+
+  assert.equal(rendered.template_id, 'forecast_win_v1');
+  assert.match(rendered.html, /72fd0fa0-a91b-4ad4-fc9f-319d362cb500/);
+  assert.doesNotMatch(rendered.html, />HIT<\/div>/);
+  assert.match(rendered.html, /Milestone achieved/);
+  assert.match(rendered.html, /\$20,000/);
+  assert.match(rendered.html, /Observed/);
+  assert.match(rendered.text, /Target met for the quarter\./);
+});
+
+test('renders all Heads Up-owned forecast win icon asset aliases', () => {
+  const cases = [
+    ['medal', 'ec9d77a6-8193-4631-1f06-52698ad24b00'],
+    ['award', 'df51dfa6-5392-46b6-9c01-1ddfae3f5600'],
+    ['trophy', 'ce7f99d4-1b03-403d-79a0-7e2084346100'],
+    ['trendup', '38fbbbf5-7a77-4382-efef-26930f115100'],
+    ['rocket', '38fbbbf5-7a77-4382-efef-26930f115100'],
+  ];
+
+  for (const [iconVariant, assetId] of cases) {
+    const rendered = renderAlertEmail({
+      alert: {
+        ...baseAlert,
+        severity: 'success',
+        current_value: 1,
+        threshold_value: 1,
+        payload_json: JSON.stringify({
+          fields: {
+            tone: 'success',
+            icon_variant: iconVariant,
+            forecast_name: 'Q4 Revenue',
+            notification: {
+              summary: 'Milestone achieved.',
+              headline_value: '$25,000',
+            },
+          },
+        }),
+      },
+      subscriber: { config_json: '{}' },
+      channel: {},
+    });
+
+    assert.equal(rendered.template_id, 'forecast_win_v1');
+    assert.match(rendered.html, new RegExp(assetId));
+  }
+});

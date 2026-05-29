@@ -74,6 +74,8 @@ function formatNumericValue(value, { profile = 'decimal_2', locale = 'en-US' } =
 }
 
 function titlePrefix(severity) {
+  if (severity === 'success') return 'Success';
+  if (severity === 'info') return 'Update';
   if (severity === 'critical') return 'Critical';
   if (severity === 'recovered' || severity === 'recovery') return 'Recovered';
   return 'Warning';
@@ -144,6 +146,14 @@ function metricFromDisplay(display, key, label, subline = null) {
   return normalizeMetric({ label, value, subline });
 }
 
+function firstDisplayMetric(display, keys, label) {
+  for (const key of keys) {
+    const metric = metricFromDisplay(display, key, label);
+    if (metric) return metric;
+  }
+  return null;
+}
+
 function buildDefaultMetrics(context, { currentLabel = context.current_label, thresholdLabel = context.threshold_label } = {}) {
   return [
     normalizeMetric({ label: currentLabel || 'Current value', value: context.current_value_display }),
@@ -196,6 +206,22 @@ function buildForecastRows(context) {
   return rows.length ? rows : buildDefaultMetrics(context, { currentLabel: 'Pace', thresholdLabel: 'Pace threshold' });
 }
 
+function buildForecastWinRows(context) {
+  const fromPayload = Array.isArray(context.fields?.metrics)
+    ? context.fields.metrics.map(normalizeMetric).filter(Boolean)
+    : [];
+  if (fromPayload.length) return fromPayload;
+
+  const display = context.fields?.display && typeof context.fields.display === 'object' ? context.fields.display : {};
+  const rows = [
+    firstDisplayMetric(display, ['goal_value', 'target', 'target_value'], 'Goal'),
+    firstDisplayMetric(display, ['observed_to_date', 'actual_to_date', 'current_value'], 'Observed'),
+    firstDisplayMetric(display, ['reached_on', 'closed_on', 'period_closed_on'], 'Reached on'),
+    firstDisplayMetric(display, ['days_early', 'ahead_by', 'ahead_of_pace'], 'Ahead by'),
+  ].filter(Boolean);
+  return rows.length ? rows : buildForecastRows(context);
+}
+
 function buildSpendRows(context) {
   const fromPayload = Array.isArray(context.fields?.metrics)
     ? context.fields.metrics.map(normalizeMetric).filter(Boolean)
@@ -216,6 +242,16 @@ const DEFAULT_FOOTER_BRAND_NAME = 'headsupp.io';
 const DEFAULT_FOOTER_BRAND_URL = 'https://headsupp.io';
 const DEFAULT_POWERED_BY_NAME = 'headsupp.io';
 const DEFAULT_POWERED_BY_URL = 'https://headsupp.io';
+const HEADSUPP_SUCCESS_ICON_URLS = Object.freeze({
+  trophy: 'https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/ce7f99d4-1b03-403d-79a0-7e2084346100/public',
+  award: 'https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/df51dfa6-5392-46b6-9c01-1ddfae3f5600/public',
+  medal: 'https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/ec9d77a6-8193-4631-1f06-52698ad24b00/public',
+  target: 'https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/72fd0fa0-a91b-4ad4-fc9f-319d362cb500/public',
+  target_hit: 'https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/72fd0fa0-a91b-4ad4-fc9f-319d362cb500/public',
+  trendup: 'https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/38fbbbf5-7a77-4382-efef-26930f115100/public',
+  trend_up: 'https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/38fbbbf5-7a77-4382-efef-26930f115100/public',
+  rocket: 'https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/38fbbbf5-7a77-4382-efef-26930f115100/public',
+});
 
 function hasBrandingValue(value) {
   if (value === undefined || value === null) return false;
@@ -288,6 +324,8 @@ function severityStyle(severity) {
   const styles = {
     critical: { bg: '#FEE2E2', text: '#B91C1C', border: '#FCA5A5', label: 'Critical' },
     warning: { bg: '#FEF3C7', text: '#B45309', border: '#FCD34D', label: 'Warning' },
+    success: { bg: '#DCFCE7', text: '#15803D', border: '#86EFAC', label: 'Success' },
+    info: { bg: '#DBEAFE', text: '#1D4ED8', border: '#93C5FD', label: 'Info' },
     recovered: { bg: '#DCFCE7', text: '#15803D', border: '#86EFAC', label: 'Recovered' },
     recovery: { bg: '#DCFCE7', text: '#15803D', border: '#86EFAC', label: 'Recovered' },
   };
@@ -296,15 +334,31 @@ function severityStyle(severity) {
 
 function statusIcon(severity) {
   if (severity === 'critical') return { label: '!', bg: '#DC2626' };
+  if (severity === 'success') return { label: 'WIN', bg: '#16A34A' };
+  if (severity === 'info') return { label: 'i', bg: '#2563EB' };
   if (severity === 'recovered' || severity === 'recovery') return { label: 'OK', bg: '#16A34A' };
   return { label: '!', bg: '#F59E0B' };
 }
 
+function successIcon(variant) {
+  const icons = {
+    trophy: { label: 'WIN', bg: '#16A34A', title: 'Trophy' },
+    medal: { label: '1st', bg: '#0F766E', title: 'Medal' },
+    rocket: { label: 'GO', bg: '#2563EB', title: 'Rocket' },
+    target_hit: { label: 'HIT', bg: '#15803D', title: 'Target hit' },
+    target: { label: 'HIT', bg: '#15803D', title: 'Target hit' },
+    check: { label: 'OK', bg: '#16A34A', title: 'Success' },
+  };
+  return icons[String(variant || '').trim().toLowerCase()] || icons.check;
+}
+
 function iconUrlForContext(context, brand) {
+  const successIconUrl = context.hero_icon_variant ? HEADSUPP_SUCCESS_ICON_URLS[context.hero_icon_variant] : null;
   return safeUrl(
     context.notification?.icon_url
       || context.fields?.icon_url
       || context.fields?.email?.icon_url
+      || successIconUrl
       || brand.icons?.[context.severity]
       || brand.icons?.alert
       || null,
@@ -356,7 +410,7 @@ function renderActionControls(actionLinks) {
 function renderBrandShell(context, { metrics = buildDefaultMetrics(context), subjectTitle = context.title } = {}) {
   const brand = context.branding || normalizeBranding();
   const style = severityStyle(context.severity);
-  const icon = statusIcon(context.severity);
+  const icon = context.hero_icon_variant ? successIcon(context.hero_icon_variant) : statusIcon(context.severity);
   const heroIconUrl = iconUrlForContext(context, brand);
   const actionLinks = Array.isArray(context.action_links) ? context.action_links : [];
   const actionTextLines = actionLinks.map((action) => `${action.label}: ${action.url}`);
@@ -371,6 +425,8 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
   const escapedTitle = escapeHtml(context.title);
   const escapedSummary = escapeHtml(context.summary);
   const escapedDetail = escapeHtml(context.detail || '');
+  const headlineValue = context.headline_value ? escapeHtml(context.headline_value) : null;
+  const headlineLabel = context.headline_label ? escapeHtml(context.headline_label) : null;
   const escapedFooter = brand.footer_text ? escapeHtml(brand.footer_text) : null;
   const footerBrandName = String(brand.footer_brand_name || '').trim();
   const footerBrandUrl = safeUrl(brand.footer_brand_url);
@@ -444,6 +500,12 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
   const heroIconHtml = heroIconUrl
     ? `<img src="${escapeHtml(heroIconUrl)}" width="128" height="128" alt="" style="display:block;border:0;border-radius:24px;margin:0 auto 18px auto;">`
     : `<div style="width:104px;height:104px;border-radius:24px;background:${icon.bg};color:#ffffff;font-size:42px;line-height:104px;text-align:center;font-weight:800;margin:0 auto 18px auto;">${icon.label}</div>`;
+  const headlineHtml = headlineValue
+    ? `<div style="margin:0 auto 14px auto;padding:14px 18px;border-radius:14px;background:#F0FDF4;border:1px solid #BBF7D0;max-width:360px;">
+                        ${headlineLabel ? `<div style="margin:0 0 4px 0;font-size:12px;line-height:1.3;color:#15803D;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;">${headlineLabel}</div>` : ''}
+                        <div style="font-size:34px;line-height:1.1;color:#14532D;font-weight:800;">${headlineValue}</div>
+                      </div>`
+    : '';
 
   const html = `<!doctype html>
 <html>
@@ -464,6 +526,7 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
                       <p style="margin:0 0 14px 0;">
                         <span style="display:inline-block;background:${style.bg};color:${style.text};border:1px solid ${style.border};padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;">${style.label}</span>
                       </p>
+                      ${headlineHtml}
                       <p style="margin:0 auto 0 auto;max-width:440px;font-size:15px;line-height:1.55;color:#24292f;">${escapedSummary}</p>
                       ${context.detail ? `<p style="margin:10px auto 0 auto;max-width:440px;font-size:13px;line-height:1.55;color:#57606a;">${escapedDetail}</p>` : ''}
                       ${
@@ -569,6 +632,42 @@ function renderForecastAlertTemplate(context) {
   );
 }
 
+function renderForecastWinTemplate(context) {
+  const resourceName = context.fields?.forecast_name || context.fields?.goal_name || context.fields?.resource_name || context.channel?.name;
+  const title = context.notification?.title || resourceName || context.title;
+  const contextLine = [
+    context.branding?.brand_name || context.brand_name,
+    resourceName && resourceName !== title ? resourceName : null,
+  ].filter(Boolean).join(' - ');
+  const headlineValue =
+    context.notification?.headline_value
+    || context.fields?.headline_value
+    || context.fields?.display?.goal_value
+    || context.fields?.display?.target
+    || null;
+  const headlineLabel =
+    context.notification?.headline_label
+    || context.fields?.headline_label
+    || 'Milestone achieved';
+  return renderBrandShell(
+    {
+      ...context,
+      title,
+      severity: context.severity === 'success' || context.severity === 'info' ? context.severity : 'success',
+      context_line: context.context_line || contextLine,
+      cta_label: context.cta_label || 'View forecast',
+      cta_variant: context.cta_variant || 'success',
+      headline_value: headlineValue,
+      headline_label: headlineLabel,
+      hero_icon_variant: context.notification?.icon_variant || context.fields?.icon_variant || 'check',
+    },
+    {
+      metrics: buildForecastWinRows(context),
+      subjectTitle: context.subject_title || title,
+    },
+  );
+}
+
 function renderSpendAlertTemplate(context) {
   const merchant = context.fields?.merchant || context.fields?.vendor || null;
   return renderBrandShell(
@@ -588,6 +687,7 @@ const TEMPLATE_REGISTRY = Object.freeze({
   brand_alert_v1: renderBrandAlertTemplate,
   metric_alert_v1: renderMetricAlertTemplate,
   forecast_alert_v1: renderForecastAlertTemplate,
+  forecast_win_v1: renderForecastWinTemplate,
   spend_alert_v1: renderSpendAlertTemplate,
 });
 
@@ -595,9 +695,11 @@ function inferTemplateId({ subscriberConfig = {}, alert, fields = {}, templateRe
   const bySeverity = subscriberConfig.template_by_severity || {};
   const mapped = bySeverity[alert.severity];
   if (mapped && templateRegistry[mapped]) return mapped;
+  if (fields?.email?.template_id && templateRegistry[fields.email.template_id]) return fields.email.template_id;
+  if (fields?.tone === 'success' && templateRegistry.forecast_win_v1) return 'forecast_win_v1';
+  if (fields?.template_kind === 'forecast_win' && templateRegistry.forecast_win_v1) return 'forecast_win_v1';
   const explicit = subscriberConfig.template_id;
   if (explicit && templateRegistry[explicit]) return explicit;
-  if (fields?.email?.template_id && templateRegistry[fields.email.template_id]) return fields.email.template_id;
   if (fields.event_type === 'forecast_state' || fields.template_kind === 'forecast' || fields.forecast_name || fields.goal_name) {
     return 'forecast_alert_v1';
   }

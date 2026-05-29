@@ -310,6 +310,7 @@ Tier 1 templates are generic and reusable across integrations:
 brand_alert_v1     Default branded alert shell with CTA and metric rows.
 metric_alert_v1    Uses fields.metrics[] as the primary content block.
 forecast_alert_v1  Forecast/goal pace layout driven by generic forecast fields.
+forecast_win_v1    Success/win forecast layout with headline value and Heads Up icon variants.
 spend_alert_v1     Spend-oriented defaults for amount/budget style alerts.
 base_alert_v1      Compatibility alias for the branded fallback layout.
 ```
@@ -348,6 +349,7 @@ Header behavior:
 Hero icon behavior:
 
 - Event-specific icon: `fields.notification.icon_url`, `fields.icon_url`, or `fields.email.icon_url`.
+- Success template icon variant: `fields.icon_variant` or `fields.notification.icon_variant` with `trophy`, `medal`, `rocket`, or `target_hit`.
 - Subscriber default icon: `subscriber.config.branding.icons.alert_url`, `warning_url`, `critical_url`, or `recovered_url`.
 - URLs must be `http` or `https`; unsafe URLs are omitted.
 - Built-in hero icons render at 128x128px.
@@ -519,7 +521,7 @@ Remove-Item Env:HEADSUPP_SMOKE_EMAIL_TEMPLATE
 Remove-Item Env:HEADSUPP_SMOKE_EMAIL_ICON_URL
 ```
 
-Use `HEADSUPP_SMOKE_EMAIL_TEMPLATE` with `brand_alert_v1`, `metric_alert_v1`, `forecast_alert_v1`, or `spend_alert_v1` to inspect built-in variants in a real inbox.
+Use `HEADSUPP_SMOKE_EMAIL_TEMPLATE` with `brand_alert_v1`, `metric_alert_v1`, `forecast_alert_v1`, `forecast_win_v1`, or `spend_alert_v1` to inspect built-in variants in a real inbox.
 
 ## 3) What Email Gets Sent
 

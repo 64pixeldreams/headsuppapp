@@ -169,6 +169,7 @@ This keeps unbranded emails clean while allowing third-party apps to fully brand
 Hero icon resolution:
 
 ```text
+forecast_win_v1: fields.notification.icon_variant or fields.icon_variant
 fields.notification.icon_url
 fields.icon_url
 fields.email.icon_url
@@ -178,6 +179,30 @@ fallback severity badge
 ```
 
 All icon URLs must be public `http` or `https` URLs. Hero icons render at 128x128px in the built-in templates.
+
+For success/win emails, prefer Heads Up-owned `icon_variant` values over custom URLs:
+
+```text
+trophy      goal reached or completed
+award       goal reached or completed
+medal       period or bucket closed above target
+rocket      strongly ahead of pace
+trendup     strongly ahead of pace
+target_hit  generic target met
+target      generic target met
+```
+
+`fields.notification.icon_url` remains available as an explicit integrator override.
+
+Current Heads Up-owned trophy art:
+
+```text
+trophy        https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/ce7f99d4-1b03-403d-79a0-7e2084346100/public
+award         https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/df51dfa6-5392-46b6-9c01-1ddfae3f5600/public
+medal         https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/ec9d77a6-8193-4631-1f06-52698ad24b00/public
+target        https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/72fd0fa0-a91b-4ad4-fc9f-319d362cb500/public
+trendup       https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/38fbbbf5-7a77-4382-efef-26930f115100/public
+```
 
 Example event override:
 

@@ -25,6 +25,7 @@ This is not Foretic-specific. Foretic forecast emails are one consumer of the sa
 brand_alert_v1     Default branded alert shell with CTA and metric rows.
 metric_alert_v1    Uses fields.metrics[] as the primary content block.
 forecast_alert_v1  Forecast/goal pace layout driven by generic forecast fields.
+forecast_win_v1    Success/win forecast layout with headline value and Heads Up icon variants.
 spend_alert_v1     Spend-oriented defaults for amount/budget style alerts.
 base_alert_v1      Compatibility fallback.
 ```
@@ -33,8 +34,9 @@ Template selection order:
 
 ```text
 subscriber.config.template_by_severity[alert.severity]
-subscriber.config.template_id
 fields.email.template_id
+fields.tone / fields.template_kind
+subscriber.config.template_id
 inferred template from fields
 brand_alert_v1
 ```
@@ -42,6 +44,10 @@ brand_alert_v1
 Inference rules:
 
 ```text
+fields.tone = "success"
+fields.template_kind = "forecast_win"
+  -> forecast_win_v1
+
 fields.event_type = "forecast_state"
 fields.template_kind = "forecast"
 fields.forecast_name or fields.goal_name
@@ -185,6 +191,83 @@ Forecast emails are generic. They do not require `source_app = "foretic"`.
 ```
 
 The same shape works for any forecast or goal integration.
+
+## Forecast Win Events
+
+Use `forecast_win_v1` for positive milestones such as goal reached, target beaten, period closed above target, or strongly ahead of pace. It uses the same shell, header, footer, brand block, unsubscribe link, and powered-by layout as `forecast_alert_v1`, but with success styling and a large headline value.
+
+Template selection:
+
+```text
+fields.tone = "success"
+fields.template_kind = "forecast_win"
+fields.email.template_id = "forecast_win_v1"
+subscriber.config.template_id = "forecast_win_v1"
+```
+
+Recommended event shape:
+
+```json
+{
+  "signal_key": "forecast.goal.reached",
+  "value": { "num": 1 },
+  "fields": {
+    "event_type": "goal_reached",
+    "tone": "success",
+    "icon_variant": "trophy",
+    "forecast_name": "Q2 Revenue",
+    "resource_name": "Q2 Revenue",
+    "notification": {
+      "title": "Q2 Revenue",
+      "summary": "Goal reached: £10,000 hit 6 days early.",
+      "detail": "Best value to date is £10,250 against a £10,000 goal.",
+      "headline_value": "£10,000",
+      "headline_label": "Goal reached"
+    },
+    "display": {
+      "goal_value": "£10,000",
+      "observed_to_date": "£10,250",
+      "reached_on": "24 Jun 2026",
+      "days_early": "6 days early"
+    },
+    "metrics": [
+      { "label": "Goal", "value": "£10,000" },
+      { "label": "Observed", "value": "£10,250" },
+      { "label": "Reached on", "value": "24 Jun 2026" },
+      { "label": "Days early", "value": "6" }
+    ]
+  },
+  "cta": {
+    "label": "View forecast",
+    "url": "https://example.com/forecasts/q2-revenue",
+    "variant": "success"
+  }
+}
+```
+
+Heads Up-owned `icon_variant` values:
+
+```text
+trophy      goal reached or completed
+award       goal reached or completed
+medal       period or bucket closed above target
+rocket      strongly ahead of pace
+trendup     strongly ahead of pace
+target_hit  generic target met
+target      generic target met
+```
+
+If `icon_variant` is absent, the template uses a default success/check badge. `fields.notification.icon_url` is still accepted as an explicit brand override, but the default path should be `icon_variant`.
+
+The current Heads Up-owned trophy art is hosted at:
+
+```text
+trophy        https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/ce7f99d4-1b03-403d-79a0-7e2084346100/public
+award         https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/df51dfa6-5392-46b6-9c01-1ddfae3f5600/public
+medal         https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/ec9d77a6-8193-4631-1f06-52698ad24b00/public
+target        https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/72fd0fa0-a91b-4ad4-fc9f-319d362cb500/public
+trendup       https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/38fbbbf5-7a77-4382-efef-26930f115100/public
+```
 
 ## CTA Button Variants
 
@@ -357,5 +440,6 @@ Useful variants:
 $env:HEADSUPP_SMOKE_EMAIL_TEMPLATE='brand_alert_v1'
 $env:HEADSUPP_SMOKE_EMAIL_TEMPLATE='metric_alert_v1'
 $env:HEADSUPP_SMOKE_EMAIL_TEMPLATE='forecast_alert_v1'
+$env:HEADSUPP_SMOKE_EMAIL_TEMPLATE='forecast_win_v1'
 $env:HEADSUPP_SMOKE_EMAIL_TEMPLATE='spend_alert_v1'
 ```

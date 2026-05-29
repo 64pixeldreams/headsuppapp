@@ -16,10 +16,15 @@ const templateId = process.env.HEADSUPP_SMOKE_EMAIL_TEMPLATE || 'metric_alert_v1
 const defaultIconByTemplate = {
   spend_alert_v1: 'https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/3e0d7a3c-74f7-4092-c84b-fcb59cb03e00/public',
   forecast_alert_v1: 'https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/129ca8d6-1dcd-4148-aac2-5e2a698fd200/public',
+  forecast_win_v1: null,
   metric_alert_v1: 'https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/7c0fd57e-0771-4b56-19bd-0df9263c1300/public',
   brand_alert_v1: 'https://imagedelivery.net/qt9RmNSrfrSKuYiyxWVj5A/7c0fd57e-0771-4b56-19bd-0df9263c1300/public',
 };
-const designIconUrl = process.env.HEADSUPP_SMOKE_EMAIL_ICON_URL || defaultIconByTemplate[templateId] || defaultIconByTemplate.metric_alert_v1;
+const designIconUrl =
+  process.env.HEADSUPP_SMOKE_EMAIL_ICON_URL
+  || defaultIconByTemplate[templateId]
+  || (templateId === 'forecast_win_v1' ? null : defaultIconByTemplate.metric_alert_v1);
+const isForecastWin = templateId === 'forecast_win_v1';
 
 requireEnv('CLOUDFLARE_API_TOKEN', runtime.apiToken);
 requireEnv('HEADSUPP_SMOKE_EMAIL_DESTINATION', emailDestination);
@@ -27,6 +32,7 @@ requireEnv('HEADSUPP_SMOKE_EMAIL_DESTINATION', emailDestination);
 const client = createCloudflareClient(runtime);
 const ids = genericSmokeIds(`email_design_${templateId}`);
 const signalKey = 'business.metric.health';
+const effectiveSignalKey = templateId === 'forecast_win_v1' ? 'forecast.goal.reached' : signalKey;
 const startedAt = new Date().toISOString();
 const runId = `${ids.scenarioId}:${Date.now()}`;
 const health = await checkHealth(runtime.baseUrl);
@@ -38,12 +44,12 @@ const setup = await provisionGenericScenario({
   subscriberType: 'email',
   subscriberMode: 'alert',
   subscriberName: 'Design Review Email Alerts',
-  signalKey,
-  watchName: 'Business metric health',
+  signalKey: effectiveSignalKey,
+  watchName: isForecastWin ? 'Q2 Revenue goal reached' : 'Business metric health',
   watchType: 'LAST_VALUE_GT',
   watchConfig: {
     threshold: 50,
-    severity: 'warning',
+    severity: isForecastWin ? 'success' : 'warning',
     bucket_type: 'minute',
   },
   cooldownSeconds: 1,
@@ -82,27 +88,51 @@ const triggerAccepted = await sendSignedEvents({
     buildMetricEvent({
       runId,
       name: 'trigger-design-email',
-      signalKey,
+      signalKey: effectiveSignalKey,
       value: 64,
       source: 'email-design-smoke',
       fields: {
-        resource_name: 'Generic integration design check',
+        ...(isForecastWin
+          ? {
+              event_type: 'goal_reached',
+              tone: 'success',
+              icon_variant: 'trophy',
+              forecast_name: 'Q2 Revenue',
+              resource_name: 'Q2 Revenue',
+            }
+          : {
+              resource_name: 'Generic integration design check',
+            }),
         notification: {
-          title: 'Generic alert template design check',
-          summary: 'This is a rich generic alert, shaped only by event metadata and subscriber branding.',
-          detail: 'Use this smoke to review spacing, typography, CTA treatment, metric rows, and alert controls.',
-          icon_url: designIconUrl,
+          title: isForecastWin ? 'Q2 Revenue' : 'Generic alert template design check',
+          summary: isForecastWin
+            ? 'Goal reached: £10,000 hit 6 days early.'
+            : 'This is a rich generic alert, shaped only by event metadata and subscriber branding.',
+          detail: isForecastWin
+            ? 'Best value to date is £10,250 against a £10,000 goal.'
+            : 'Use this smoke to review spacing, typography, CTA treatment, metric rows, and alert controls.',
+          ...(isForecastWin
+            ? { headline_value: '£10,000', headline_label: 'Goal reached' }
+            : { icon_url: designIconUrl }),
         },
-        metrics: [
-          { label: 'Current value', value: '64' },
-          { label: 'Target', value: '50' },
-          { label: 'Business impact', value: '$7,500 at risk' },
-          { label: 'Time left', value: '3 days' },
-        ],
+        metrics: isForecastWin
+          ? [
+              { label: 'Goal', value: '£10,000' },
+              { label: 'Observed', value: '£10,250' },
+              { label: 'Reached on', value: '24 Jun 2026' },
+              { label: 'Days early', value: '6' },
+            ]
+          : [
+              { label: 'Current value', value: '64' },
+              { label: 'Target', value: '50' },
+              { label: 'Business impact', value: '$7,500 at risk' },
+              { label: 'Time left', value: '3 days' },
+            ],
       },
       cta: {
-        label: 'View details',
+        label: isForecastWin ? 'View forecast' : 'View details',
         url: 'https://app.foretic.io/app/job?job_id=oracle_job%3Amn9dh3gk76zusj',
+        ...(isForecastWin ? { variant: 'success' } : {}),
       },
     }),
   ],
@@ -139,7 +169,7 @@ console.log(
         workspace_id: ids.workspace,
         channel_id: ids.channel,
         connector_key: setup.connectorKey,
-        signal_key: signalKey,
+        signal_key: effectiveSignalKey,
         watch: 'LAST_VALUE_GT threshold 50',
         subscriber_type: 'email',
       },
@@ -153,7 +183,9 @@ console.log(
       },
       latest_alert: delivered.alert,
       latest_delivery: delivered.delivery,
-      expected_email_behavior: `One immediate warning email using ${templateId} with four metric rows, CTA, unsubscribe, and alert controls.`,
+      expected_email_behavior: isForecastWin
+        ? `One immediate success email using ${templateId} with trophy art, headline value, four metric rows, CTA, unsubscribe, and alert controls.`
+        : `One immediate warning email using ${templateId} with four metric rows, CTA, unsubscribe, and alert controls.`,
       health: {
         status: health.status,
         app: health.app,

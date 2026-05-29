@@ -98,6 +98,49 @@ await headsup.sendEvent({
 - Severity shown as styled badge in HTML template
 - Optional action buttons when `config.actions` is set
 - CTA buttons use `cta.variant` or `cta.color_class` (`primary`, `success`, `warning`, `danger`, `info`, `dark`, `light`)
+- Positive forecast milestones can use `fields.tone: 'success'` to render `forecast_win_v1` with a large `notification.headline_value`
 - Footer brand links use `branding.footer_brand_name`/`footer_brand_url`, falling back to `brand_name`/`brand_url`
 - Partial integrator branding does not inherit Heads Up legal/footer text; `Powered by headsupp.io` is controlled by Heads Up
 - Confirmation email first when authorization is required
+
+## Forecast win email
+
+Use the Heads Up-owned success template for goal reached, target beaten, or strongly ahead-of-pace events:
+
+```js
+await headsup.sendEvent({
+  connectorKey: connector.connector_key,
+  connectorSecret: connector.connector_secret,
+  event: {
+    idempotency_key: `forecast_win_${Date.now()}`,
+    signal_key: 'forecast.goal.reached',
+    occurred_at: new Date().toISOString(),
+    value: { num: 1 },
+    fields: {
+      tone: 'success',
+      icon_variant: 'trophy',
+      forecast_name: 'Q2 Revenue',
+      notification: {
+        title: 'Q2 Revenue',
+        summary: 'Goal reached: £10,000 hit 6 days early.',
+        detail: 'Best value to date is £10,250 against a £10,000 goal.',
+        headline_value: '£10,000',
+        headline_label: 'Goal reached',
+      },
+      metrics: [
+        { label: 'Goal', value: '£10,000' },
+        { label: 'Observed', value: '£10,250' },
+        { label: 'Reached on', value: '24 Jun 2026' },
+        { label: 'Days early', value: '6' },
+      ],
+    },
+    cta: {
+      label: 'View forecast',
+      url: 'https://example.com/forecasts/q2-revenue',
+      variant: 'success',
+    },
+  },
+});
+```
+
+Supported `icon_variant` values are `trophy`/`award`, `medal`, `rocket`/`trendup`, and `target_hit`/`target`.
