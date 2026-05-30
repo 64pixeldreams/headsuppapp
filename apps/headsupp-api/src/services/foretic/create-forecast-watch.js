@@ -3,9 +3,14 @@ import { generateConnectorSecret, publicConnector } from '../connectors/secrets.
 import { stableId } from '../ids/stable-id.js';
 import { ownershipFieldsFromContext } from '../ownership/tenant-scope.js';
 import { createSubscriber } from '../subscribers/create-subscriber.js';
-import { redactUrl } from '../subscribers/urls.js';
+import { normalizeEmailAddress, redactUrl } from '../subscribers/urls.js';
+import { logicalWatchIdentity } from '../admin/canonical-identity.js';
 import { buildForeticForecastContext } from './tenant-context.js';
-import { foreticForecastSignalContract, foreticForecastWatchDefinitions } from './forecast-watch-defaults.js';
+import {
+  FORETIC_FORECAST_SIGNAL_KEY,
+  foreticForecastSignalContract,
+  foreticForecastWatchDefinitions,
+} from './forecast-watch-defaults.js';
 import { provisionForeticWorkspace } from './provision-workspace.js';
 import { foreticWatchSetupSummary } from './watch-summary.js';
 
@@ -80,10 +85,12 @@ const TABLE_COLUMNS = Object.freeze({
     'subscriber_type',
     'name',
     'destination_url',
+    'normalized_destination',
     'destination_url_redacted',
     'mode',
     'enabled',
     'config_json',
+    'subscriber_scope',
     'source_app',
     'external_tenant_id',
     'external_user_id',
@@ -234,10 +241,13 @@ async function createSignalContract({ store, db, signal, channel, context, now }
   return putIfMissing(store, 'signal_contract', contract.signal_contract_id, () => contract);
 }
 
-async function createSignal({ db, workspace, channel, context, now }) {
-  const signalKey = 'forecast.revenue.pace';
+async function createSignal({ db, workspace, channel, context, now, signalKey = FORETIC_FORECAST_SIGNAL_KEY }) {
   const id = stableId('sig', `${channel.channel_id}:${signalKey}`);
-  const existing = await first(db, 'SELECT * FROM signals WHERE id = ? OR signal_id = ? LIMIT 1', [id, id]);
+  const existing = await first(
+    db,
+    'SELECT * FROM signals WHERE channel_id = ? AND signal_key = ? LIMIT 1',
+    [channel.channel_id, signalKey],
+  ) || await first(db, 'SELECT * FROM signals WHERE id = ? OR signal_id = ? LIMIT 1', [id, id]);
   if (existing) return { created: false, value: existing };
   const signal = filterRowForTable('signals', {
     id,
@@ -253,17 +263,32 @@ async function createSignal({ db, workspace, channel, context, now }) {
     ...ownershipFieldsFromContext(context),
   });
   await insertIgnore(db, 'signals', signal);
-  return { created: true, value: signal };
+  const stored = await first(db, 'SELECT * FROM signals WHERE channel_id = ? AND signal_key = ? LIMIT 1', [
+    channel.channel_id,
+    signalKey,
+  ]);
+  return { created: true, value: stored || signal };
 }
 
-async function createDefaultWatches({ store, db, signal, channel, context, now }) {
+async function createDefaultSignals({ db, workspace, channel, context, now, signalKeys }) {
+  const signals = new Map();
+  for (const signalKey of signalKeys) {
+    const result = await createSignal({ db, workspace, channel, context, now, signalKey });
+    signals.set(signalKey, result.value);
+  }
+  return signals;
+}
+
+async function createDefaultWatches({ store, db, signalsByKey, channel, context, now }) {
   const definitions = foreticForecastWatchDefinitions({ channel, context, now });
   const results = [];
 
   for (const watch of definitions) {
+    const signal = signalsByKey.get(watch.signal_key);
     if (db) {
       const existing = await first(db, 'SELECT * FROM watches WHERE watch_id = ? OR id = ? LIMIT 1', [watch.watch_id, watch.watch_id]);
       if (existing) {
+        await disableLegacyLogicalWatches({ db, canonicalWatch: existing, watch, signal, channel, now });
         results.push(existing);
         continue;
       }
@@ -275,7 +300,7 @@ async function createDefaultWatches({ store, db, signal, channel, context, now }
         signal_id: signal.id || signal.signal_id,
         name: watch.name,
         watch_type: watch.watch_type,
-        config_json: JSON.stringify({ threshold: watch.threshold, bucket_type: 'minute', severity: watch.severity }),
+        config_json: JSON.stringify(watch.config || { threshold: watch.threshold, bucket_type: 'minute', severity: watch.severity }),
         cooldown_seconds: watch.cooldown_seconds,
         escalation_json: watch.escalation_json ? JSON.stringify(watch.escalation_json) : null,
         recovery_json: watch.recovery_json ? JSON.stringify(watch.recovery_json) : null,
@@ -283,7 +308,9 @@ async function createDefaultWatches({ store, db, signal, channel, context, now }
         created_at: now,
         updated_at: now,
       };
+      const legacyMatches = await findLegacyLogicalWatches({ db, watchRow });
       await insertIgnore(db, 'watches', watchRow);
+      await disableLegacyLogicalWatches({ db, canonicalWatch: watchRow, watch, signal, channel, now, legacyMatches });
       results.push({ ...watch, signal_id: signal.id || signal.signal_id });
       continue;
     }
@@ -295,11 +322,51 @@ async function createDefaultWatches({ store, db, signal, channel, context, now }
   return results;
 }
 
+async function findLegacyLogicalWatches({ db, watchRow }) {
+  const result = await db
+    .prepare('SELECT * FROM watches WHERE workspace_id = ? AND channel_id = ? AND signal_id = ?')
+    .bind(watchRow.workspace_id, watchRow.channel_id, watchRow.signal_id)
+    .all();
+  const identity = logicalWatchIdentity(watchRow);
+  return (result?.results || []).filter((row) => logicalWatchIdentity(row) === identity);
+}
+
+async function disableLegacyLogicalWatches({ db, canonicalWatch, watch, signal, channel, now, legacyMatches = null }) {
+  const canonicalId = canonicalWatch.id || canonicalWatch.watch_id;
+  const canonicalWatchId = canonicalWatch.watch_id || canonicalWatch.id;
+  const watchRow = {
+    ...canonicalWatch,
+    workspace_id: channel.workspace_id,
+    channel_id: channel.channel_id,
+    signal_id: signal.id || signal.signal_id,
+    watch_type: watch.watch_type,
+    config_json: JSON.stringify(watch.config || {}),
+  };
+  const matches = legacyMatches || await findLegacyLogicalWatches({ db, watchRow });
+  for (const row of matches) {
+    const rowId = row.id || row.watch_id;
+    const rowWatchId = row.watch_id || row.id;
+    if (rowId === canonicalId || rowWatchId === canonicalWatchId || Number(row.enabled) === 0) continue;
+    await db.prepare('UPDATE watches SET enabled = 0, updated_at = ? WHERE id = ? OR watch_id = ?')
+      .bind(now, rowId, rowWatchId)
+      .run();
+  }
+}
+
 async function createRequestedSubscribers({ input, context, workspace, channel, store, db, now }) {
   const subscribers = [];
   const upsertDbSubscriber = async ({ subscriber_type, destination_url, display_name, mode }) => {
-    const subscriberId = stableId('sub', `${workspace.workspace_id}:${channel.channel_id}:${subscriber_type}:${mode}:${destination_url}`);
-    const existing = await first(db, 'SELECT * FROM subscribers WHERE id = ? OR subscriber_id = ? LIMIT 1', [subscriberId, subscriberId]);
+    const normalizedDestination = subscriber_type === 'email' ? normalizeEmailAddress(destination_url) : destination_url;
+    const subscriberId = stableId('sub', `${workspace.workspace_id}:${channel.channel_id}:${subscriber_type}:${mode}:${normalizedDestination}`);
+    const existing =
+      await first(db, 'SELECT * FROM subscribers WHERE id = ? OR subscriber_id = ? LIMIT 1', [subscriberId, subscriberId]) ||
+      await first(
+        db,
+        `SELECT * FROM subscribers
+         WHERE workspace_id = ? AND channel_id = ? AND subscriber_type = ? AND mode = ? AND normalized_destination = ?
+         ORDER BY enabled DESC, updated_at DESC LIMIT 1`,
+        [workspace.workspace_id, channel.channel_id, subscriber_type, mode, normalizedDestination],
+      );
     if (existing) return { ok: true, subscriber: { ...existing, destination_url: undefined }, created: false };
     const subscriber = {
       id: subscriberId,
@@ -309,10 +376,12 @@ async function createRequestedSubscribers({ input, context, workspace, channel, 
       subscriber_type,
       name: display_name,
       destination_url,
+      normalized_destination: normalizedDestination,
       destination_url_redacted: redactUrl(destination_url),
       mode,
       enabled: 1,
       config_json: '{}',
+      subscriber_scope: 'channel',
       created_at: now,
       updated_at: now,
       ...ownershipFieldsFromContext(context),
@@ -430,20 +499,29 @@ export async function createForeticForecastWatch({
     secretFactory,
   });
 
-  const signalResult = db
-    ? await createSignal({
+  const watchDefinitions = foreticForecastWatchDefinitions({ channel: channelResult.value, context, now });
+  const signalKeys = Array.from(new Set(watchDefinitions.map((watch) => watch.signal_key)));
+  const signalsByKey = db
+    ? await createDefaultSignals({
         db,
         workspace: workspaceResult.workspace,
         channel: channelResult.value,
         context,
         now,
+        signalKeys,
       })
-    : {
-        created: true,
-        value: {
-          id: stableId('sig', `${channelResult.value.channel_id}:forecast.revenue.pace`),
+    : new Map(signalKeys.map((signalKey) => [
+        signalKey,
+        {
+          id: stableId('sig', `${channelResult.value.channel_id}:${signalKey}`),
+          signal_id: stableId('sig', `${channelResult.value.channel_id}:${signalKey}`),
+          signal_key: signalKey,
         },
-      };
+      ]));
+  const signalResult = {
+    created: true,
+    value: signalsByKey.get(FORETIC_FORECAST_SIGNAL_KEY),
+  };
 
   const signalContract = await createSignalContract({
     store,
@@ -457,7 +535,7 @@ export async function createForeticForecastWatch({
   const watches = await createDefaultWatches({
     store,
     db,
-    signal: signalResult.value,
+    signalsByKey,
     channel: channelResult.value,
     context,
     now,
@@ -491,6 +569,7 @@ export async function createForeticForecastWatch({
     connector,
     event_url: `${baseUrl.replace(/\/$/, '')}/v1/events/${connector.connector_key}`,
     signal_contract: signalContract.value,
+    signals: Array.from(signalsByKey.values()),
     watches,
     subscribers: subscriberResult.subscribers,
   };

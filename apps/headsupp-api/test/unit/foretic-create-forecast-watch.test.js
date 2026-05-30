@@ -30,6 +30,9 @@ function createDbMock() {
             async first() {
               return null;
             },
+            async all() {
+              return { results: [] };
+            },
             async run() {
               return { meta: { changes: 1 } };
             },
@@ -56,13 +59,10 @@ test('creates Foretic forecast watch setup resources', async () => {
   assert.equal(result.connector.connector_secret, 'hu_sec_test_secret');
   assert.equal(result.event_url, `https://headsupp.test/v1/events/${result.connector.connector_key}`);
   assert.equal(result.signal_contract.signal_key, 'forecast.revenue.pace');
-  assert.deepEqual(
-    result.watches.map((watch) => [watch.watch_type, watch.threshold, watch.severity]),
-    [
-      ['LAST_VALUE_LT', 85, 'warning'],
-      ['LAST_VALUE_LT', 70, 'critical'],
-    ],
-  );
+  assert.equal(new Set(result.watches.map((watch) => watch.family)).size, 9);
+  assert.equal(result.watches.length, 10);
+  assert.equal(result.watches.some((watch) => watch.family === 'goal_reached' && watch.watch_type === 'EVENT_OCCURRENCE'), true);
+  assert.equal(result.watches.some((watch) => watch.family === 'day_summary' && watch.watch_type === 'DIGEST'), true);
   assert.equal(result.watches[0].recovery_json?.condition, 'value >= 95');
   assert.equal(result.subscribers.length, 2);
   assert.equal(result.subscribers[0].subscriber_type, 'slack_webhook');

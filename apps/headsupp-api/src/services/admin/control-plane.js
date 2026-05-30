@@ -10,6 +10,13 @@ import {
 import { normalizeSubscriberConfigAlertFilters } from '../subscribers/alert-filters.js';
 import { normalizeAuthorizationConfig, sendAuthorizationEmail } from '../subscribers/email-authorization.js';
 import { buildActionControlRow } from '../watches/action-controls.js';
+import {
+  canonicalSubscriberDestination,
+  logicalWatchIdentity,
+  sortCanonicalSubscribers,
+  subscriberAuthorizationStatus,
+  subscriberScopeChannelId,
+} from './canonical-identity.js';
 
 const VALID_SUBSCRIBER_MODES = new Set(['alert', 'aggregate_forward', 'quiet_summary', 'lifecycle']);
 const VALID_WATCH_GROUP_WINNER_POLICIES = new Set(['highest_severity_wins', 'lowest_severity_wins']);
@@ -83,7 +90,7 @@ function normalizeSubscriberScope(input = {}) {
 }
 
 function workspaceSubscriberChannelId(workspaceId) {
-  return `${WORKSPACE_SUBSCRIBER_CHANNEL_PREFIX}${workspaceId}`;
+  return subscriberScopeChannelId({ workspaceId, subscriberScope: WORKSPACE_SUBSCRIBER_SCOPE });
 }
 
 export function buildWorkspaceRow(input, now = new Date().toISOString()) {
@@ -613,20 +620,11 @@ async function findSubscriberByDestination({
   }
   let matches = await allRows(db, sql, params);
   matches = matches.filter((row) => {
-    const normalizedStored = normalizeEmailAddress(row.normalized_destination || row.destination_url || '');
+    const normalizedStored = canonicalSubscriberDestination(row);
     return normalizedStored === normalizedDestination;
   });
   if (!matches.length) return null;
-  matches.sort((a, b) => {
-    const aAuthorized = parseJsonField(a.config_json, {}).authorization?.status === 'authorized' ? 1 : 0;
-    const bAuthorized = parseJsonField(b.config_json, {}).authorization?.status === 'authorized' ? 1 : 0;
-    if (aAuthorized !== bAuthorized) return bAuthorized - aAuthorized;
-    const aEnabled = Number(a.enabled) === 1 ? 1 : 0;
-    const bEnabled = Number(b.enabled) === 1 ? 1 : 0;
-    if (aEnabled !== bEnabled) return bEnabled - aEnabled;
-    return String(b.updated_at || '').localeCompare(String(a.updated_at || ''));
-  });
-  return matches[0];
+  return sortCanonicalSubscribers(matches)[0];
 }
 
 async function reconcileDuplicateEmailSubscribers({
@@ -640,7 +638,7 @@ async function reconcileDuplicateEmailSubscribers({
   authorizationConfig,
   now,
 }) {
-  if (!canonicalSubscriber || !normalizedDestination) return;
+  if (!canonicalSubscriber || !normalizedDestination) return 0;
   const params = [workspaceId, 'email', mode || 'alert', subscriberScope];
   let sql = `SELECT *
              FROM subscribers
@@ -659,11 +657,12 @@ async function reconcileDuplicateEmailSubscribers({
   const rows = await allRows(db, sql, params);
   const canonicalId = canonicalSubscriber.id || canonicalSubscriber.subscriber_id;
   const canonicalSubscriberId = canonicalSubscriber.subscriber_id || canonicalSubscriber.id;
+  let disabled = 0;
   for (const row of rows) {
     const rowId = row.id || row.subscriber_id;
     const rowSubscriberId = row.subscriber_id || row.id;
     if (rowId === canonicalId || rowSubscriberId === canonicalSubscriberId) continue;
-    const normalizedStored = normalizeEmailAddress(row.normalized_destination || row.destination_url || '');
+    const normalizedStored = canonicalSubscriberDestination(row);
     if (normalizedStored !== normalizedDestination) continue;
 
     const config = parseJsonField(row.config_json, {});
@@ -677,7 +676,7 @@ async function reconcileDuplicateEmailSubscribers({
       ...config,
       authorization: nextAuthorization,
     };
-    await db
+    const result = await db
       .prepare(
         `UPDATE subscribers
          SET enabled = 0, normalized_destination = ?, config_json = ?, updated_at = ?
@@ -685,7 +684,85 @@ async function reconcileDuplicateEmailSubscribers({
       )
       .bind(normalizedDestination, JSON.stringify(nextConfig), now, rowId, rowSubscriberId)
       .run();
+    disabled += Number(result?.meta?.changes || 0);
   }
+  return disabled;
+}
+
+async function findSubscriberCanonicalMatches({
+  db,
+  workspaceId,
+  channelId,
+  subscriberScope,
+  subscriberType = 'email',
+  mode,
+  normalizedDestination,
+}) {
+  if (!workspaceId || !subscriberType || !normalizedDestination) return [];
+  const params = [workspaceId, subscriberType, subscriberScope];
+  let sql = `SELECT *
+             FROM subscribers
+             WHERE workspace_id = ?
+               AND subscriber_type = ?
+               AND COALESCE(subscriber_scope, 'channel') = ?`;
+  if (mode) {
+    sql += ' AND mode = ?';
+    params.push(mode);
+  }
+  sql += ' AND channel_id = ?';
+  params.push(subscriberScope === WORKSPACE_SUBSCRIBER_SCOPE ? workspaceSubscriberChannelId(workspaceId) : channelId);
+  const rows = await allRows(db, sql, params);
+  return sortCanonicalSubscribers(rows.filter((row) => canonicalSubscriberDestination(row) === normalizedDestination));
+}
+
+async function findLogicalWatchMatches(db, row) {
+  const rows = await allRows(
+    db,
+    `SELECT *
+     FROM watches
+     WHERE workspace_id = ? AND channel_id = ? AND signal_id = ?`,
+    [row.workspace_id, row.channel_id, row.signal_id],
+  );
+  const identity = logicalWatchIdentity(row);
+  return rows.filter((candidate) => logicalWatchIdentity(candidate) === identity);
+}
+
+async function disableDuplicateLogicalWatches({ db, canonicalWatch, row, now }) {
+  const canonicalId = canonicalWatch?.id || canonicalWatch?.watch_id;
+  const canonicalWatchId = canonicalWatch?.watch_id || canonicalWatch?.id;
+  if (!canonicalId || !canonicalWatchId) return 0;
+  const matches = await findLogicalWatchMatches(db, row);
+  let disabled = 0;
+  for (const match of matches) {
+    const matchId = match.id || match.watch_id;
+    const matchWatchId = match.watch_id || match.id;
+    if (matchId === canonicalId || matchWatchId === canonicalWatchId || Number(match.enabled) === 0) continue;
+    const result = await db
+      .prepare('UPDATE watches SET enabled = 0, updated_at = ? WHERE id = ? OR watch_id = ?')
+      .bind(now, matchId, matchWatchId)
+      .run();
+    disabled += Number(result?.meta?.changes || 0);
+  }
+  return disabled;
+}
+
+function dedupeSubscriberRows(rows = []) {
+  const grouped = new Map();
+  for (const row of rows) {
+    const destination = canonicalSubscriberDestination(row);
+    const key = [
+      row.workspace_id,
+      row.channel_id,
+      row.subscriber_scope || CHANNEL_SUBSCRIBER_SCOPE,
+      row.subscriber_type,
+      row.mode || 'alert',
+      destination,
+    ].join('|');
+    const group = grouped.get(key) || [];
+    group.push(row);
+    grouped.set(key, group);
+  }
+  return Array.from(grouped.values()).map((group) => sortCanonicalSubscribers(group)[0]);
 }
 
 async function requireWorkspaceScope({ db, auth, workspaceId }) {
@@ -905,7 +982,7 @@ export async function createAdminSubscriber({ auth, db, input, env = {}, now }) 
   if (!built.ok) return built;
   const exactExisting = await loadSubscriber(db, built.row.subscriber_id);
   let destinationExisting = null;
-  if (input.upsert_existing === true && built.row.subscriber_type === 'email') {
+  if (built.row.subscriber_type === 'email') {
     destinationExisting = await findSubscriberByDestination({
       db,
       workspaceId: built.row.workspace_id,
@@ -954,8 +1031,9 @@ export async function createAdminSubscriber({ auth, db, input, env = {}, now }) 
           authorized_at: existingConfig.authorization.authorized_at || now,
         };
       }
+      let disabledDuplicates = 0;
       if (existing.subscriber_type === 'email' && nextConfig.authorization?.status === 'authorized') {
-        await reconcileDuplicateEmailSubscribers({
+        disabledDuplicates = await reconcileDuplicateEmailSubscribers({
           db,
           canonicalSubscriber: existing,
           workspaceId: built.row.workspace_id,
@@ -978,7 +1056,13 @@ export async function createAdminSubscriber({ auth, db, input, env = {}, now }) 
         Number(existing.enabled) === Number(nextEnabled) &&
         (existing.external_resource_id || null) === (built.row.external_resource_id || null);
       if (unchanged) {
-        return { ok: true, created: false, subscriber: publicSubscriber(existing), authorization: null };
+        return {
+          ok: true,
+          created: false,
+          subscriber: publicSubscriber(existing),
+          authorization: null,
+          reconciled: { disabled_subscribers: disabledDuplicates },
+        };
       }
       await db
         .prepare(
@@ -1023,9 +1107,30 @@ export async function createAdminSubscriber({ auth, db, input, env = {}, now }) 
           updated_at: now,
         }),
         authorization: null,
+        reconciled: { disabled_subscribers: disabledDuplicates },
       };
     }
-    return { ok: true, created: false, subscriber: publicSubscriber(existing), authorization: null };
+    let disabledDuplicates = 0;
+    if (existing.subscriber_type === 'email' && subscriberAuthorizationStatus(existing) === 'authorized') {
+      disabledDuplicates = await reconcileDuplicateEmailSubscribers({
+        db,
+        canonicalSubscriber: existing,
+        workspaceId: built.row.workspace_id,
+        channelId: built.row.channel_id,
+        subscriberScope,
+        mode: built.row.mode,
+        normalizedDestination: built.row.normalized_destination,
+        authorizationConfig: parseJsonField(existing.config_json, {}).authorization,
+        now,
+      });
+    }
+    return {
+      ok: true,
+      created: false,
+      subscriber: publicSubscriber(existing),
+      authorization: null,
+      reconciled: { disabled_subscribers: disabledDuplicates },
+    };
   }
   await insertRow(db, 'subscribers', built.row);
   const subscriber = (await loadSubscriber(db, built.row.subscriber_id)) || built.row;
@@ -1055,6 +1160,18 @@ async function resolveAdminSubscriber({ db, workspaceId, channelId, subscriberSc
         message: 'Subscriber does not belong to the requested subscriber scope.',
       };
     }
+    if (subscriber.subscriber_type === 'email') {
+      const canonicalMatches = await findSubscriberCanonicalMatches({
+        db,
+        workspaceId,
+        channelId,
+        subscriberScope,
+        subscriberType: 'email',
+        mode: mode || subscriber.mode,
+        normalizedDestination: canonicalSubscriberDestination(subscriber),
+      });
+      if (canonicalMatches.length) return { ok: true, subscriber: canonicalMatches[0] };
+    }
     return { ok: true, subscriber };
   }
 
@@ -1067,25 +1184,21 @@ async function resolveAdminSubscriber({ db, workspaceId, channelId, subscriberSc
       message: 'Provide subscriber_id or email.',
     };
   }
-  const params = [workspaceId, channelId, 'email', normalizedEmail];
+  const params = [workspaceId, 'email', subscriberScope];
   let sql = `SELECT *
              FROM subscribers
-             WHERE workspace_id = ? AND channel_id = ? AND subscriber_type = ? AND normalized_destination = ?`;
+             WHERE workspace_id = ? AND subscriber_type = ? AND COALESCE(subscriber_scope, 'channel') = ?`;
   if (mode) {
     sql += ' AND mode = ?';
     params.push(mode);
   }
-  const matches = await allRows(db, sql, params);
+  sql += ' AND channel_id = ?';
+  params.push(subscriberScope === WORKSPACE_SUBSCRIBER_SCOPE ? workspaceSubscriberChannelId(workspaceId) : channelId);
+  const matches = sortCanonicalSubscribers(
+    (await allRows(db, sql, params)).filter((row) => canonicalSubscriberDestination(row) === normalizedEmail),
+  );
   if (matches.length === 0) {
     return { ok: false, status: 404, code: 'SUBSCRIBER_NOT_FOUND', message: 'Subscriber was not found.' };
-  }
-  if (matches.length > 1) {
-    return {
-      ok: false,
-      status: 409,
-      code: 'AMBIGUOUS_SUBSCRIBER_MATCH',
-      message: 'Multiple subscribers matched email lookup. Provide subscriber_id or mode.',
-    };
   }
   return { ok: true, subscriber: matches[0] };
 }
@@ -1243,7 +1356,7 @@ export async function listAdminSubscribers({ auth, db, input }) {
   params.push(Math.min(Math.max(Number(input.limit || 50), 1), 100));
 
   const rows = await allRows(db, sql, params);
-  const subscribers = rows
+  const subscribers = dedupeSubscriberRows(rows)
     .filter((row) => !tenantMismatch(auth, row))
     .map((row) => publicSubscriberRead(row));
   return { ok: true, subscribers };
@@ -1329,9 +1442,21 @@ export async function createAdminWatch({ auth, db, input, now, skip_scope_valida
   }
   const row = buildWatchRow(input, now);
   const existing = await loadWatch(db, row.watch_id);
-  if (existing) return { ok: true, created: false, watch: existing };
+  if (existing) {
+    const disabledDuplicates = await disableDuplicateLogicalWatches({ db, canonicalWatch: existing, row, now });
+    return { ok: true, created: false, watch: existing, reconciled: { disabled_watches: disabledDuplicates } };
+  }
+  const logicalMatches = await findLogicalWatchMatches(db, row);
   await insertRow(db, 'watches', row);
-  return { ok: true, created: true, watch: (await loadWatch(db, row.watch_id)) || row };
+  const inserted = (await loadWatch(db, row.watch_id)) || row;
+  const disabledDuplicates = await disableDuplicateLogicalWatches({ db, canonicalWatch: inserted, row, now });
+  const reusedLogical = logicalMatches.some((match) => Number(match.enabled) === 1);
+  return {
+    ok: true,
+    created: !reusedLogical,
+    watch: inserted,
+    reconciled: { disabled_watches: disabledDuplicates },
+  };
 }
 
 export async function updateAdminWatch({ auth, db, input, now }) {
@@ -1456,8 +1581,14 @@ async function materializeWatchTemplates({ db, input, signal, channelContract, n
       enabled: template.enabled,
       watch_id: template.watch_id || stableId('watch', `${signal.id}:template:${index}:${template.watch_type}`),
     };
-    const row = buildWatchRow(watchInput, now);
-    rows.push(await insertRow(db, 'watches', row));
+    const result = await createAdminWatch({
+      auth: { user_id: 'system:channel-contract', permissions: ['watch:create'] },
+      db,
+      input: watchInput,
+      now,
+      skip_scope_validation: true,
+    });
+    if (result.ok) rows.push(result.watch);
   }
   return rows;
 }

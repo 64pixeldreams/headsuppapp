@@ -29,6 +29,8 @@ import {
   updateAdminWatch,
 } from '../../src/services/admin/control-plane.js';
 import { provisionAdminChannel } from '../../src/services/admin/provision-channel.js';
+import { stableId } from '../../src/services/ids/stable-id.js';
+import { foreticForecastWatchDefinitions } from '../../src/services/foretic/forecast-watch-defaults.js';
 
 function dbRecorder(calls = []) {
   return {
@@ -70,6 +72,7 @@ function scopedDb(rows = {}, calls = []) {
             },
             async all() {
               if (/FROM subscribers/.test(sql)) return { results: rows.subscribers || [] };
+              if (/FROM watches/.test(sql)) return { results: rows.watches || [] };
               return { results: [] };
             },
           };
@@ -167,6 +170,12 @@ function provisionDb(calls = []) {
               if (/UPDATE watches\s+SET enabled = 0/.test(sql)) {
                 let changes = 0;
                 for (const row of tables.watches) {
+                  if (params.length === 3 && (row.id === params[1] || row.watch_id === params[2])) {
+                    row.enabled = 0;
+                    row.updated_at = params[0];
+                    changes += 1;
+                    continue;
+                  }
                   const scoped = row.workspace_id === params[1] && row.channel_id === params[2] && row.signal_id === params[3];
                   const activeUngrouped = Number(row.enabled) === 1 && !row.watch_group_id;
                   const exactMatch = params.length === 6 && (row.id === params[4] || row.watch_id === params[5]);
@@ -185,6 +194,8 @@ function provisionDb(calls = []) {
               return firstFrom(sql, params);
             },
             async all() {
+              if (/FROM subscribers/.test(sql)) return { results: tables.subscribers };
+              if (/FROM watches/.test(sql)) return { results: tables.watches };
               return { results: [] };
             },
           };
@@ -1752,6 +1763,310 @@ test('admin createSubscriber upsert keeps one authorized same-destination email 
   assert.equal(result.subscriber.config.authorization.status, 'authorized');
 });
 
+test('admin getSubscriber resolves pending exact id to authorized same-destination subscriber', async () => {
+  const rows = [
+    {
+      id: 'sub_pending_exact',
+      subscriber_id: 'sub_pending_exact',
+      workspace_id: 'ws_a',
+      channel_id: 'ch_a',
+      subscriber_scope: 'channel',
+      subscriber_type: 'email',
+      name: 'Pending Subscriber',
+      destination_url: 'board@example.com',
+      normalized_destination: 'board@example.com',
+      mode: 'alert',
+      enabled: 0,
+      config_json: JSON.stringify({ authorization: { required: true, status: 'pending' } }),
+      created_at: '2026-05-24T10:00:00.000Z',
+      updated_at: '2026-05-24T10:00:00.000Z',
+    },
+    {
+      id: 'sub_authorized',
+      subscriber_id: 'sub_authorized',
+      workspace_id: 'ws_a',
+      channel_id: 'ch_a',
+      subscriber_scope: 'channel',
+      subscriber_type: 'email',
+      name: 'Authorized Subscriber',
+      destination_url: 'Board@Example.com',
+      normalized_destination: null,
+      mode: 'alert',
+      enabled: 1,
+      config_json: JSON.stringify({ authorization: { required: true, status: 'authorized' } }),
+      created_at: '2026-05-24T09:00:00.000Z',
+      updated_at: '2026-05-24T09:05:00.000Z',
+    },
+  ];
+  const result = await getAdminSubscriber({
+    auth: { user_id: 'user_admin', permissions: ['subscriber:read'] },
+    db: scopedDb({
+      workspace: { id: 'ws_a', workspace_id: 'ws_a' },
+      channel: { id: 'ch_a', channel_id: 'ch_a', workspace_id: 'ws_a' },
+      subscriber: rows[0],
+      subscribers: rows,
+    }),
+    input: {
+      workspace_id: 'ws_a',
+      channel_id: 'ch_a',
+      subscriber_id: 'sub_pending_exact',
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.subscriber.subscriber_id, 'sub_authorized');
+  assert.equal(result.subscriber.enabled, 1);
+  assert.equal(result.subscriber.config.authorization.status, 'authorized');
+});
+
+test('admin listSubscribers returns canonical email row for duplicate destination groups', async () => {
+  const rows = [
+    {
+      id: 'sub_pending',
+      subscriber_id: 'sub_pending',
+      workspace_id: 'ws_a',
+      channel_id: 'ch_a',
+      subscriber_scope: 'channel',
+      subscriber_type: 'email',
+      name: 'Pending Subscriber',
+      destination_url: 'board@example.com',
+      normalized_destination: 'board@example.com',
+      mode: 'alert',
+      enabled: 0,
+      config_json: JSON.stringify({ authorization: { required: true, status: 'pending' } }),
+      created_at: '2026-05-24T10:00:00.000Z',
+      updated_at: '2026-05-24T10:00:00.000Z',
+    },
+    {
+      id: 'sub_authorized',
+      subscriber_id: 'sub_authorized',
+      workspace_id: 'ws_a',
+      channel_id: 'ch_a',
+      subscriber_scope: 'channel',
+      subscriber_type: 'email',
+      name: 'Authorized Subscriber',
+      destination_url: 'board@example.com',
+      normalized_destination: 'board@example.com',
+      mode: 'alert',
+      enabled: 1,
+      config_json: JSON.stringify({ authorization: { required: true, status: 'authorized' } }),
+      created_at: '2026-05-24T09:00:00.000Z',
+      updated_at: '2026-05-24T09:05:00.000Z',
+    },
+  ];
+  const result = await listAdminSubscribers({
+    auth: { user_id: 'user_admin', permissions: ['subscriber:read'] },
+    db: scopedDb({
+      workspace: { id: 'ws_a', workspace_id: 'ws_a' },
+      channel: { id: 'ch_a', channel_id: 'ch_a', workspace_id: 'ws_a' },
+      subscribers: rows,
+    }),
+    input: { workspace_id: 'ws_a', channel_id: 'ch_a', subscriber_type: 'email' },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.subscribers.length, 1);
+  assert.equal(result.subscribers[0].subscriber_id, 'sub_authorized');
+});
+
+test('admin createWatch disables stale duplicate with same logical watch identity', async () => {
+  const calls = [];
+  const result = await createAdminWatch({
+    auth: { user_id: 'user_admin', permissions: ['watch:create'] },
+    db: scopedDb(
+      {
+        workspace: { id: 'ws_a', workspace_id: 'ws_a' },
+        channel: { id: 'ch_a', channel_id: 'ch_a', workspace_id: 'ws_a' },
+        signal: { id: 'sig_pace', signal_id: 'sig_pace', workspace_id: 'ws_a', channel_id: 'ch_a' },
+        watches: [
+          {
+            id: 'legacy_watch',
+            watch_id: 'foretic:user:old:pace:warning',
+            workspace_id: 'ws_a',
+            channel_id: 'ch_a',
+            signal_id: 'sig_pace',
+            watch_group_id: null,
+            band_key: null,
+            name: 'Legacy pace warning',
+            watch_type: 'LAST_VALUE_LT',
+            config_json: JSON.stringify({ threshold: 85, severity: 'warning' }),
+            cooldown_seconds: 3600,
+            enabled: 1,
+            created_at: '2026-05-24T09:00:00.000Z',
+            updated_at: '2026-05-24T09:00:00.000Z',
+          },
+        ],
+      },
+      calls,
+    ),
+    input: {
+      workspace_id: 'ws_a',
+      channel_id: 'ch_a',
+      signal_id: 'sig_pace',
+      watch_id: 'ch_a:watch:pace_warning',
+      name: 'Forecast pace warning',
+      watch_type: 'LAST_VALUE_LT',
+      config: { threshold: 85, severity: 'warning' },
+      cooldown_seconds: 3600,
+    },
+    now: '2026-05-24T10:00:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.reconciled.disabled_watches, 1);
+  assert.equal(calls.some((call) => /UPDATE watches SET enabled = 0/.test(call.sql)), true);
+});
+
+test('dirty Foretic fixture repairs subscriber linkage and creates all default family watches', async () => {
+  const db = provisionDb();
+  const workspace = {
+    id: 'ws_foretic_user_mkfoxvxgoyfbtd',
+    workspace_id: 'ws_foretic_user_mkfoxvxgoyfbtd',
+    workspace_key: 'foretic:user:mkfoxvxgoyfbtd',
+    name: 'Foretic dirty workspace',
+    source_app: 'foretic',
+    external_tenant_id: 'user:mkfoxvxgoyfbtd',
+    external_user_id: 'user:mkfoxvxgoyfbtd',
+    status: 'active',
+    created_at: '2026-05-24T09:00:00.000Z',
+    updated_at: '2026-05-24T09:00:00.000Z',
+  };
+  const channel = {
+    id: 'ch_foretic_user_mkfoxvxgoyfbtd_forecast_oracle_forecast_mn9cxnv3muoleo',
+    channel_id: 'ch_foretic_user_mkfoxvxgoyfbtd_forecast_oracle_forecast_mn9cxnv3muoleo',
+    workspace_id: workspace.workspace_id,
+    channel_key: 'foretic:user:mkfoxvxgoyfbtd:forecast:oracle_forecast:mn9cxnv3muoleo',
+    name: 'Oracle forecast',
+    purpose: 'forecast',
+    status: 'active',
+    source_app: 'foretic',
+    external_tenant_id: workspace.external_tenant_id,
+    external_user_id: workspace.external_user_id,
+    external_resource_id: 'oracle_forecast:mn9cxnv3muoleo',
+    metadata_json: '{}',
+    created_at: '2026-05-24T09:00:00.000Z',
+    updated_at: '2026-05-24T09:00:00.000Z',
+  };
+  db.tables.workspaces.push(workspace);
+  db.tables.channels.push(channel);
+  db.tables.subscribers.push(
+    {
+      id: 'sub_pending_foretic_exact',
+      subscriber_id: 'sub_pending_foretic_exact',
+      workspace_id: workspace.workspace_id,
+      channel_id: channel.channel_id,
+      subscriber_scope: 'channel',
+      subscriber_type: 'email',
+      name: 'Pending Foretic email',
+      destination_url: 'martin@inc64.com',
+      normalized_destination: 'martin@inc64.com',
+      mode: 'alert',
+      enabled: 0,
+      config_json: JSON.stringify({ authorization: { required: true, status: 'pending' } }),
+      created_at: '2026-05-24T10:00:00.000Z',
+      updated_at: '2026-05-24T10:00:00.000Z',
+    },
+    {
+      id: 'sub_authorized_older_generated',
+      subscriber_id: 'sub_authorized_older_generated',
+      workspace_id: workspace.workspace_id,
+      channel_id: channel.channel_id,
+      subscriber_scope: 'channel',
+      subscriber_type: 'email',
+      name: 'Authorized Foretic email',
+      destination_url: 'Martin@Inc64.com',
+      normalized_destination: null,
+      mode: 'alert',
+      enabled: 1,
+      config_json: JSON.stringify({ authorization: { required: true, status: 'authorized' } }),
+      created_at: '2026-05-24T09:00:00.000Z',
+      updated_at: '2026-05-24T09:05:00.000Z',
+    },
+  );
+
+  const definitions = foreticForecastWatchDefinitions({
+    channel,
+    context: {
+      source_app: 'foretic',
+      external_tenant_id: workspace.external_tenant_id,
+      external_user_id: workspace.external_user_id,
+      external_resource_id: channel.external_resource_id,
+    },
+    now: '2026-05-24T10:10:00.000Z',
+  });
+  const paceSignalId = stableId('sig', `${channel.channel_id}:forecast.revenue.pace`);
+  db.tables.signals.push({
+    id: 'sig_legacy_goal',
+    signal_id: 'sig_legacy_goal',
+    workspace_id: workspace.workspace_id,
+    channel_id: channel.channel_id,
+    signal_key: 'forecast.goal.reached',
+    signal_type: 'metric',
+    value_mode: 'last',
+    status: 'active',
+    created_at: '2026-05-24T09:00:00.000Z',
+    updated_at: '2026-05-24T09:00:00.000Z',
+  });
+  db.tables.watches.push({
+    id: 'legacy_pace_warning',
+    watch_id: 'foretic:user:mkfoxvxgoyfbtd:pace:warning',
+    workspace_id: workspace.workspace_id,
+    channel_id: channel.channel_id,
+    signal_id: paceSignalId,
+    watch_group_id: null,
+    band_key: null,
+    name: 'Legacy pace warning',
+    watch_type: 'LAST_VALUE_LT',
+    config_json: JSON.stringify({ threshold: 85, severity: 'warning', watch_key: 'pace_warning', family: 'pace' }),
+    cooldown_seconds: 3600,
+    enabled: 1,
+    created_at: '2026-05-24T09:00:00.000Z',
+    updated_at: '2026-05-24T09:00:00.000Z',
+  });
+
+  const result = await provisionAdminChannel({
+    auth: {
+      user_id: 'user_admin',
+      permissions: ['workspace:create', 'channel:create', 'connector:create', 'signal:create', 'watch:create', 'subscriber:create'],
+    },
+    db,
+    input: {
+      workspace_id: workspace.workspace_id,
+      channel,
+      signals: Array.from(new Set(definitions.map((definition) => definition.signal_key))).map((signal_key) => ({ signal_key })),
+      watches: definitions.map((definition) => ({
+        signal_key: definition.signal_key,
+        watch_id: definition.watch_id,
+        watch_key: definition.config?.watch_key,
+        name: definition.name,
+        watch_type: definition.watch_type,
+        config: definition.config,
+        cooldown_seconds: definition.cooldown_seconds,
+        escalation: definition.escalation_json,
+        recovery: definition.recovery_json,
+      })),
+      subscribers: [
+        {
+          subscriber_id: 'sub_pending_foretic_exact',
+          subscriber_type: 'email',
+          destination_url: 'martin@inc64.com',
+          mode: 'alert',
+          config: { authorization: { required: true } },
+        },
+      ],
+    },
+    now: '2026-05-24T10:10:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.subscribers[0].subscriber_id, 'sub_authorized_older_generated');
+  assert.equal(result.subscribers[0].enabled, 1);
+  assert.equal(result.subscribers[0].config.authorization.status, 'authorized');
+  assert.equal(new Set(result.watches.map((watch) => JSON.parse(watch.config_json || '{}').family)).size, 9);
+  assert.equal(result.watches.length, 10);
+  assert.equal(db.tables.watches.some((watch) => watch.signal_id === 'sig_legacy_goal' && watch.enabled === 1), true);
+});
+
 test('admin signal creation inherits channel contract defaults and materializes watch templates', async () => {
   const calls = [];
   const result = await createAdminSignal({
@@ -1787,7 +2102,7 @@ test('admin signal creation inherits channel contract defaults and materializes 
   assert.deepEqual(result.signal_contract.dimensions, ['forecast_id']);
   assert.deepEqual(result.signal_contract.cta_policy, { required: true });
   assert.equal(result.materialized_watches.length, 1);
-  assert.equal(calls.filter((call) => /INSERT OR IGNORE INTO watches/.test(call.sql)).length, 1);
+  assert.equal(calls.filter((call) => /INSERT(?: OR IGNORE)? INTO watches/.test(call.sql)).length, 1);
 });
 
 test('admin snooze watch creates tenant-scoped action control', async () => {

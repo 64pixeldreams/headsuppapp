@@ -18,7 +18,20 @@ channel subscribers
 workspace subscribers
 ```
 
-The action is safe to rerun. Existing resources are reused by stable keys.
+The action is safe to rerun. Existing resources are reused by stable keys and,
+for stale data created by older builds, reconciled by business identity:
+
+```text
+email subscriber = workspace_id + channel_id + subscriber_scope + subscriber_type + mode + normalized_destination
+signal = channel_id + signal_key
+watch = channel_id + signal_id + logical watch key, watch group key, or band key
+```
+
+If duplicate email subscribers exist for the same destination, an authorized row
+wins over a pending row, even when the pending row has the exact requested
+subscriber key. Duplicate pending rows are disabled during provisioning so they
+cannot force `confirm_email` or block emit readiness. Duplicate logical watches
+are disabled when the canonical watch is created or reused.
 
 For SaaS integrations with many customer resources, also read [saas-integration-guide.md](saas-integration-guide.md). It explains when to use one channel per resource versus one channel per alert board.
 
@@ -113,6 +126,24 @@ const setup = await headsup.provisionChannel({
 console.log(setup.connector.connector_key);
 console.log(setup.connector.connector_secret); // shown only when connector is newly created
 ```
+
+## Dirty Channel Audit And Repair
+
+Use the audit script before and after repairing a channel with known stale rows:
+
+```bash
+npm run audit:repair-channel -- --workspace-id ws_123 --channel-id ch_123 --remote
+npm run audit:repair-channel -- --workspace-id ws_123 --channel-id ch_123 --remote --repair
+npm run audit:repair-channel -- --workspace-id ws_123 --channel-id ch_123 --remote --repair --create-foretic-defaults
+```
+
+Dry-run reports duplicate email subscriber groups, pending duplicates shadowing
+authorized rows, signals without enabled watches, duplicate logical watches, and
+watch groups without enabled bands. Repair mode normalizes missing email
+destinations and disables duplicate subscriber/watch rows while preserving the
+authorized/enabled canonical row. Add `--create-foretic-defaults` when repairing
+a Foretic forecast channel that is missing the standard Foretic signal/watch
+families.
 
 ## Raw API Example
 

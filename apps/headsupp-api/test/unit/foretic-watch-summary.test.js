@@ -30,13 +30,10 @@ test('Foretic watch setup summary captures end-to-end provisioning state', async
   assert.equal(result.summary.event_url.startsWith('https://headsupp.test/v1/events/'), true);
   assert.equal(result.summary.connector.secret_returned, true);
   assert.equal(result.summary.signal_contract.signal_key, 'forecast.revenue.pace');
-  assert.deepEqual(
-    result.summary.watches.map((watch) => [watch.watch_type, watch.threshold, watch.severity]),
-    [
-      ['LAST_VALUE_LT', 85, 'warning'],
-      ['LAST_VALUE_LT', 70, 'critical'],
-    ],
-  );
+  assert.equal(result.summary.enabled_alert_families.length, 9);
+  assert.equal(result.summary.watches.length, 10);
+  assert.equal(result.summary.signals.some((signal) => signal.signal_key === 'forecast.goal.reached'), true);
+  assert.equal(result.summary.watches.some((watch) => watch.family === 'bucket_close'), true);
   assert.equal(result.summary.subscribers.some((subscriber) => subscriber.mode === 'aggregate_forward'), true);
 });
 

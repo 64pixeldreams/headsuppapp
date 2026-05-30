@@ -45,6 +45,7 @@
     "smoke:proof-runtime": "npm run smoke:trend-up-down && npm run smoke:advanced-watches && npm run smoke:event-occurrence && npm run smoke:valueless-event && npm run smoke:delivery-retry",
     "release:verify-env": "node scripts/verify-release-env.mjs --slack-required",
     "release:verify-schema": "node scripts/verify-d1-schema.mjs",
+    "audit:repair-channel": "node scripts/audit-repair-channel.mjs",
     "provision:generic-smoke": "node scripts/provision-generic-smoke.mjs"
   },
   "keywords": [

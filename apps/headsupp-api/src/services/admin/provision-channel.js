@@ -158,6 +158,7 @@ function updatedCounter() {
 function reconciledCounter() {
   return {
     disabled_watches: 0,
+    disabled_subscribers: 0,
   };
 }
 
@@ -477,6 +478,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
       if (!watchResult.ok) return stepError('watch_groups', watchResult, index, groupInput, { band_index: bandIndex, band_key: bandKey });
       groupWatches.push(watchResult.watch);
       watches.push(watchResult.watch);
+      reconciled.disabled_watches += Number(watchResult.reconciled?.disabled_watches || 0);
       if (watchResult.created === true) created.watches += 1;
       if (watchResult.created === false) reused.watches += 1;
     }
@@ -520,6 +522,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
     });
     if (!watchResult.ok) return stepError('watches', watchResult, index, watchInput);
     watches.push(watchResult.watch);
+    reconciled.disabled_watches += Number(watchResult.reconciled?.disabled_watches || 0);
     if (watchResult.created === true) created.watches += 1;
     if (watchResult.created === false) reused.watches += 1;
   }
@@ -541,6 +544,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
     });
     if (!subscriberResult.ok) return stepError('subscribers', subscriberResult, index, subscriberInput);
     subscribers.push(subscriberResult.subscriber);
+    reconciled.disabled_subscribers += Number(subscriberResult.reconciled?.disabled_subscribers || 0);
     if (subscriberResult.created === true) created.subscribers += 1;
     if (subscriberResult.updated === true) updated.subscribers += 1;
     else if (subscriberResult.created === false) reused.subscribers += 1;
@@ -562,6 +566,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
     });
     if (!subscriberResult.ok) return stepError('workspace_subscribers', subscriberResult, index, subscriberInput);
     workspaceSubscribers.push(subscriberResult.subscriber);
+    reconciled.disabled_subscribers += Number(subscriberResult.reconciled?.disabled_subscribers || 0);
     if (subscriberResult.created === true) created.workspace_subscribers += 1;
     if (subscriberResult.updated === true) updated.workspace_subscribers += 1;
     else if (subscriberResult.created === false) reused.workspace_subscribers += 1;

@@ -1,5 +1,6 @@
 import { subscriberMatchesAlertFilters } from '../subscribers/alert-filters.js';
 import { cooldownUntil } from '../watches/alert-decision.js';
+import { canonicalSubscriberDestination, sortCanonicalSubscribers } from '../admin/canonical-identity.js';
 
 const SEVERITY_RANK = Object.freeze({
   recovery: 400,
@@ -181,10 +182,29 @@ export async function loadAlertSubscribers(db, { workspaceId, channelId, alert =
     .bind(channelId, workspaceId)
     .all();
 
-  const subscribers = result?.results || [];
+  const subscribers = dedupeAlertSubscribers(result?.results || []);
   if (!alert) return subscribers;
   const context = await loadAlertRoutingContext(db, alert);
   return subscribers.filter((subscriber) => subscriberMatchesAlertFilters(subscriber, context));
+}
+
+function dedupeAlertSubscribers(rows = []) {
+  const grouped = new Map();
+  for (const row of rows) {
+    const destination = canonicalSubscriberDestination(row);
+    const key = [
+      row.workspace_id,
+      row.channel_id,
+      row.subscriber_scope || 'channel',
+      row.subscriber_type,
+      row.mode || 'alert',
+      destination,
+    ].join('|');
+    const group = grouped.get(key) || [];
+    group.push(row);
+    grouped.set(key, group);
+  }
+  return Array.from(grouped.values()).map((group) => sortCanonicalSubscribers(group)[0]);
 }
 
 export function buildAlertDeliveries({ alert, subscribers, now = new Date().toISOString() }) {
