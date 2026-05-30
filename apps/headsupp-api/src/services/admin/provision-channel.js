@@ -403,6 +403,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
         signal_id: signalId,
       },
       now,
+      skip_scope_validation: true,
     });
     if (!groupResult.ok) return stepError('watch_groups', groupResult, index, groupInput);
     const watchGroup = groupResult.watch_group;
@@ -437,6 +438,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
           cooldown_seconds: band.cooldown_seconds ?? groupInput.cooldown_seconds,
         },
         now,
+        skip_scope_validation: true,
       });
       if (!watchResult.ok) return stepError('watch_groups', watchResult, index, groupInput, { band_index: bandIndex, band_key: bandKey });
       groupWatches.push(watchResult.watch);
@@ -480,6 +482,7 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
         signal_id: signalId,
       },
       now,
+      skip_scope_validation: true,
     });
     if (!watchResult.ok) return stepError('watches', watchResult, index, watchInput);
     watches.push(watchResult.watch);

@@ -1150,7 +1150,7 @@ export async function createAdminSignal({ auth, db, input, now }) {
   return { ok: true, created: true, signal: storedSignal, signal_contract: signalContract, materialized_watches };
 }
 
-export async function createAdminWatch({ auth, db, input, now }) {
+export async function createAdminWatch({ auth, db, input, now, skip_scope_validation = false }) {
   const denied = denyIfNeeded(auth, 'watch:create');
   if (denied) return denied;
   const action = 'admin.createWatch';
@@ -1163,17 +1163,19 @@ export async function createAdminWatch({ auth, db, input, now }) {
   if (input.config !== undefined && (typeof input.config !== 'object' || Array.isArray(input.config) || input.config === null)) {
     return validationError(action, 'config', 'config must be an object when provided.');
   }
-  const scopeDenied =
-    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
-    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id })) ||
-    (await requireSignalScope({
-      db,
-      auth,
-      workspaceId: input.workspace_id,
-      channelId: input.channel_id,
-      signalId: input.signal_id,
-    }));
-  if (scopeDenied) return scopeDenied;
+  if (!skip_scope_validation) {
+    const scopeDenied =
+      (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+      (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id })) ||
+      (await requireSignalScope({
+        db,
+        auth,
+        workspaceId: input.workspace_id,
+        channelId: input.channel_id,
+        signalId: input.signal_id,
+      }));
+    if (scopeDenied) return scopeDenied;
+  }
   const row = buildWatchRow(input, now);
   const existing = await loadWatch(db, row.watch_id);
   if (existing) return { ok: true, created: false, watch: existing };
@@ -1232,7 +1234,7 @@ export async function updateAdminWatch({ auth, db, input, now }) {
   return { ok: true, watch: updated, changed: Number(watch.enabled) !== Number(next.enabled) };
 }
 
-export async function createAdminWatchGroup({ auth, db, input, now }) {
+export async function createAdminWatchGroup({ auth, db, input, now, skip_scope_validation = false }) {
   const denied = denyIfNeeded(auth, 'watch:create');
   if (denied) return denied;
   const action = 'admin.createWatchGroup';
@@ -1250,17 +1252,19 @@ export async function createAdminWatchGroup({ auth, db, input, now }) {
   }
   const scopeDeniedForInput = scopedCreateDenied(auth, input, action);
   if (scopeDeniedForInput) return scopeDeniedForInput;
-  const scopeDenied =
-    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
-    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id })) ||
-    (await requireSignalScope({
-      db,
-      auth,
-      workspaceId: input.workspace_id,
-      channelId: input.channel_id,
-      signalId: input.signal_id,
-    }));
-  if (scopeDenied) return scopeDenied;
+  if (!skip_scope_validation) {
+    const scopeDenied =
+      (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+      (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id })) ||
+      (await requireSignalScope({
+        db,
+        auth,
+        workspaceId: input.workspace_id,
+        channelId: input.channel_id,
+        signalId: input.signal_id,
+      }));
+    if (scopeDenied) return scopeDenied;
+  }
   const row = buildWatchGroupRow({ ...input, winner_policy: winnerPolicy, cooldown_scope: cooldownScope }, now);
   const existing = await findWatchGroupByChannelKey(db, row.channel_id, row.group_key);
   if (existing) return { ok: true, created: false, watch_group: existing };
