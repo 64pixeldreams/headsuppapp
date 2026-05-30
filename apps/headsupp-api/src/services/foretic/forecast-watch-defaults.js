@@ -154,7 +154,7 @@ export function foreticForecastWatchDefinitions({ channel, context, now }) {
     {
       ...base,
       family: 'trend_up',
-      signal_key: FORETIC_FORECAST_SIGNAL_KEY,
+      signal_key: 'forecast.trend.up',
       watch_id: `${channel.channel_id}:watch:trend_up`,
       watch_key: `${channel.channel_id}:trend_up`,
       name: 'Forecast trend up',
@@ -174,7 +174,7 @@ export function foreticForecastWatchDefinitions({ channel, context, now }) {
     {
       ...base,
       family: 'trend_down',
-      signal_key: FORETIC_FORECAST_SIGNAL_KEY,
+      signal_key: 'forecast.trend.down',
       watch_id: `${channel.channel_id}:watch:trend_down`,
       watch_key: `${channel.channel_id}:trend_down`,
       name: 'Forecast trend down',
@@ -212,7 +212,7 @@ export function foreticForecastWatchDefinitions({ channel, context, now }) {
     {
       ...base,
       family: 'day_summary',
-      signal_key: FORETIC_FORECAST_SIGNAL_KEY,
+      signal_key: 'forecast.day.summary',
       watch_id: `${channel.channel_id}:watch:day_summary`,
       watch_key: `${channel.channel_id}:day_summary`,
       name: 'Forecast daily summary',
