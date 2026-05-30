@@ -55,7 +55,9 @@ async function d1({ database, remote }, sql) {
   const args = [wranglerBin, 'd1', 'execute', database, '--json', '--command', sql];
   if (remote) args.splice(4, 0, '--remote');
   const { stdout } = await execFileAsync(process.execPath, args, { maxBuffer: 1024 * 1024 * 4 });
-  return extractWranglerJson(stdout)[0]?.results || [];
+  const resultSets = extractWranglerJson(stdout);
+  const resultSet = [...resultSets].reverse().find((entry) => Array.isArray(entry.results));
+  return resultSet?.results || [];
 }
 
 async function createMissingForeticDefaults(args, { workspaceId, channelId }) {
