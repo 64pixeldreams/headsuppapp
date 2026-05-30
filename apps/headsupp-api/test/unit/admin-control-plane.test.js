@@ -1541,6 +1541,51 @@ test('admin createSubscriber is idempotent and does not resend authorization on 
   assert.equal(authEmails, 0);
 });
 
+test('admin createSubscriber upsert reuses authorized email by destination even with different subscriber_key', async () => {
+  const result = await createAdminSubscriber({
+    auth: { user_id: 'user_admin', permissions: ['subscriber:create'] },
+    db: scopedDb({
+      workspace: { id: 'ws_a', workspace_id: 'ws_a' },
+      channel: { id: 'ch_a', channel_id: 'ch_a', workspace_id: 'ws_a' },
+      subscribers: [
+        {
+          id: 'sub_existing',
+          subscriber_id: 'sub_existing',
+          workspace_id: 'ws_a',
+          channel_id: 'ch_a',
+          subscriber_scope: 'channel',
+          subscriber_type: 'email',
+          name: 'Webhook subscriber',
+          destination_url: 'board@example.com',
+          normalized_destination: 'board@example.com',
+          mode: 'alert',
+          enabled: 1,
+          config_json: JSON.stringify({ authorization: { required: true, status: 'authorized' } }),
+          created_at: '2026-05-24T10:00:00.000Z',
+          updated_at: '2026-05-24T10:01:00.000Z',
+        },
+      ],
+    }),
+    input: {
+      workspace_id: 'ws_a',
+      channel_id: 'ch_a',
+      subscriber_key: 'new-key-for-same-email',
+      subscriber_type: 'email',
+      destination_url: 'board@example.com',
+      mode: 'alert',
+      upsert_existing: true,
+      config: { authorization: { required: true } },
+    },
+    now: '2026-05-24T10:02:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.created, false);
+  assert.equal(result.authorization, null);
+  assert.equal(result.subscriber.subscriber_id, 'sub_existing');
+  assert.equal(result.subscriber.config.authorization.status, 'authorized');
+});
+
 test('admin signal creation inherits channel contract defaults and materializes watch templates', async () => {
   const calls = [];
   const result = await createAdminSignal({

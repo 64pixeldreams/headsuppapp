@@ -587,6 +587,48 @@ async function findSignalByChannelKey(db, channelId, signalKey) {
   return firstRow(db, 'SELECT * FROM signals WHERE channel_id = ? AND signal_key = ? LIMIT 1', [channelId, signalKey]);
 }
 
+async function findSubscriberByDestination({
+  db,
+  workspaceId,
+  channelId,
+  subscriberScope,
+  subscriberType,
+  mode,
+  normalizedDestination,
+}) {
+  if (!workspaceId || !subscriberType || !normalizedDestination) return null;
+  const params = [
+    workspaceId,
+    subscriberType,
+    normalizedDestination,
+    mode || 'alert',
+    subscriberScope,
+  ];
+  let sql = `SELECT *
+             FROM subscribers
+             WHERE workspace_id = ?
+               AND subscriber_type = ?
+               AND normalized_destination = ?
+               AND mode = ?
+               AND COALESCE(subscriber_scope, 'channel') = ?`;
+  if (subscriberScope === WORKSPACE_SUBSCRIBER_SCOPE) {
+    sql += ' AND channel_id = ?';
+    params.push(workspaceSubscriberChannelId(workspaceId));
+  } else {
+    sql += ' AND channel_id = ?';
+    params.push(channelId);
+  }
+  const matches = await allRows(db, sql, params);
+  if (!matches.length) return null;
+  matches.sort((a, b) => {
+    const aAuthorized = parseJsonField(a.config_json, {}).authorization?.status === 'authorized' ? 1 : 0;
+    const bAuthorized = parseJsonField(b.config_json, {}).authorization?.status === 'authorized' ? 1 : 0;
+    if (aAuthorized !== bAuthorized) return bAuthorized - aAuthorized;
+    return String(b.updated_at || '').localeCompare(String(a.updated_at || ''));
+  });
+  return matches[0];
+}
+
 async function requireWorkspaceScope({ db, auth, workspaceId }) {
   const workspace = await loadWorkspace(db, workspaceId);
   if (!workspace) return null;
@@ -802,7 +844,18 @@ export async function createAdminSubscriber({ auth, db, input, env = {}, now }) 
   }
   const built = buildSubscriberRow(inheritOwnership({ ...input, subscriber_scope: subscriberScope }, parent), now);
   if (!built.ok) return built;
-  const existing = await loadSubscriber(db, built.row.subscriber_id);
+  let existing = await loadSubscriber(db, built.row.subscriber_id);
+  if (!existing && input.upsert_existing === true && built.row.subscriber_type === 'email') {
+    existing = await findSubscriberByDestination({
+      db,
+      workspaceId: built.row.workspace_id,
+      channelId: built.row.channel_id,
+      subscriberScope,
+      subscriberType: built.row.subscriber_type,
+      mode: built.row.mode,
+      normalizedDestination: built.row.normalized_destination,
+    });
+  }
   if (existing) {
     if (input.upsert_existing === true) {
       if (existing.subscriber_type === 'email' && existing.normalized_destination !== built.row.normalized_destination) {
