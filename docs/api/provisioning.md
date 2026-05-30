@@ -321,6 +321,17 @@ Channel subscribers still work exactly as before and remain best for per-channel
 
 `admin.provisionChannel` writes resources in deterministic order and every write is idempotent. It does not roll back earlier successful steps. If a later step fails, fix the payload and rerun the same request.
 
+Signal dependency resolution:
+
+```text
+watch_groups and watches may reference a signal_key that is:
+1) included in payload.signals, or
+2) already present on the channel.
+
+If a referenced signal_key is missing from both, provisioning now creates that signal
+on demand before attaching the dependent watch_group/watch.
+```
+
 Failure details identify the section, array index, supplied stable keys, and dependency reason where available:
 
 ```json

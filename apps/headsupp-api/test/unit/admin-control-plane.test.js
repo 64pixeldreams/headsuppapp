@@ -801,7 +801,7 @@ test('admin provisionChannel rejects email destination changes for same subscrib
   assert.equal(result.details.cause.code, 'VALIDATION_ERROR');
 });
 
-test('admin provisionChannel reports unknown watch signal_key with section details', async () => {
+test('admin provisionChannel auto-creates missing signal_key referenced by watch', async () => {
   const db = provisionDb();
   const permissions = [
     'workspace:create',
@@ -838,14 +838,11 @@ test('admin provisionChannel reports unknown watch signal_key with section detai
     now: '2026-05-24T10:00:00.000Z',
   });
 
-  assert.equal(result.ok, false);
-  assert.equal(result.code, 'PROVISION_STEP_FAILED');
-  assert.equal(result.details.section, 'watches');
-  assert.equal(result.details.index, 0);
-  assert.equal(result.details.signal_key, 'missing.signal');
-  assert.equal(result.details.dependency.type, 'signal');
-  assert.match(result.details.dependency.reason, /not present/);
-  assert.equal(result.details.cause.code, 'SIGNAL_NOT_FOUND');
+  assert.equal(result.ok, true);
+  assert.equal(result.created.signals, 1);
+  assert.equal(result.watches.length, 1);
+  assert.equal(result.signals[0].signal_key, 'missing.signal');
+  assert.equal(result.watches[0].signal_id, result.signals[0].id);
 });
 
 test('admin channel read returns metadata', async () => {

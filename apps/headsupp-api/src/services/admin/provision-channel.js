@@ -86,6 +86,15 @@ async function loadWorkspace(db, { workspaceId, workspaceKey }) {
   return null;
 }
 
+async function loadSignalByChannelAndKey(db, { channelId, signalKey }) {
+  if (!channelId || !signalKey) return null;
+  return firstRow(
+    db,
+    'SELECT * FROM signals WHERE channel_id = ? AND signal_key = ? LIMIT 1',
+    [channelId, signalKey],
+  );
+}
+
 function createdCounter() {
   return {
     workspace: false,
@@ -277,6 +286,46 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
 
   const signals = [];
   const signalByKey = new Map();
+  const resolveSignalReference = async ({ section, index, stepInput }) => {
+    if (stepInput.signal_id) {
+      return { signal_id: stepInput.signal_id, id: stepInput.signal_id };
+    }
+    if (!stepInput.signal_key) {
+      return null;
+    }
+    const mapped = signalByKey.get(stepInput.signal_key);
+    if (mapped) return mapped;
+
+    const channelSignal = await loadSignalByChannelAndKey(db, {
+      channelId: channel.channel_id || channel.id,
+      signalKey: stepInput.signal_key,
+    });
+    if (channelSignal) {
+      signalByKey.set(channelSignal.signal_key, channelSignal);
+      return channelSignal;
+    }
+
+    const signalResult = await createAdminSignal({
+      auth,
+      db,
+      input: {
+        signal_key: stepInput.signal_key,
+        workspace_id: workspace.workspace_id || workspace.id,
+        channel_id: channel.channel_id || channel.id,
+      },
+      now,
+    });
+    if (!signalResult.ok) {
+      return stepError(section, signalResult, index, stepInput);
+    }
+    const createdSignal = signalResult.signal;
+    signalByKey.set(createdSignal.signal_key, createdSignal);
+    signals.push(createdSignal);
+    if (signalResult.created === true) created.signals += 1;
+    else reused.signals += 1;
+    return createdSignal;
+  };
+
   for (const [index, signalInput] of signalsInput.entries()) {
     const signalResult = await createAdminSignal({
       auth,
@@ -298,9 +347,8 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
   const watches = [];
   const watchGroups = [];
   for (const [index, groupInput] of watchGroupsInput.entries()) {
-    const signal = groupInput.signal_id
-      ? { signal_id: groupInput.signal_id, id: groupInput.signal_id }
-      : signalByKey.get(groupInput.signal_key);
+    const signal = await resolveSignalReference({ section: 'watch_groups', index, stepInput: groupInput });
+    if (signal?.ok === false) return signal;
     if (!signal) {
       return stepError('watch_groups', {
         status: 400,
@@ -400,9 +448,8 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
   }
 
   for (const [index, watchInput] of watchesInput.entries()) {
-    const signal = watchInput.signal_id
-      ? { signal_id: watchInput.signal_id, id: watchInput.signal_id }
-      : signalByKey.get(watchInput.signal_key);
+    const signal = await resolveSignalReference({ section: 'watches', index, stepInput: watchInput });
+    if (signal?.ok === false) return signal;
     if (!signal) {
       return stepError('watches', {
         status: 400,
