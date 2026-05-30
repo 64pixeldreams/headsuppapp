@@ -626,6 +626,65 @@ async function findSubscriberByDestination({
   return matches[0];
 }
 
+async function reconcileDuplicateEmailSubscribers({
+  db,
+  canonicalSubscriber,
+  workspaceId,
+  channelId,
+  subscriberScope,
+  mode,
+  normalizedDestination,
+  authorizationConfig,
+  now,
+}) {
+  if (!canonicalSubscriber || !normalizedDestination) return;
+  const params = [workspaceId, 'email', mode || 'alert', subscriberScope];
+  let sql = `SELECT *
+             FROM subscribers
+             WHERE workspace_id = ?
+               AND subscriber_type = ?
+               AND mode = ?
+               AND COALESCE(subscriber_scope, 'channel') = ?`;
+  if (subscriberScope === WORKSPACE_SUBSCRIBER_SCOPE) {
+    sql += ' AND channel_id = ?';
+    params.push(workspaceSubscriberChannelId(workspaceId));
+  } else {
+    sql += ' AND channel_id = ?';
+    params.push(channelId);
+  }
+
+  const rows = await allRows(db, sql, params);
+  const canonicalId = canonicalSubscriber.id || canonicalSubscriber.subscriber_id;
+  const canonicalSubscriberId = canonicalSubscriber.subscriber_id || canonicalSubscriber.id;
+  for (const row of rows) {
+    const rowId = row.id || row.subscriber_id;
+    const rowSubscriberId = row.subscriber_id || row.id;
+    if (rowId === canonicalId || rowSubscriberId === canonicalSubscriberId) continue;
+    const normalizedStored = normalizeEmailAddress(row.normalized_destination || row.destination_url || '');
+    if (normalizedStored !== normalizedDestination) continue;
+
+    const config = parseJsonField(row.config_json, {});
+    const nextAuthorization = {
+      ...(config.authorization || {}),
+      ...(authorizationConfig || {}),
+      status: authorizationConfig?.status || config.authorization?.status || 'authorized',
+      authorized_at: authorizationConfig?.authorized_at || config.authorization?.authorized_at || now,
+    };
+    const nextConfig = {
+      ...config,
+      authorization: nextAuthorization,
+    };
+    await db
+      .prepare(
+        `UPDATE subscribers
+         SET enabled = 0, normalized_destination = ?, config_json = ?, updated_at = ?
+         WHERE id = ? OR subscriber_id = ?`,
+      )
+      .bind(normalizedDestination, JSON.stringify(nextConfig), now, rowId, rowSubscriberId)
+      .run();
+  }
+}
+
 async function requireWorkspaceScope({ db, auth, workspaceId }) {
   const workspace = await loadWorkspace(db, workspaceId);
   if (!workspace) return null;
@@ -841,9 +900,10 @@ export async function createAdminSubscriber({ auth, db, input, env = {}, now }) 
   }
   const built = buildSubscriberRow(inheritOwnership({ ...input, subscriber_scope: subscriberScope }, parent), now);
   if (!built.ok) return built;
-  let existing = await loadSubscriber(db, built.row.subscriber_id);
-  if (!existing && input.upsert_existing === true && built.row.subscriber_type === 'email') {
-    existing = await findSubscriberByDestination({
+  const exactExisting = await loadSubscriber(db, built.row.subscriber_id);
+  let destinationExisting = null;
+  if (input.upsert_existing === true && built.row.subscriber_type === 'email') {
+    destinationExisting = await findSubscriberByDestination({
       db,
       workspaceId: built.row.workspace_id,
       channelId: built.row.channel_id,
@@ -853,6 +913,13 @@ export async function createAdminSubscriber({ auth, db, input, env = {}, now }) 
       normalizedDestination: built.row.normalized_destination,
     });
   }
+  const exactConfig = parseJsonField(exactExisting?.config_json, {});
+  const destinationConfig = parseJsonField(destinationExisting?.config_json, {});
+  const existing =
+    destinationConfig.authorization?.status === 'authorized' &&
+    exactConfig.authorization?.status !== 'authorized'
+      ? destinationExisting
+      : exactExisting || destinationExisting;
   if (existing) {
     if (input.upsert_existing === true) {
       const existingNormalizedDestination = existing.subscriber_type === 'email'
@@ -879,6 +946,19 @@ export async function createAdminSubscriber({ auth, db, input, env = {}, now }) 
           requested_at: existingConfig.authorization.requested_at || nextConfig.authorization.requested_at || now,
           authorized_at: existingConfig.authorization.authorized_at || now,
         };
+      }
+      if (existing.subscriber_type === 'email' && nextConfig.authorization?.status === 'authorized') {
+        await reconcileDuplicateEmailSubscribers({
+          db,
+          canonicalSubscriber: existing,
+          workspaceId: built.row.workspace_id,
+          channelId: built.row.channel_id,
+          subscriberScope,
+          mode: built.row.mode,
+          normalizedDestination: built.row.normalized_destination,
+          authorizationConfig: nextConfig.authorization,
+          now,
+        });
       }
       const nextEnabled = existing.subscriber_type === 'email' && nextConfig.authorization?.status === 'authorized'
         ? existing.enabled

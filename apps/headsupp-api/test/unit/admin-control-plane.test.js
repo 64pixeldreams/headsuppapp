@@ -1630,6 +1630,75 @@ test('admin createSubscriber upsert reuses authorized email when normalized_dest
   assert.equal(result.subscriber.config.authorization.status, 'authorized');
 });
 
+test('admin createSubscriber upsert prefers authorized destination match over pending exact key', async () => {
+  const rows = [
+    {
+      id: 'sub_pending_exact',
+      subscriber_id: 'sub_pending_exact',
+      workspace_id: 'ws_a',
+      channel_id: 'ch_a',
+      subscriber_scope: 'channel',
+      subscriber_type: 'email',
+      name: 'Pending Subscriber',
+      destination_url: 'board@example.com',
+      normalized_destination: 'board@example.com',
+      mode: 'alert',
+      enabled: 0,
+      config_json: JSON.stringify({ authorization: { required: true, status: 'pending', requested_at: '2026-05-24T10:01:00.000Z' } }),
+      created_at: '2026-05-24T10:01:00.000Z',
+      updated_at: '2026-05-24T10:01:00.000Z',
+    },
+    {
+      id: 'sub_authorized_destination',
+      subscriber_id: 'sub_authorized_destination',
+      workspace_id: 'ws_a',
+      channel_id: 'ch_a',
+      subscriber_scope: 'channel',
+      subscriber_type: 'email',
+      name: 'Authorized Subscriber',
+      destination_url: 'board@example.com',
+      normalized_destination: 'board@example.com',
+      mode: 'alert',
+      enabled: 1,
+      config_json: JSON.stringify({
+        authorization: {
+          required: true,
+          status: 'authorized',
+          requested_at: '2026-05-24T09:00:00.000Z',
+          authorized_at: '2026-05-24T09:05:00.000Z',
+        },
+      }),
+      created_at: '2026-05-24T09:00:00.000Z',
+      updated_at: '2026-05-24T09:05:00.000Z',
+    },
+  ];
+  const result = await createAdminSubscriber({
+    auth: { user_id: 'user_admin', permissions: ['subscriber:create'] },
+    db: scopedDb({
+      workspace: { id: 'ws_a', workspace_id: 'ws_a' },
+      channel: { id: 'ch_a', channel_id: 'ch_a', workspace_id: 'ws_a' },
+      subscriber: rows[0],
+      subscribers: rows,
+    }),
+    input: {
+      workspace_id: 'ws_a',
+      channel_id: 'ch_a',
+      subscriber_id: 'sub_pending_exact',
+      subscriber_type: 'email',
+      destination_url: 'board@example.com',
+      mode: 'alert',
+      upsert_existing: true,
+      config: { authorization: { required: true } },
+    },
+    now: '2026-05-24T10:02:00.000Z',
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.created, false);
+  assert.equal(result.subscriber.subscriber_id, 'sub_authorized_destination');
+  assert.equal(result.subscriber.config.authorization.status, 'authorized');
+});
+
 test('admin signal creation inherits channel contract defaults and materializes watch templates', async () => {
   const calls = [];
   const result = await createAdminSignal({
