@@ -77,6 +77,7 @@ async function createMissingForeticDefaults(args, { workspaceId, channelId }) {
   const signalKeys = Array.from(new Set(definitions.map((definition) => definition.signal_key)));
   let createdSignals = 0;
   let createdWatches = 0;
+  let updatedWatches = 0;
 
   for (const signalKey of signalKeys) {
     const signalId = stableId('sig', `${channelId}:${signalKey}`);
@@ -92,9 +93,38 @@ async function createMissingForeticDefaults(args, { workspaceId, channelId }) {
     createdSignals += Number(result[0]?.changed || 0);
   }
 
+  const storedSignals = await d1(
+    args,
+    `SELECT signal_id, signal_key
+     FROM signals
+     WHERE workspace_id = ${sqlString(workspaceId)} AND channel_id = ${sqlString(channelId)};`,
+  );
+  const signalIdByKey = new Map(storedSignals.map((signal) => [signal.signal_key, signal.signal_id]));
+
   for (const definition of definitions) {
-    const signalId = stableId('sig', `${channelId}:${definition.signal_key}`);
-    const result = await d1(
+    const signalId = signalIdByKey.get(definition.signal_key) || stableId('sig', `${channelId}:${definition.signal_key}`);
+    const updated = await d1(
+      args,
+      `UPDATE watches
+       SET signal_id = ${sqlString(signalId)},
+           name = ${sqlString(definition.name)},
+           watch_type = ${sqlString(definition.watch_type)},
+           config_json = ${sqlJson(definition.config)},
+           cooldown_seconds = ${Number(definition.cooldown_seconds || 86400)},
+           escalation_json = ${definition.escalation_json ? sqlJson(definition.escalation_json) : 'NULL'},
+           recovery_json = ${definition.recovery_json ? sqlJson(definition.recovery_json) : 'NULL'},
+           enabled = 1,
+           updated_at = ${sqlString(now)}
+       WHERE workspace_id = ${sqlString(workspaceId)}
+         AND channel_id = ${sqlString(channelId)}
+         AND watch_id = ${sqlString(definition.watch_id)};
+       SELECT changes() AS changed;`,
+    );
+    const updatedCount = Number(updated[0]?.changed || 0);
+    updatedWatches += updatedCount;
+    if (updatedCount > 0) continue;
+
+    const inserted = await d1(
       args,
       `INSERT OR IGNORE INTO watches
          (id, watch_id, workspace_id, channel_id, signal_id, watch_group_id, band_key, name, watch_type,
@@ -108,10 +138,10 @@ async function createMissingForeticDefaults(args, { workspaceId, channelId }) {
           ${sqlString(now)}, ${sqlString(now)});
        SELECT changes() AS changed;`,
     );
-    createdWatches += Number(result[0]?.changed || 0);
+    createdWatches += Number(inserted[0]?.changed || 0);
   }
 
-  return { ok: true, created_signals: createdSignals, created_watches: createdWatches };
+  return { ok: true, created_signals: createdSignals, created_watches: createdWatches, updated_watches: updatedWatches };
 }
 
 async function run() {
