@@ -45,6 +45,10 @@ function sqlJson(value) {
   return sqlString(JSON.stringify(value || {}));
 }
 
+function sqlList(values = []) {
+  return values.length ? values.map(sqlString).join(', ') : "''";
+}
+
 function extractWranglerJson(output) {
   const start = output.indexOf('[\n');
   if (start === -1) throw new Error(`Could not find wrangler JSON results in output:\n${output}`);
@@ -146,6 +150,71 @@ async function createMissingForeticDefaults(args, { workspaceId, channelId }) {
   return { ok: true, created_signals: createdSignals, created_watches: createdWatches, updated_watches: updatedWatches };
 }
 
+async function foreticDefaultWatchIds(args, { workspaceId, channelId }) {
+  const channelRows = await d1(
+    args,
+    `SELECT * FROM channels WHERE workspace_id = ${sqlString(workspaceId)} AND channel_id = ${sqlString(channelId)} LIMIT 1;`,
+  );
+  const channel = channelRows[0] || { workspace_id: workspaceId, channel_id: channelId };
+  const definitions = foreticForecastWatchDefinitions({
+    channel,
+    context: {
+      source_app: channel.source_app || 'foretic',
+      external_tenant_id: channel.external_tenant_id || null,
+      external_user_id: channel.external_user_id || null,
+      external_resource_id: channel.external_resource_id || null,
+    },
+    now: new Date().toISOString(),
+  });
+  return definitions.map((definition) => definition.watch_id);
+}
+
+async function findLegacyForeticWatches(args, { workspaceId, channelId }) {
+  const canonicalIds = await foreticDefaultWatchIds(args, { workspaceId, channelId });
+  return d1(
+    args,
+    `SELECT watch_id, signal_id, watch_type, config_json, enabled
+     FROM watches
+     WHERE workspace_id = ${sqlString(workspaceId)}
+       AND channel_id = ${sqlString(channelId)}
+       AND enabled = 1
+       AND watch_id NOT IN (${sqlList(canonicalIds)})
+       AND (
+         watch_type = 'LAST_VALUE_GTE'
+         OR watch_id LIKE 'watch_warning_%'
+         OR watch_id LIKE 'watch_critical_%'
+         OR watch_id LIKE 'watch_ch_%'
+         OR watch_id LIKE 'watch_adverse_%'
+         OR watch_id LIKE 'foretic:%:pace:%'
+         OR json_extract(config_json, '$.family') IN ('pace', 'goal', 'goal_reached', 'forecast_change', 'operational_stalled', 'trend_up', 'trend_down', 'bucket_close', 'day_summary')
+       )
+     ORDER BY watch_id;`,
+  );
+}
+
+async function disableLegacyForeticWatches(args, { workspaceId, channelId }) {
+  const canonicalIds = await foreticDefaultWatchIds(args, { workspaceId, channelId });
+  return d1(
+    args,
+    `UPDATE watches
+     SET enabled = 0, updated_at = datetime('now')
+     WHERE workspace_id = ${sqlString(workspaceId)}
+       AND channel_id = ${sqlString(channelId)}
+       AND enabled = 1
+       AND watch_id NOT IN (${sqlList(canonicalIds)})
+       AND (
+         watch_type = 'LAST_VALUE_GTE'
+         OR watch_id LIKE 'watch_warning_%'
+         OR watch_id LIKE 'watch_critical_%'
+         OR watch_id LIKE 'watch_ch_%'
+         OR watch_id LIKE 'watch_adverse_%'
+         OR watch_id LIKE 'foretic:%:pace:%'
+         OR json_extract(config_json, '$.family') IN ('pace', 'goal', 'goal_reached', 'forecast_change', 'operational_stalled', 'trend_up', 'trend_down', 'bucket_close', 'day_summary')
+       );
+     SELECT changes() AS changed;`,
+  );
+}
+
 async function run() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
@@ -209,7 +278,7 @@ async function run() {
       `SELECT channel_id, signal_id, COALESCE(watch_group_id, '') AS watch_group_id,
               COALESCE(band_key, '') AS band_key, watch_type, config_json, COUNT(*) AS row_count
        FROM watches
-       WHERE workspace_id = ${ws} AND channel_id = ${ch}
+       WHERE workspace_id = ${ws} AND channel_id = ${ch} AND enabled = 1
        GROUP BY channel_id, signal_id, watch_group_id, band_key, watch_type, config_json
        HAVING COUNT(*) > 1;`,
     ),
@@ -222,6 +291,10 @@ async function run() {
        GROUP BY wg.watch_group_id, wg.group_key
        HAVING COUNT(w.watch_id) = 0;`,
     ),
+    legacy_foretic_watches: await findLegacyForeticWatches(args, {
+      workspaceId: args.workspaceId,
+      channelId: args.channelId,
+    }),
   };
 
   if (args.repair) {
@@ -253,7 +326,7 @@ async function run() {
          )
          UPDATE subscribers
          SET enabled = 0, updated_at = datetime('now')
-         WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
+         WHERE enabled = 1 AND id IN (SELECT id FROM ranked WHERE rn > 1);
          SELECT changes() AS changed;`,
       ),
       disabled_duplicate_watches: await d1(
@@ -270,9 +343,13 @@ async function run() {
          )
          UPDATE watches
          SET enabled = 0, updated_at = datetime('now')
-         WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
+         WHERE enabled = 1 AND id IN (SELECT id FROM ranked WHERE rn > 1);
          SELECT changes() AS changed;`,
       ),
+      disabled_legacy_foretic_watches: await disableLegacyForeticWatches(args, {
+        workspaceId: args.workspaceId,
+        channelId: args.channelId,
+      }),
     };
     if (args.createForeticDefaults) {
       report.repairs.created_foretic_defaults = await createMissingForeticDefaults(args, {

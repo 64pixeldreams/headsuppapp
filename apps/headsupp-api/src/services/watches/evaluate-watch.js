@@ -174,7 +174,7 @@ function trendStats(aggregates, field) {
   if (aggregates.length < 2) return { ok: false, reason: 'INSUFFICIENT_TREND_BUCKETS' };
   const first = valueForField(aggregates[0], field);
   const latest = valueForField(aggregates[aggregates.length - 1], field);
-  if (first === null || latest === null) return { ok: false, reason: 'INVALID_TREND_VALUES' };
+  if (first === null || latest === null) return { ok: false, reason: 'NO_DATA' };
   if (first === 0) return { ok: false, reason: 'TREND_FIRST_VALUE_ZERO' };
   const percent = ((latest - first) / Math.abs(first)) * 100;
   return {
@@ -291,7 +291,7 @@ export function evaluateWatchAgainstAggregates(watch, aggregates = []) {
   return {
     supported: true,
     triggered,
-    reason,
+    reason: reason || (triggered ? null : 'WATCH_NOT_TRIGGERED'),
     current_value: currentValue,
     threshold: config.threshold,
     severity: config.severity,

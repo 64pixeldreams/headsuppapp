@@ -49,6 +49,35 @@ export function parseWatchConfig(row = {}) {
   }
 }
 
+function normalizeWatchKey(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const parts = text.split(':').filter(Boolean);
+  return parts[parts.length - 1] || text;
+}
+
+function inferLogicalWatchKey(row = {}, config = parseWatchConfig(row)) {
+  const explicit = normalizeWatchKey(row.watch_key || config.watch_key || config.logical_watch_key || config.attention_family);
+  if (explicit) return explicit;
+  if (config.family && (config.severity || row.severity)) return `${config.family}_${config.severity || row.severity}`;
+  if (config.family) return config.family;
+  if (config.event_type) return config.event_type;
+  const watchId = String(row.watch_id || row.id || '').toLowerCase();
+  if (watchId.includes('goal_reached')) return 'goal_reached';
+  if (watchId.includes('bucket_close') || watchId.includes('bucket_closed')) return 'bucket_close';
+  if (watchId.includes('trend_up')) return 'trend_up';
+  if (watchId.includes('trend_down')) return 'trend_down';
+  if (watchId.includes('forecast_change') || watchId.includes('adverse')) return 'forecast_change';
+  if (watchId.includes('operational_stalled')) return 'operational_stalled';
+  const severity = config.severity || row.severity || '';
+  if (row.watch_type === 'LAST_VALUE_LT' && Number(config.threshold ?? row.threshold) === 85) return 'pace_warning';
+  if (row.watch_type === 'LAST_VALUE_LT' && Number(config.threshold ?? row.threshold) === 70) return 'pace_critical';
+  if (watchId.includes('pace') && severity) return `pace_${severity}`;
+  if (watchId.includes('watch_warning') || watchId.includes(':warning')) return 'pace_warning';
+  if (watchId.includes('watch_critical') || watchId.includes(':critical')) return 'pace_critical';
+  return '';
+}
+
 export function logicalWatchIdentity(row = {}) {
   const config = parseWatchConfig(row);
   const channelId = row.channel_id || '';
@@ -62,13 +91,7 @@ export function logicalWatchIdentity(row = {}) {
       row.band_key || config.band_key || config.severity || '',
     ].join('|');
   }
-  const explicitKey =
-    row.watch_key ||
-    config.watch_key ||
-    config.logical_watch_key ||
-    config.attention_family ||
-    config.family ||
-    null;
+  const explicitKey = inferLogicalWatchKey(row, config);
   if (explicitKey) return [channelId, signalId, 'watch', explicitKey].join('|');
   return [
     channelId,

@@ -43,6 +43,21 @@ test('triggers LAST_VALUE_GT when aggregate last value is above threshold', () =
   assert.equal(result.severity, 'critical');
 });
 
+test('forecast_change stays quiet and explains threshold non-fire', () => {
+  const result = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'LAST_VALUE_GT',
+      config_json: JSON.stringify({ threshold: 10, severity: 'warning', watch_key: 'forecast_change', family: 'forecast_change' }),
+    },
+    [{ last_value: 2 }],
+  );
+
+  assert.equal(result.triggered, false);
+  assert.equal(result.current_value, 2);
+  assert.equal(result.threshold, 10);
+  assert.equal(result.reason, 'WATCH_NOT_TRIGGERED');
+});
+
 test('evaluates WINDOW_AVG_LT across aggregate rows', () => {
   const result = evaluateWatchAgainstAggregates(
     {
@@ -231,6 +246,27 @@ test('trend watches stay quiet for flat or insufficient data', () => {
   assert.equal(insufficient.reason, 'INSUFFICIENT_TREND_BUCKETS');
   assert.equal(firstZero.triggered, false);
   assert.equal(firstZero.reason, 'TREND_FIRST_VALUE_ZERO');
+});
+
+test('trend watches explain no-data non-fire when usable buckets are missing', () => {
+  const result = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'TREND_UP_GT',
+      config_json: JSON.stringify({
+        threshold: 10,
+        bucket_type: 'day',
+        field: 'last_value',
+        window: { size: 3 },
+        watch_key: 'trend_up',
+        family: 'trend_up',
+      }),
+    },
+    [{ count_value: 1 }, { count_value: 2 }],
+  );
+
+  assert.equal(result.triggered, false);
+  assert.equal(result.current_value, null);
+  assert.equal(result.reason, 'NO_DATA');
 });
 
 test('event occurrence watch matches event type and builds occurrence context', () => {

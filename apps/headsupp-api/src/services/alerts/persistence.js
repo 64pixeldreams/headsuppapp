@@ -1,6 +1,6 @@
 import { subscriberMatchesAlertFilters } from '../subscribers/alert-filters.js';
 import { cooldownUntil } from '../watches/alert-decision.js';
-import { canonicalSubscriberDestination, sortCanonicalSubscribers } from '../admin/canonical-identity.js';
+import { canonicalSubscriberDestination, parseWatchConfig, sortCanonicalSubscribers } from '../admin/canonical-identity.js';
 
 const SEVERITY_RANK = Object.freeze({
   recovery: 400,
@@ -72,7 +72,7 @@ export function attentionFingerprint({ alert, subscriber, payload = parseAlertPa
     payload.attention_family ||
     normalizeWatchPurpose(payload.watch_id || alert.watch_id);
   return [
-    subscriber.id || subscriber.subscriber_id,
+    canonicalSubscriberDestination(subscriber),
     alert.workspace_id,
     alert.channel_id,
     alert.signal_id || payload.signal_id,
@@ -85,6 +85,8 @@ export function attentionFingerprint({ alert, subscriber, payload = parseAlertPa
 
 export function buildAlert({ watch, evaluation, decision, input, now = new Date().toISOString() }) {
   const alertId = compactStableId('alert', [now, decision.action, watch.id || watch.watch_id, decision.occurrence_key || evaluation.occurrence_key]);
+  const config = parseWatchConfig(watch);
+  const attentionFamily = evaluation.fields?.attention_family || config.family || config.watch_key || null;
   const payload = {
     watch_id: watch.id || watch.watch_id,
     signal_id: watch.signal_id || input.signalId,
@@ -94,6 +96,8 @@ export function buildAlert({ watch, evaluation, decision, input, now = new Date(
     bucket_start_at: input.bucketStartAt,
     current_value: decision.current_value,
     threshold: evaluation.threshold,
+    attention_family: attentionFamily,
+    watch_key: config.watch_key || null,
     occurrence_key: decision.occurrence_key || evaluation.occurrence_key || null,
     cta: evaluation.cta || null,
     fields: evaluation.fields || {},
@@ -194,8 +198,6 @@ function dedupeAlertSubscribers(rows = []) {
     const destination = canonicalSubscriberDestination(row);
     const key = [
       row.workspace_id,
-      row.channel_id,
-      row.subscriber_scope || 'channel',
       row.subscriber_type,
       row.mode || 'alert',
       destination,
@@ -208,31 +210,41 @@ function dedupeAlertSubscribers(rows = []) {
 }
 
 export function buildAlertDeliveries({ alert, subscribers, now = new Date().toISOString() }) {
-  return subscribers.map((subscriber) => ({
-    id: compactStableId('delivery', [alert.id, subscriber.id || subscriber.subscriber_id]),
-    alert_id: alert.id,
-    subscriber_id: subscriber.id || subscriber.subscriber_id,
-    destination_url: subscriber.destination_url,
-    status: 'pending',
-    attempt_count: 0,
-    last_attempt_at: null,
-    next_retry_at: now,
-    response_code: null,
-    response_body: null,
-    created_at: now,
-    updated_at: now,
-  }));
+  const seenDestinations = new Set();
+  const deliveries = [];
+  for (const subscriber of subscribers) {
+    const destination = canonicalSubscriberDestination(subscriber);
+    const destinationKey = [subscriber.subscriber_type || 'webhook', destination].join('|');
+    if (seenDestinations.has(destinationKey)) continue;
+    seenDestinations.add(destinationKey);
+    deliveries.push({
+      id: compactStableId('delivery', [alert.id, destinationKey]),
+      alert_id: alert.id,
+      subscriber_id: subscriber.id || subscriber.subscriber_id,
+      destination_url: subscriber.destination_url,
+      status: 'pending',
+      attempt_count: 0,
+      last_attempt_at: null,
+      next_retry_at: now,
+      response_code: null,
+      response_body: null,
+      created_at: now,
+      updated_at: now,
+    });
+  }
+  return deliveries;
 }
 
 async function loadAttentionCandidates(db, { alert, subscriber, payload }) {
+  const destination = canonicalSubscriberDestination(subscriber);
   const result = await db
     .prepare(
-      `SELECT d.id AS delivery_id, d.status AS delivery_status, d.subscriber_id,
+      `SELECT d.id AS delivery_id, d.status AS delivery_status, d.subscriber_id, d.destination_url,
               a.id AS alert_id, a.workspace_id, a.channel_id, a.signal_id, a.watch_id,
               a.severity, a.triggered_at, a.created_at, a.payload_json
        FROM alert_deliveries d
        JOIN alerts a ON a.id = d.alert_id
-       WHERE d.subscriber_id = ?
+       WHERE lower(trim(d.destination_url)) = ?
          AND a.workspace_id = ?
          AND a.channel_id = ?
          AND a.signal_id = ?
@@ -243,7 +255,7 @@ async function loadAttentionCandidates(db, { alert, subscriber, payload }) {
        LIMIT 25`,
     )
     .bind(
-      subscriber.id || subscriber.subscriber_id,
+      destination,
       alert.workspace_id,
       alert.channel_id,
       alert.signal_id,
@@ -321,7 +333,10 @@ async function applyAttentionSuppression(db, { alert, deliveries, subscribers, n
         return false;
       }
       const candidateAlert = asCandidateAlert(candidate);
-      return attentionFingerprint({ alert: candidateAlert, subscriber }) === fingerprint;
+      return attentionFingerprint({
+        alert: candidateAlert,
+        subscriber: { ...subscriber, destination_url: candidate.destination_url },
+      }) === fingerprint;
     });
     if (!duplicate) {
       deliverable.push(delivery);

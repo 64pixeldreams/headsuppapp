@@ -163,8 +163,9 @@ export function foreticForecastWatchDefinitions({ channel, context, now }) {
       severity: 'info',
       config: {
         threshold: 10,
-        field: 'value',
-        window: { size: 3, bucket_type: 'day' },
+        bucket_type: 'day',
+        field: 'last_value',
+        window: { size: 3 },
         severity: 'info',
         watch_key: 'trend_up',
         family: 'trend_up',
@@ -183,8 +184,9 @@ export function foreticForecastWatchDefinitions({ channel, context, now }) {
       severity: 'warning',
       config: {
         threshold: 10,
-        field: 'value',
-        window: { size: 3, bucket_type: 'day' },
+        bucket_type: 'day',
+        field: 'last_value',
+        window: { size: 3 },
         severity: 'warning',
         watch_key: 'trend_down',
         family: 'trend_down',

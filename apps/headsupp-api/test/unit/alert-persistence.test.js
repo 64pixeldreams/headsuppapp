@@ -201,6 +201,63 @@ test('loads channel and workspace-scoped alert subscribers', async () => {
   assert.equal(subscribers[1].subscriber_id, 'sub_workspace');
 });
 
+test('dedupes channel and workspace email subscribers by destination', async () => {
+  const db = {
+    prepare() {
+      return {
+        bind() {
+          return {
+            async all() {
+              return {
+                results: [
+                  {
+                    subscriber_id: 'sub_channel',
+                    subscriber_scope: 'channel',
+                    subscriber_type: 'email',
+                    mode: 'alert',
+                    channel_id: 'ch_123',
+                    workspace_id: 'ws_123',
+                    destination_url: 'Board@Example.com',
+                    normalized_destination: 'board@example.com',
+                    enabled: 1,
+                    config_json: JSON.stringify({ authorization: { status: 'authorized' } }),
+                    updated_at: '2026-05-24T10:00:00.000Z',
+                  },
+                  {
+                    subscriber_id: 'sub_workspace',
+                    subscriber_scope: 'workspace',
+                    subscriber_type: 'email',
+                    mode: 'alert',
+                    channel_id: '__workspace__:ws_123',
+                    workspace_id: 'ws_123',
+                    destination_url: 'board@example.com',
+                    normalized_destination: 'board@example.com',
+                    enabled: 1,
+                    config_json: JSON.stringify({ authorization: { status: 'pending' } }),
+                    updated_at: '2026-05-24T10:01:00.000Z',
+                  },
+                ],
+              };
+            },
+          };
+        },
+      };
+    },
+  };
+
+  const subscribers = await loadAlertSubscribers(db, { workspaceId: 'ws_123', channelId: 'ch_123' });
+  const deliveries = buildAlertDeliveries({
+    alert: buildAlert({ watch, evaluation, decision, input, now: '2026-05-24T10:05:00.000Z' }),
+    subscribers,
+    now: '2026-05-24T10:05:00.000Z',
+  });
+
+  assert.equal(subscribers.length, 1);
+  assert.equal(subscribers[0].subscriber_id, 'sub_channel');
+  assert.equal(deliveries.length, 1);
+  assert.equal(deliveries[0].destination_url, 'Board@Example.com');
+});
+
 test('persists deliveries only for matching subscriber alert filters', async () => {
   const statements = [];
   const db = {
@@ -433,13 +490,14 @@ test('suppresses lower-severity duplicate attention deliveries for same subscrib
               if (/FROM alert_deliveries/.test(sql)) {
                 return {
                   results: deliveries
-                    .filter((delivery) => delivery.subscriber_id === params[0] && ['pending', 'retrying', 'sent'].includes(delivery.status))
+                    .filter((delivery) => delivery.destination_url.toLowerCase() === params[0] && ['pending', 'retrying', 'sent'].includes(delivery.status))
                     .map((delivery) => {
                       const alert = alerts.find((row) => row.id === delivery.alert_id);
                       return {
                         delivery_id: delivery.id,
                         delivery_status: delivery.status,
                         subscriber_id: delivery.subscriber_id,
+                        destination_url: delivery.destination_url,
                         alert_id: alert.id,
                         workspace_id: alert.workspace_id,
                         channel_id: alert.channel_id,
@@ -561,13 +619,14 @@ test('does not enqueue a lower-severity duplicate when a winner already exists',
               if (/FROM alert_deliveries/.test(sql)) {
                 return {
                   results: deliveries
-                    .filter((delivery) => delivery.subscriber_id === params[0] && ['pending', 'retrying', 'sent'].includes(delivery.status))
+                    .filter((delivery) => delivery.destination_url.toLowerCase() === params[0] && ['pending', 'retrying', 'sent'].includes(delivery.status))
                     .map((delivery) => {
                       const alert = alerts.find((row) => row.id === delivery.alert_id);
                       return {
                         delivery_id: delivery.id,
                         delivery_status: delivery.status,
                         subscriber_id: delivery.subscriber_id,
+                        destination_url: delivery.destination_url,
                         alert_id: alert.id,
                         workspace_id: alert.workspace_id,
                         channel_id: alert.channel_id,
@@ -704,13 +763,14 @@ test('allows same-bucket re-alert after a completed resume action', async () => 
               if (/FROM alert_deliveries/.test(sql)) {
                 return {
                   results: deliveries
-                    .filter((delivery) => delivery.subscriber_id === params[0] && ['pending', 'retrying', 'sent'].includes(delivery.status))
+                    .filter((delivery) => delivery.destination_url.toLowerCase() === params[0] && ['pending', 'retrying', 'sent'].includes(delivery.status))
                     .map((delivery) => {
                       const alert = alerts.find((row) => row.id === delivery.alert_id);
                       return {
                         delivery_id: delivery.id,
                         delivery_status: delivery.status,
                         subscriber_id: delivery.subscriber_id,
+                        destination_url: delivery.destination_url,
                         alert_id: alert.id,
                         workspace_id: alert.workspace_id,
                         channel_id: alert.channel_id,
@@ -856,13 +916,14 @@ test('allows recovery delivery when a critical alert already exists in the same 
               if (/FROM alert_deliveries/.test(sql)) {
                 return {
                   results: deliveries
-                    .filter((delivery) => delivery.subscriber_id === params[0] && ['pending', 'retrying', 'sent'].includes(delivery.status))
+                    .filter((delivery) => delivery.destination_url.toLowerCase() === params[0] && ['pending', 'retrying', 'sent'].includes(delivery.status))
                     .map((delivery) => {
                       const alert = alerts.find((row) => row.id === delivery.alert_id);
                       return {
                         delivery_id: delivery.id,
                         delivery_status: delivery.status,
                         subscriber_id: delivery.subscriber_id,
+                        destination_url: delivery.destination_url,
                         alert_id: alert.id,
                         workspace_id: alert.workspace_id,
                         channel_id: alert.channel_id,

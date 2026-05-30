@@ -22,6 +22,19 @@ export async function loadAlertDeliveryBundle(db, deliveryId) {
   };
 }
 
+async function claimAlertDelivery(db, delivery, { now = new Date().toISOString(), reclaimProcessing = false } = {}) {
+  const statuses = reclaimProcessing ? "('pending', 'retrying', 'processing')" : "('pending', 'retrying')";
+  const result = await db
+    .prepare(
+      `UPDATE alert_deliveries
+       SET status = ?, updated_at = ?
+       WHERE id = ? AND status IN ${statuses}`,
+    )
+    .bind('processing', now, delivery.id)
+    .run();
+  return Number(result?.meta?.changes || 0) > 0;
+}
+
 export async function processAlertDeliveryMessage(message, env, options = {}) {
   const deliveryId = message.alertDeliveryId || message.deliveryId;
   const bundle = await loadAlertDeliveryBundle(env.DB, deliveryId);
@@ -42,6 +55,23 @@ export async function processAlertDeliveryMessage(message, env, options = {}) {
       processed: true,
       reason: 'DELIVERY_TERMINAL_STATE',
       result: { status: bundle.delivery.status },
+    };
+  }
+  if (!['pending', 'retrying'].includes(bundle.delivery.status || 'pending') && !(options.reclaimProcessing && bundle.delivery.status === 'processing')) {
+    return {
+      processed: true,
+      reason: 'DELIVERY_ALREADY_CLAIMED',
+      result: { status: bundle.delivery.status },
+    };
+  }
+  const claimed = await claimAlertDelivery(env.DB, bundle.delivery, {
+    now: options.now,
+    reclaimProcessing: options.reclaimProcessing === true,
+  });
+  if (!claimed) {
+    return {
+      processed: true,
+      reason: 'DELIVERY_CLAIM_CONFLICT',
     };
   }
 

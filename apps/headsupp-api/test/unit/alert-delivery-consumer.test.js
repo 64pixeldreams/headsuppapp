@@ -96,3 +96,84 @@ test('returns subscriber not found when subscriber row is missing', async () => 
   assert.equal(result.processed, false);
   assert.equal(result.reason, 'SUBSCRIBER_NOT_FOUND');
 });
+
+test('skips duplicate queue message when delivery is already claimed', async () => {
+  let fetchCalls = 0;
+  const db = {
+    prepare(sql) {
+      return {
+        bind() {
+          return {
+            async first() {
+              if (sql.includes('FROM alert_deliveries')) {
+                return {
+                  id: 'delivery_123',
+                  alert_id: 'alert_123',
+                  subscriber_id: 'sub_123',
+                  status: 'processing',
+                  destination_url: 'https://example.com/webhook',
+                  attempt_count: 0,
+                };
+              }
+              if (sql.includes('FROM alerts')) return { id: 'alert_123', channel_id: 'ch_123' };
+              if (sql.includes('FROM subscribers')) return { subscriber_id: 'sub_123', subscriber_type: 'webhook' };
+              return null;
+            },
+          };
+        },
+      };
+    },
+  };
+
+  const result = await processAlertDeliveryMessage(
+    { alertDeliveryId: 'delivery_123' },
+    { DB: db },
+    { async fetchFn() { fetchCalls += 1; } },
+  );
+
+  assert.equal(result.processed, true);
+  assert.equal(result.reason, 'DELIVERY_ALREADY_CLAIMED');
+  assert.equal(fetchCalls, 0);
+});
+
+test('claim conflict prevents duplicate send', async () => {
+  let fetchCalls = 0;
+  const db = {
+    prepare(sql) {
+      return {
+        bind() {
+          return {
+            async first() {
+              if (sql.includes('FROM alert_deliveries')) {
+                return {
+                  id: 'delivery_123',
+                  alert_id: 'alert_123',
+                  subscriber_id: 'sub_123',
+                  status: 'pending',
+                  destination_url: 'https://example.com/webhook',
+                  attempt_count: 0,
+                };
+              }
+              if (sql.includes('FROM alerts')) return { id: 'alert_123', channel_id: 'ch_123' };
+              if (sql.includes('FROM subscribers')) return { subscriber_id: 'sub_123', subscriber_type: 'webhook' };
+              return null;
+            },
+            async run() {
+              return { meta: { changes: 0 } };
+            },
+          };
+        },
+      };
+    },
+  };
+
+  const result = await processAlertDeliveryMessage(
+    { alertDeliveryId: 'delivery_123' },
+    { DB: db },
+    { async fetchFn() { fetchCalls += 1; } },
+  );
+
+  assert.equal(result.processed, true);
+  assert.equal(result.reason, 'DELIVERY_CLAIM_CONFLICT');
+  assert.equal(fetchCalls, 0);
+});

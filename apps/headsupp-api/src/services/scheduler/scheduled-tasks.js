@@ -10,9 +10,15 @@ import { recordOperationalStatus } from '../operational/status.js';
 import { cleanupRawEventDedupe } from './dedupe-cleanup.js';
 
 async function loadRetryableDeliveries(db, table) {
+  const processingCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   const result = await db
-    .prepare(`SELECT id FROM ${table} WHERE status = 'retrying' AND next_retry_at <= ? LIMIT 100`)
-    .bind(new Date().toISOString())
+    .prepare(
+      `SELECT id FROM ${table}
+       WHERE (status = 'retrying' AND next_retry_at <= ?)
+          OR (status = 'processing' AND updated_at <= ?)
+       LIMIT 100`,
+    )
+    .bind(new Date().toISOString(), processingCutoff)
     .all();
   return result?.results || [];
 }
@@ -23,7 +29,7 @@ export async function processRetryableDeliveries(env, options = {}) {
   const quietSummaryRows = await loadRetryableDeliveries(env.DB, 'quiet_summary_deliveries');
 
   for (const row of alertRows) {
-    await processAlertDeliveryMessage({ alertDeliveryId: row.id }, env, options);
+    await processAlertDeliveryMessage({ alertDeliveryId: row.id }, env, { ...options, reclaimProcessing: true });
   }
   for (const row of aggregateRows) {
     await processAggregateDeliveryMessage({ aggregateDeliveryId: row.id }, env, options);

@@ -63,6 +63,10 @@ test('creates Foretic forecast watch setup resources', async () => {
   assert.equal(result.watches.length, 10);
   assert.equal(result.watches.some((watch) => watch.family === 'goal_reached' && watch.watch_type === 'EVENT_OCCURRENCE'), true);
   assert.equal(result.watches.some((watch) => watch.family === 'day_summary' && watch.watch_type === 'DIGEST'), true);
+  const trendUp = result.watches.find((watch) => watch.family === 'trend_up');
+  assert.equal(trendUp.config.bucket_type, 'day');
+  assert.equal(trendUp.config.field, 'last_value');
+  assert.deepEqual(trendUp.config.window, { size: 3 });
   assert.equal(result.watches[0].recovery_json?.condition, 'value >= 95');
   assert.equal(result.subscribers.length, 2);
   assert.equal(result.subscribers[0].subscriber_type, 'slack_webhook');
