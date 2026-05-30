@@ -1109,7 +1109,14 @@ export async function listAdminSubscribers({ auth, db, input }) {
   return { ok: true, subscribers };
 }
 
-export async function createAdminSignal({ auth, db, input, now }) {
+export async function createAdminSignal({
+  auth,
+  db,
+  input,
+  now,
+  skip_scope_validation = false,
+  inherited_channel_contract = null,
+}) {
   const denied = denyIfNeeded(auth, 'signal:create');
   if (denied) return denied;
   const action = 'admin.createSignal';
@@ -1119,14 +1126,18 @@ export async function createAdminSignal({ auth, db, input, now }) {
   }
   const scopeDeniedForInput = scopedCreateDenied(auth, input, action);
   if (scopeDeniedForInput) return scopeDeniedForInput;
-  const scopeDenied =
-    (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
-    (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
-  if (scopeDenied) return scopeDenied;
-  const channel = await loadChannel(db, input.channel_id);
-  if (!channel) return notFound('CHANNEL_NOT_FOUND', 'Channel was not found.');
-  const activeChannelContract = await loadActiveChannelContract(db, input.channel_id);
-  const inheritedContract = activeChannelContract ? publicChannelContract(activeChannelContract) : null;
+  if (!skip_scope_validation) {
+    const scopeDenied =
+      (await requireWorkspaceScope({ db, auth, workspaceId: input.workspace_id })) ||
+      (await requireChannelScope({ db, auth, workspaceId: input.workspace_id, channelId: input.channel_id }));
+    if (scopeDenied) return scopeDenied;
+    const channel = await loadChannel(db, input.channel_id);
+    if (!channel) return notFound('CHANNEL_NOT_FOUND', 'Channel was not found.');
+  }
+  const inheritedContract = inherited_channel_contract
+    || (skip_scope_validation
+      ? null
+      : publicChannelContract(await loadActiveChannelContract(db, input.channel_id)));
   const signalContract = buildSignalContract(input.contract, inheritedContract);
   const row = buildSignalRow(input, now);
   const existing = await findSignalByChannelKey(db, row.channel_id, row.signal_key);

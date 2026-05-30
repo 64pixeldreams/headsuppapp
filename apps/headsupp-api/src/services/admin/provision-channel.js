@@ -76,6 +76,31 @@ async function firstRow(db, sql, params = []) {
   return null;
 }
 
+function parseJsonField(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+async function loadActiveChannelContractDefaults(db, channelId) {
+  if (!channelId) return null;
+  const row = await firstRow(
+    db,
+    'SELECT * FROM channel_contracts WHERE channel_id = ? AND status = ? ORDER BY version DESC LIMIT 1',
+    [channelId, 'active'],
+  );
+  if (!row) return null;
+  return {
+    default_dimensions: parseJsonField(row.default_dimensions_json, []),
+    default_watch_templates: parseJsonField(row.default_watch_templates_json, []),
+    cta_policy: parseJsonField(row.cta_policy_json, {}),
+  };
+}
+
 async function loadWorkspace(db, { workspaceId, workspaceKey }) {
   if (workspaceId) {
     return firstRow(db, 'SELECT * FROM workspaces WHERE id = ? OR workspace_id = ? LIMIT 1', [workspaceId, workspaceId]);
@@ -286,6 +311,8 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
 
   const signals = [];
   const signalByKey = new Map();
+  const shouldMaterializeSignalTemplates = watchGroupsInput.length === 0 && watchesInput.length === 0;
+  const inheritedChannelContract = await loadActiveChannelContractDefaults(db, channel.channel_id || channel.id);
   const resolveSignalReference = async ({ section, index, stepInput }) => {
     if (stepInput.signal_id) {
       return { signal_id: stepInput.signal_id, id: stepInput.signal_id };
@@ -312,8 +339,11 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
         signal_key: stepInput.signal_key,
         workspace_id: workspace.workspace_id || workspace.id,
         channel_id: channel.channel_id || channel.id,
+        materialize_watch_templates: shouldMaterializeSignalTemplates,
       },
       now,
+      skip_scope_validation: true,
+      inherited_channel_contract: inheritedChannelContract,
     });
     if (!signalResult.ok) {
       return stepError(section, signalResult, index, stepInput);
@@ -334,8 +364,12 @@ export async function provisionAdminChannel({ auth, db, env = {}, store, input, 
         ...signalInput,
         workspace_id: workspace.workspace_id || workspace.id,
         channel_id: channel.channel_id || channel.id,
+        materialize_watch_templates:
+          signalInput.materialize_watch_templates ?? shouldMaterializeSignalTemplates,
       },
       now,
+      skip_scope_validation: true,
+      inherited_channel_contract: inheritedChannelContract,
     });
     if (!signalResult.ok) return stepError('signals', signalResult, index, signalInput);
     signals.push(signalResult.signal);
