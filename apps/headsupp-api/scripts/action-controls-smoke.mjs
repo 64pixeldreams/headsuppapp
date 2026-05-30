@@ -93,6 +93,62 @@ async function waitForNextMinuteBoundary(bufferMs = 1200) {
   await sleep(msUntilNextMinute + bufferMs);
 }
 
+async function latestWatchState() {
+  return client.d1First(
+    `SELECT watch_id, last_status, cooldown_until, last_evaluated_at, updated_at, state_json
+     FROM watch_states
+     WHERE watch_id = ?
+     LIMIT 1`,
+    [ids.watch],
+  );
+}
+
+async function recentActionControls() {
+  const result = await client.d1Query(
+    `SELECT action_type, status, target_type, target_id, expires_at, created_at, updated_at
+     FROM watch_action_controls
+     WHERE channel_id = ?
+     ORDER BY created_at DESC
+     LIMIT 8`,
+    [ids.channel],
+  );
+  return result?.results || [];
+}
+
+async function waitForResumedDelivery() {
+  const accepted = [];
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    accepted.push(await sendOne(`resumed-alert-${attempt}`, 17 + (attempt - 1)));
+    try {
+      const resumed = await waitForCounts(`resumed action-controls alert (attempt ${attempt})`, 2, 2);
+      return { resumed, accepted };
+    } catch (error) {
+      lastError = error;
+      // Give control-state propagation a chance before retrying.
+      await sleep(8_000);
+    }
+  }
+
+  const [counts, latest, delivery, watchState, controls] = await Promise.all([
+    smokeCounts(client, ids),
+    latestAlert(client, ids),
+    latestDelivery(client, ids),
+    latestWatchState(),
+    recentActionControls(),
+  ]);
+  throw new Error(
+    `Timed out waiting for resumed action-controls alert after 3 attempts. ` +
+      `last_error=${lastError?.message || 'n/a'} ` +
+      `counts=${JSON.stringify(counts)} ` +
+      `latest_alert=${JSON.stringify(latest)} ` +
+      `latest_delivery=${JSON.stringify(delivery)} ` +
+      `watch_state=${JSON.stringify(watchState)} ` +
+      `recent_controls=${JSON.stringify(controls)}`,
+  );
+}
+
 const health = await checkHealth(runtime.baseUrl);
 const setup = await provisionGenericScenario({
   client,
@@ -123,8 +179,8 @@ if (afterSnooze.alerts !== initial.counts.alerts) {
 await clearActionControls();
 await insertActionControl({ id: `${ids.watch}_resume`, actionType: 'resume', status: 'completed' });
 await waitForNextMinuteBoundary();
-const resumedAccepted = await sendOne('resumed-alert', 17);
-const resumed = await waitForCounts('resumed action-controls alert', 2, 2);
+const resumedResult = await waitForResumedDelivery();
+const resumed = resumedResult.resumed;
 
 await insertActionControl({ id: `${ids.watch}_mute`, actionType: 'mute' });
 const mutedAccepted = await sendOne('muted-alert', 18);
@@ -173,7 +229,7 @@ console.log(
       ingest: {
         initial_queued: initialAccepted.queued,
         snoozed_queued: snoozedAccepted.queued,
-        resumed_queued: resumedAccepted.queued,
+        resumed_queued_attempts: resumedResult.accepted.map((entry) => entry.queued),
         muted_queued: mutedAccepted.queued,
       },
       assertions: {

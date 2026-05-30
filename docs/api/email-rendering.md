@@ -200,6 +200,47 @@ Debug is hidden by default. For an internal test inbox, set subscriber.config.de
 adds a discreet footer line and a subject suffix; it never changes customer copy.
 ```
 
+### `fields.test` / `fields.test_mode`
+
+Use test flags on every manual or integration test emit so test emails are unmistakable.
+
+```json
+{
+  "fields": {
+    "test": true,
+    "test_mode": true,
+    "notification": {
+      "title": "Coffee spend sandbox check",
+      "summary": "This is a non-production verification event."
+    }
+  }
+}
+```
+
+Behavior:
+
+- Heads Up prefixes the subject with `[TEST]`.
+- Heads Up renders a visible `[TEST]` banner in the email body.
+- Prefixing is applied to synthesized subjects and explicit overrides.
+
+### `fields.email_subject`
+
+Use this when the integrator wants to provide the authoritative subject line.
+
+```json
+{
+  "fields": {
+    "email_subject": "Coffee spend test alert for QA inbox"
+  }
+}
+```
+
+Rules:
+
+- `fields.email_subject` overrides the synthesized subject headline.
+- In test mode (`fields.test` or `fields.test_mode`), Heads Up still prepends `[TEST]` to the override.
+- Debug subject suffix (`[debug.id]`) still applies when debug mode is enabled and `debug_subject` is not disabled.
+
 ## Forecast Events
 
 Forecast emails are generic. They do not require `source_app = "foretic"`.

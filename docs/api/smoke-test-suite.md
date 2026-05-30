@@ -654,3 +654,36 @@ Run this checklist before calling a deployment proven:
 18. docs mention any intentionally skipped smoke and why
 19. secret scan finds no real Slack webhook URLs, API tokens, or connector secrets
 ```
+
+## Action Controls Smoke Troubleshooting
+
+Symptom:
+
+```text
+Timed out waiting for resumed action-controls alert
+```
+
+Most common causes:
+
+```text
+1) Active snooze still applied when the resumed event is evaluated.
+2) Minute-bucket timing caused the resumed event to be evaluated too soon.
+3) Transient runtime/network delay while polling deployed state.
+```
+
+Current smoke behavior:
+
+```text
+- clears controls
+- inserts a completed resume control
+- waits for the next minute boundary
+- retries resumed emits up to 3 attempts before failing
+- includes watch_state and recent action controls in the final error
+```
+
+Interpretation:
+
+```text
+If the smoke still fails, use the emitted watch_state/recent_controls payload to confirm
+whether the watch was still snoozed/muted or cooling down at evaluation time.
+```
