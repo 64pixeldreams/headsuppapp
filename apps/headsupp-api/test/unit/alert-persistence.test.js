@@ -650,6 +650,177 @@ test('does not enqueue a lower-severity duplicate when a winner already exists',
   assert.equal(enqueued.length, 1);
 });
 
+test('allows same-bucket re-alert after a completed resume action', async () => {
+  const alerts = [];
+  const deliveries = [];
+  const enqueued = [];
+  const controls = [];
+  const subscriber = { subscriber_id: 'sub_board', destination_url: 'board@example.com', config_json: '{}' };
+  const db = {
+    prepare(sql) {
+      return {
+        bind(...params) {
+          return {
+            sql,
+            params,
+            async run() {
+              if (/INSERT INTO watch_action_controls/.test(sql)) {
+                controls.push({
+                  workspace_id: params[2],
+                  channel_id: params[3],
+                  target_type: params[4],
+                  target_id: params[5],
+                  action_type: params[6],
+                  status: params[7],
+                  created_at: params[14],
+                });
+              }
+              return { meta: { changes: 1 } };
+            },
+            async first() {
+              if (/FROM signals/.test(sql)) return { signal_key: 'forecast.revenue.pace' };
+              if (/FROM watches/.test(sql)) return { watch_id: params[0] };
+              if (/FROM watch_action_controls/.test(sql)) {
+                const [workspaceId, channelId, watchId, signalId] = params;
+                const relevant = controls
+                  .filter(
+                    (control) =>
+                      control.workspace_id === workspaceId
+                      && control.channel_id === channelId
+                      && control.action_type === 'resume'
+                      && control.status === 'completed'
+                      && (
+                        (control.target_type === 'watch' && control.target_id === watchId)
+                        || (control.target_type === 'signal' && control.target_id === signalId)
+                      ),
+                  )
+                  .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+                return { latest_resume_at: relevant[0]?.created_at || null };
+              }
+              return null;
+            },
+            async all() {
+              if (/FROM subscribers/.test(sql)) return { results: [subscriber] };
+              if (/FROM alert_deliveries/.test(sql)) {
+                return {
+                  results: deliveries
+                    .filter((delivery) => delivery.subscriber_id === params[0] && ['pending', 'retrying', 'sent'].includes(delivery.status))
+                    .map((delivery) => {
+                      const alert = alerts.find((row) => row.id === delivery.alert_id);
+                      return {
+                        delivery_id: delivery.id,
+                        delivery_status: delivery.status,
+                        subscriber_id: delivery.subscriber_id,
+                        alert_id: alert.id,
+                        workspace_id: alert.workspace_id,
+                        channel_id: alert.channel_id,
+                        signal_id: alert.signal_id,
+                        watch_id: alert.watch_id,
+                        severity: alert.severity,
+                        triggered_at: alert.triggered_at,
+                        created_at: alert.created_at,
+                        payload_json: alert.payload_json,
+                      };
+                    }),
+                };
+              }
+              return { results: [] };
+            },
+          };
+        },
+      };
+    },
+    async batch(items) {
+      for (const item of items) {
+        if (/INSERT INTO alerts/.test(item.sql)) {
+          alerts.push({
+            id: item.params[0],
+            workspace_id: item.params[1],
+            channel_id: item.params[2],
+            signal_id: item.params[3],
+            watch_id: item.params[4],
+            severity: item.params[5],
+            current_value: item.params[6],
+            threshold_value: item.params[7],
+            summary_text: item.params[8],
+            payload_json: item.params[9],
+            triggered_at: item.params[12],
+            created_at: item.params[13],
+          });
+        }
+        if (/INSERT INTO alert_deliveries/.test(item.sql)) {
+          deliveries.push({
+            id: item.params[0],
+            alert_id: item.params[1],
+            subscriber_id: item.params[2],
+            destination_url: item.params[3],
+            status: item.params[4],
+            response_body: item.params[9],
+            created_at: item.params[10],
+            updated_at: item.params[11],
+          });
+        }
+      }
+    },
+  };
+  const queue = { async sendBatch(messages) { enqueued.push(...messages); } };
+  const common = {
+    fields: { forecast_id: 'forecast_123', attention_family: 'pace_health' },
+    input: { ...input, signalId: 'sig_pace', bucketStartAt: '2026-05-24T10:00:00.000Z' },
+  };
+
+  await persistAlertWithDeliveries({
+    db,
+    queue,
+    watch: { ...watch, id: 'watch_pace_warning', watch_id: 'watch_pace_warning', signal_id: 'sig_pace' },
+    evaluation: { threshold: 85, fields: common.fields },
+    decision: { action: 'alert', severity: 'warning', current_value: 64 },
+    input: common.input,
+    now: '2026-05-24T10:05:00.000Z',
+  });
+
+  await db
+    .prepare(
+      `INSERT INTO watch_action_controls (
+        id, action_id, workspace_id, channel_id, target_type, target_id, action_type, status,
+        reason, expires_at, actor_user_id, source_app, external_tenant_id, external_user_id, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      'resume_1',
+      'resume_1',
+      'ws_123',
+      'ch_123',
+      'watch',
+      'watch_pace_warning',
+      'resume',
+      'completed',
+      'manual resume',
+      null,
+      'user_1',
+      'headsupp',
+      null,
+      null,
+      '2026-05-24T10:05:05.000Z',
+      '2026-05-24T10:05:05.000Z',
+    )
+    .run();
+
+  const resumed = await persistAlertWithDeliveries({
+    db,
+    queue,
+    watch: { ...watch, id: 'watch_pace_warning', watch_id: 'watch_pace_warning', signal_id: 'sig_pace' },
+    evaluation: { threshold: 85, fields: common.fields },
+    decision: { action: 'alert', severity: 'warning', current_value: 64 },
+    input: common.input,
+    now: '2026-05-24T10:05:10.000Z',
+  });
+
+  assert.equal(resumed.deliveries[0].status, 'pending');
+  assert.equal(resumed.suppressed_deliveries.length, 0);
+  assert.equal(enqueued.length, 2);
+});
+
 test('allows recovery delivery when a critical alert already exists in the same bucket', async () => {
   const alerts = [];
   const deliveries = [];

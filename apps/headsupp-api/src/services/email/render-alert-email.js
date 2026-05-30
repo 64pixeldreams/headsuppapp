@@ -126,6 +126,19 @@ function cleanDebugText(value) {
   return text || null;
 }
 
+function isTruthyFlag(value) {
+  if (value === true) return true;
+  if (typeof value === 'number') return value === 1;
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'yes';
+}
+
+function prefixTestSubject(subject, isTestMode) {
+  const text = String(subject || '').trim();
+  if (!isTestMode || !text) return text;
+  return /^\[test\]/i.test(text) ? text : `[TEST] ${text}`;
+}
+
 function buildDebugContext(fields = {}, subscriberConfig = {}) {
   const debug = fields.debug && typeof fields.debug === 'object' && !Array.isArray(fields.debug) ? fields.debug : {};
   const enabled = subscriberConfig.debug === true || debug.mode === 'debug';
@@ -469,6 +482,11 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
   const escapedDetail = escapeHtml(context.detail || '');
   const headlineValue = context.headline_value ? escapeHtml(context.headline_value) : null;
   const headlineLabel = context.headline_label ? escapeHtml(context.headline_label) : null;
+  const testMode = context.test_mode === true;
+  const testBannerText = testMode ? '[TEST] This alert was emitted in test mode.' : null;
+  const testBannerHtml = testMode
+    ? '<p style="margin:0 auto 12px auto;max-width:440px;padding:8px 10px;border-radius:8px;background:#fff8e1;border:1px solid #facc15;font-size:12px;line-height:1.45;color:#92400e;font-weight:700;">[TEST] This alert was emitted in test mode.</p>'
+    : '';
   const escapedFooter = brand.footer_text ? escapeHtml(brand.footer_text) : null;
   const footerBrandName = String(brand.footer_brand_name || '').trim();
   const footerBrandUrl = safeUrl(brand.footer_brand_url);
@@ -492,11 +510,17 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
   const debugLine = context.debug?.line || null;
   const debugLineHtml = debugLine ? escapeHtml(debugLine) : null;
   const debugSubjectSuffix = context.debug?.subject_suffix || null;
+  const subjectBase = context.subject_override
+    ? String(context.subject_override).trim()
+    : `${titlePrefix(context.severity)}: ${subjectTitle}`;
+  const subjectWithDebugSuffix = `${subjectBase}${debugSubjectSuffix ? ` ${debugSubjectSuffix}` : ''}`;
 
   const text = [
     brand.brand_name,
     context.context_line || null,
     '',
+    testBannerText,
+    testBannerText ? '' : null,
     escapedRecipient ? `Hi ${context.recipient_name},` : null,
     context.title,
     '',
@@ -569,6 +593,7 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
                     <td align="center" style="padding:24px 24px 20px 24px;border-bottom:1px solid #d8dee4;">
                       ${heroIconHtml}
                       ${escapedRecipient ? `<p style="margin:0 0 12px 0;font-size:14px;color:#57606a;">Hi ${escapedRecipient},</p>` : ''}
+                      ${testBannerHtml}
                       <h1 style="margin:0 0 10px 0;font-size:21px;line-height:1.3;font-weight:700;color:#24292f;">${escapedTitle}</h1>
                       <p style="margin:0 0 14px 0;">
                         <span style="display:inline-block;background:${style.bg};color:${style.text};border:1px solid ${style.border};padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;">${style.label}</span>
@@ -626,7 +651,7 @@ function renderBrandShell(context, { metrics = buildDefaultMetrics(context), sub
 </html>`;
 
   return {
-    subject: `${titlePrefix(context.severity)}: ${subjectTitle}${debugSubjectSuffix ? ` ${debugSubjectSuffix}` : ''}`,
+    subject: prefixTestSubject(subjectWithDebugSuffix, testMode),
     text,
     html,
   };
@@ -828,6 +853,8 @@ export function renderAlertEmail({ alert, subscriber, channel, unsubscribe_url =
   const renderer = TEMPLATE_REGISTRY[templateId] || TEMPLATE_REGISTRY.brand_alert_v1;
   const branding = normalizeBranding(subscriberConfig, defaults);
   const debug = buildDebugContext(fields, subscriberConfig);
+  const testMode = isTruthyFlag(fields.test) || isTruthyFlag(fields.test_mode);
+  const subjectOverride = cleanDebugText(fields.email_subject || notification.email_subject || null);
   const contextLine = firstDisplayName([
     fields.context_line,
     fields.forecast_name,
@@ -838,6 +865,7 @@ export function renderAlertEmail({ alert, subscriber, channel, unsubscribe_url =
   const context = {
     title,
     subject_title: notification.subject || null,
+    subject_override: subjectOverride,
     summary,
     detail: notification.detail || '',
     notification,
@@ -860,6 +888,7 @@ export function renderAlertEmail({ alert, subscriber, channel, unsubscribe_url =
     channel_metadata: channelMetadata,
     context_line: contextLine,
     debug,
+    test_mode: testMode,
     template_id: templateId,
     append_value_to_title: !notification.title && !titleTemplate,
   };

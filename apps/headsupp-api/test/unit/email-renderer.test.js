@@ -72,6 +72,52 @@ test('renders notification overrides and escapes HTML content', () => {
   assert.doesNotMatch(rendered.html, /<b>126\.40<\/b>/);
 });
 
+test('uses explicit email subject override from event payload', () => {
+  const rendered = renderAlertEmail({
+    alert: {
+      ...baseAlert,
+      payload_json: JSON.stringify({
+        fields: {
+          email_subject: 'Forecast digest for finance team',
+          notification: {
+            title: 'Coffee budget monitor',
+            summary: 'Current spend is elevated.',
+          },
+        },
+      }),
+    },
+    subscriber: { config_json: '{}' },
+    channel: {},
+  });
+
+  assert.equal(rendered.subject, 'Forecast digest for finance team');
+});
+
+test('prefixes test mode subject and renders a test banner', () => {
+  const rendered = renderAlertEmail({
+    alert: {
+      ...baseAlert,
+      severity: 'warning',
+      payload_json: JSON.stringify({
+        fields: {
+          test: true,
+          test_mode: true,
+          notification: {
+            title: 'Form Submissions',
+            summary: 'Test payload summary.',
+          },
+        },
+      }),
+    },
+    subscriber: { config_json: '{}' },
+    channel: {},
+  });
+
+  assert.equal(rendered.subject, '[TEST] Warning: Form Submissions');
+  assert.match(rendered.text, /\[TEST\] This alert was emitted in test mode\./);
+  assert.match(rendered.html, /\[TEST\] This alert was emitted in test mode\./);
+});
+
 test('omits CTA button when URL is invalid', () => {
   const rendered = renderAlertEmail({
     alert: {

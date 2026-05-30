@@ -93,6 +93,8 @@ await headsup.resumeWatch({
 });
 ```
 
+Resume is a deliberate operator action. Heads Up treats it as a dedupe reset for that watch/signal target, so the next matching alert can deliver immediately (even if it lands in the same minute bucket as a pre-resume alert).
+
 ## Disable durably (vs snooze/mute)
 
 Snooze and mute are temporary. To turn a watch off for good (until you re-enable it) — for example when migrating a user off an old channel — use `disableWatch`:
@@ -152,6 +154,7 @@ const state = await headsup.getWatchState({
 
 - `once_until_recovered`: one alert per incident until recovery fires
 - Snooze: no new deliveries until `snooze_until`
+- Resume: dedupe reset for that target; next matching alert can deliver immediately
 - Grouped bands: one winning alert, not warning plus critical
 - Attention dedupe: lower-severity duplicate deliveries are marked `suppressed_duplicate`
 - `getWatchState` reflects controls applied to the watch

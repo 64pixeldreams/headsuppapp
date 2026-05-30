@@ -49,6 +49,8 @@ Alert delivery volume is governed by the watch decision path before subscribers 
 
 Heads Up also applies attention-level duplicate suppression before delivery enqueue. If multiple alerts map to the same subscriber, channel, signal, resource identity, attention family, and bucket/window, lower-severity duplicate deliveries are marked `suppressed_duplicate`. This is a final safety net for bad or legacy integrator configurations; grouped watch policies remain the preferred way to pick a winner before an alert row is created.
 
+`admin.resumeWatch` explicitly resets this suppression window for the resumed watch/signal target. After a completed resume action, a new matching alert can deliver immediately even inside the same minute bucket instead of being collapsed into the pre-resume winner.
+
 ## Watch State
 
 ```json

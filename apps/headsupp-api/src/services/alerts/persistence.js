@@ -234,6 +234,25 @@ async function loadAttentionCandidates(db, { alert, subscriber, payload }) {
   return result?.results || [];
 }
 
+async function loadLatestResumeAt(db, { alert }) {
+  const row = await firstRow(
+    db,
+    `SELECT MAX(created_at) AS latest_resume_at
+     FROM watch_action_controls
+     WHERE workspace_id = ?
+       AND channel_id = ?
+       AND action_type = 'resume'
+       AND status = 'completed'
+       AND (
+         (target_type = 'watch' AND target_id = ?)
+         OR
+         (target_type = 'signal' AND target_id = ?)
+       )`,
+    [alert.workspace_id, alert.channel_id, alert.watch_id, alert.signal_id],
+  );
+  return row?.latest_resume_at || null;
+}
+
 function asCandidateAlert(candidate) {
   return {
     id: candidate.alert_id,
@@ -266,6 +285,7 @@ async function markDeliverySuppressed(db, { deliveryId, fingerprint, winnerAlert
 
 async function applyAttentionSuppression(db, { alert, deliveries, subscribers, now }) {
   const payload = parseAlertPayload(alert);
+  const latestResumeAt = await loadLatestResumeAt(db, { alert });
   const suppressed = [];
   const deliverable = [];
   for (const delivery of deliveries) {
@@ -277,6 +297,9 @@ async function applyAttentionSuppression(db, { alert, deliveries, subscribers, n
     const fingerprint = attentionFingerprint({ alert, subscriber, payload });
     const candidates = await loadAttentionCandidates(db, { alert, subscriber, payload });
     const duplicate = candidates.find((candidate) => {
+      if (latestResumeAt && Date.parse(candidate.created_at) < Date.parse(latestResumeAt)) {
+        return false;
+      }
       const candidateAlert = asCandidateAlert(candidate);
       return attentionFingerprint({ alert: candidateAlert, subscriber }) === fingerprint;
     });

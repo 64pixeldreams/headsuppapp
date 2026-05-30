@@ -87,6 +87,12 @@ async function waitForCounts(label, expectedAlerts, expectedSent) {
   });
 }
 
+async function waitForNextMinuteBoundary(bufferMs = 1200) {
+  const now = Date.now();
+  const msUntilNextMinute = 60_000 - (now % 60_000);
+  await sleep(msUntilNextMinute + bufferMs);
+}
+
 const health = await checkHealth(runtime.baseUrl);
 const setup = await provisionGenericScenario({
   client,
@@ -116,6 +122,7 @@ if (afterSnooze.alerts !== initial.counts.alerts) {
 
 await clearActionControls();
 await insertActionControl({ id: `${ids.watch}_resume`, actionType: 'resume', status: 'completed' });
+await waitForNextMinuteBoundary();
 const resumedAccepted = await sendOne('resumed-alert', 17);
 const resumed = await waitForCounts('resumed action-controls alert', 2, 2);
 
