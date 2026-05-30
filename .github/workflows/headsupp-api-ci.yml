@@ -17,6 +17,19 @@ on:
         options:
           - "false"
           - "true"
+      smoke_job:
+        description: Run one deployed smoke job from dropdown
+        required: false
+        default: "none"
+        type: choice
+        options:
+          - "none"
+          - "proof-runtime"
+          - "delivery-retry"
+          - "trend-up-down"
+          - "event-occurrence"
+          - "valueless-event"
+          - "valueless-event-email"
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -155,3 +168,72 @@ jobs:
 
       - name: Release soak
         run: npm run soak:release
+
+  deployed-smoke-on-demand:
+    name: Deployed Smoke On Demand
+    needs: local-quality
+    if: github.event_name == 'workflow_dispatch' && inputs.smoke_job != 'none'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/headsupp-api
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      HEADSUPP_SMOKE_SLACK_WEBHOOK_URL: ${{ secrets.HEADSUPP_SMOKE_SLACK_WEBHOOK_URL }}
+      HEADSUPP_BOOTSTRAP_TOKEN: ${{ secrets.HEADSUPP_BOOTSTRAP_TOKEN }}
+      HEADSUPP_OPERATOR_TOKEN: ${{ secrets.HEADSUPP_OPERATOR_TOKEN }}
+      HEADSUPP_SMOKE_DISPATCH_SLACK: "true"
+      HEADSUPP_SMOKE_SERVICE_API_KEY: ${{ secrets.HEADSUPP_SMOKE_SERVICE_API_KEY }}
+      HEADSUPP_SMOKE_EMAIL_DESTINATION: ${{ secrets.HEADSUPP_SMOKE_EMAIL_DESTINATION }}
+      HEADSUPP_EMAIL_AUTH_SECRET: ${{ secrets.HEADSUPP_EMAIL_AUTH_SECRET }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/headsupp-api/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify required secrets
+        run: node scripts/verify-release-env.mjs
+
+      - name: Verify deployed D1 schema
+        run: npm run release:verify-schema
+
+      - name: Run selected smoke job
+        run: |
+          case "${{ inputs.smoke_job }}" in
+            "proof-runtime")
+              npm run smoke:proof-runtime
+              ;;
+            "delivery-retry")
+              npm run smoke:delivery-retry
+              ;;
+            "trend-up-down")
+              npm run smoke:trend-up-down
+              ;;
+            "event-occurrence")
+              npm run smoke:event-occurrence
+              ;;
+            "valueless-event")
+              npm run smoke:valueless-event
+              ;;
+            "valueless-event-email")
+              if [ -z "${HEADSUPP_SMOKE_EMAIL_DESTINATION}" ]; then
+                echo "HEADSUPP_SMOKE_EMAIL_DESTINATION secret is required for valueless-event-email smoke."
+                exit 1
+              fi
+              npm run smoke:valueless-event-email
+              ;;
+            *)
+              echo "Unknown smoke_job: ${{ inputs.smoke_job }}"
+              exit 1
+              ;;
+          esac

@@ -106,6 +106,7 @@ smoke:scheduled-email Email + deployed real email proof for MISSING_EXPECTED, RE
 smoke:email-inbox-loop Email + deployed automated inbox receipt proof through tester@aibox.headsupp.io and email_test_messages
 smoke:event-occurrence D1/HTTP + deployed EVENT_OCCURRENCE dedupe, duplicate suppression, second occurrence alert, and forecast_win_v1 metadata
 smoke:valueless-event  D1/HTTP + deployed value-less (value.num=null) event fires an EVENT_OCCURRENCE alert and reaches raw_event_dedupe status 'processed' (regression guard against queue poisoning / stranded events)
+smoke:valueless-event-email Email + deployed single value-less EVENT_OCCURRENCE event -> one sent real email delivery
 smoke:subscriber-lifecycle API + deployed  admin.getSubscriber/listSubscribers pending authorization reads; optional confirm + disable when service key and email auth secret configured
 smoke:subscriber-dimension-filters D1/HTTP + deployed one shared channel with two forecast-scoped subscribers (config.filters.dimensions.forecast_id); each recipient receives only their forecast's alert
 load:smoke               local             10000 synthetic events fold into fewer aggregate deltas
@@ -208,6 +209,23 @@ CLOUDFLARE_API_TOKEN
 ```
 
 This is the regression guard for the "no alerts fired" incident. Event-occurrence signals (goal reached, bucket close) arrive with `value.num = null`. Previously the queue consumer threw on the null value, poisoning the whole batch and stranding every event in `raw_event_dedupe` as `processing` forever, so zero alerts fired. The smoke sends the exact value-less shape and passes only when an `EVENT_OCCURRENCE` alert fires, the delivery is `sent`, and the raw event reaches `raw_event_dedupe` status `processed` (proving it was not stranded). It does not write an aggregate row for the value-less event.
+
+## Value-less Event Real Email
+
+Command:
+
+```bash
+HEADSUPP_SMOKE_EMAIL_DESTINATION=martin@inc64.com npm run smoke:valueless-event-email
+```
+
+Requires:
+
+```text
+CLOUDFLARE_API_TOKEN
+HEADSUPP_SMOKE_EMAIL_DESTINATION
+```
+
+This is the smallest real-email end-to-end proof for event-occurrence signals with no numeric value. It provisions an email subscriber, sends one `value.num = null` `goal_reached` event, and passes only when exactly one alert is created, one email delivery reaches `sent`, and the raw-event dedupe row is marked `processed`.
 
 ## Local Quality Gates
 
