@@ -42,9 +42,32 @@ async function getSignal(db, channelId, signalKey) {
     .first();
 }
 
+function shortHash(value) {
+  let hash = 5381;
+  const text = String(value || '');
+  for (let index = 0; index < text.length; index += 1) {
+    hash = ((hash << 5) + hash) ^ text.charCodeAt(index);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function signalPrimaryId(channelId, signalKey) {
+  const seed = `${channelId}:${signalKey}`;
+  const normalized = String(seed)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  const hash = shortHash(seed);
+  const slug = normalized.slice(0, 62);
+  return `sig_${slug}_${hash}`;
+}
+
 async function createSignal(db, message, now) {
+  const id = signalPrimaryId(message.channelId, message.event.signal_key);
   const signal = {
-    id: stableId('sig', `${message.channelId}:${message.event.signal_key}`),
+    id,
+    signal_id: id,
     workspace_id: message.workspaceId,
     channel_id: message.channelId,
     signal_key: message.event.signal_key,
@@ -58,11 +81,12 @@ async function createSignal(db, message, now) {
   await db
     .prepare(
       `INSERT INTO signals (
-        id, workspace_id, channel_id, signal_key, signal_type, value_mode, status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, signal_id, workspace_id, channel_id, signal_key, signal_type, value_mode, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       signal.id,
+      signal.signal_id,
       signal.workspace_id,
       signal.channel_id,
       signal.signal_key,

@@ -66,6 +66,7 @@ test('lazily creates missing signal and default contract', async () => {
   assert.equal(result.signalCreated, true);
   assert.equal(result.contractCreated, true);
   assert.equal(result.signal.signal_key, 'forecast.revenue.pace');
+  assert.equal(result.signal.id, result.signal.signal_id);
   assert.deepEqual(result.contract, DEFAULT_SIGNAL_CONTRACT);
   assert.equal(db.inserts.length, 2);
 });
@@ -82,4 +83,30 @@ test('lazily created signal contracts inherit active channel contract defaults',
   assert.equal(result.contractCreated, true);
   assert.deepEqual(result.contract.dimensions, ['forecast_id', 'status']);
   assert.deepEqual(result.contract.cta_policy, { required: true });
+});
+
+test('generates different signal ids for long channel keys and different signal keys', async () => {
+  const db = fakeDb();
+  const longChannel = 'ch_foretic_user_mkfoxvxgoyfbtd_forecast_oracle_forecast_mn9cxnv3muoleo';
+  const baseMessage = {
+    workspaceId: 'ws_123',
+    channelId: longChannel,
+    event: { signal_key: 'forecast.revenue.pace' },
+  };
+  const first = await resolveSignalAndContract(db, baseMessage, '2026-05-24T10:00:00.000Z');
+  const firstSignalInsert = db.inserts.find((entry) => entry.sql.includes('INSERT INTO signals'));
+  assert.ok(firstSignalInsert);
+  const firstId = first.signal.id;
+
+  const db2 = fakeDb();
+  const second = await resolveSignalAndContract(
+    db2,
+    { ...baseMessage, event: { signal_key: 'forecast.goal.risk' } },
+    '2026-05-24T10:00:00.000Z',
+  );
+  const secondSignalInsert = db2.inserts.find((entry) => entry.sql.includes('INSERT INTO signals'));
+  assert.ok(secondSignalInsert);
+  const secondId = second.signal.id;
+
+  assert.notEqual(firstId, secondId);
 });

@@ -111,6 +111,14 @@ CloudFunction:
 foretic.createForecastWatch
 ```
 
+Current scope of this adapter action:
+
+```text
+Creates forecast.revenue.pace signal contract and pace watches only.
+It does not provision goal, goal_reached, forecast_change, operational_stalled,
+trend_up/down, bucket_close, or day_summary watch families.
+```
+
 Request:
 
 ```json

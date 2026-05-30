@@ -197,6 +197,13 @@ Manual test checklist:
 - use a new channel or `cooldown_seconds: 0` for repeated tests;
 - use `admin.traceEvent` when the event is queued but no delivery is created.
 
+Family coverage checks (critical for multi-signal integrations):
+
+- confirm the channel has a `signals` row and an enabled watch/watch_group band for each emitted `signal_key`;
+- if only one family (for example pace) fires, verify other families were actually provisioned as signals+watches on the same channel;
+- if `trace.summary.accepted = true` but `raw_event.status = failed` and no signal/alerts are present, the event failed before watch evaluation and needs platform troubleshooting;
+- include `idempotency_key`, `signal_key`, `workspace_id`, and `channel_id` in escalation tickets so processing can be traced precisely.
+
 ## Migration
 
 When moving from older one-resource channels to alert-board channels, do it in phases:
