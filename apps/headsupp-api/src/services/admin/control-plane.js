@@ -621,6 +621,9 @@ async function findSubscriberByDestination({
     const aAuthorized = parseJsonField(a.config_json, {}).authorization?.status === 'authorized' ? 1 : 0;
     const bAuthorized = parseJsonField(b.config_json, {}).authorization?.status === 'authorized' ? 1 : 0;
     if (aAuthorized !== bAuthorized) return bAuthorized - aAuthorized;
+    const aEnabled = Number(a.enabled) === 1 ? 1 : 0;
+    const bEnabled = Number(b.enabled) === 1 ? 1 : 0;
+    if (aEnabled !== bEnabled) return bEnabled - aEnabled;
     return String(b.updated_at || '').localeCompare(String(a.updated_at || ''));
   });
   return matches[0];
@@ -915,9 +918,13 @@ export async function createAdminSubscriber({ auth, db, input, env = {}, now }) 
   }
   const exactConfig = parseJsonField(exactExisting?.config_json, {});
   const destinationConfig = parseJsonField(destinationExisting?.config_json, {});
+  const exactAuthorized = exactConfig.authorization?.status === 'authorized';
+  const destinationAuthorized = destinationConfig.authorization?.status === 'authorized';
+  const exactEnabled = Number(exactExisting?.enabled) === 1;
+  const destinationEnabled = Number(destinationExisting?.enabled) === 1;
   const existing =
-    destinationConfig.authorization?.status === 'authorized' &&
-    exactConfig.authorization?.status !== 'authorized'
+    destinationAuthorized &&
+    (!exactAuthorized || (destinationEnabled && !exactEnabled))
       ? destinationExisting
       : exactExisting || destinationExisting;
   if (existing) {
@@ -961,7 +968,7 @@ export async function createAdminSubscriber({ auth, db, input, env = {}, now }) 
         });
       }
       const nextEnabled = existing.subscriber_type === 'email' && nextConfig.authorization?.status === 'authorized'
-        ? existing.enabled
+        ? 1
         : built.row.enabled;
       const unchanged =
         existing.name === built.row.name &&
