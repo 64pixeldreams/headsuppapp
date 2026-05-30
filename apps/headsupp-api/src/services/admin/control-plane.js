@@ -597,18 +597,11 @@ async function findSubscriberByDestination({
   normalizedDestination,
 }) {
   if (!workspaceId || !subscriberType || !normalizedDestination) return null;
-  const params = [
-    workspaceId,
-    subscriberType,
-    normalizedDestination,
-    mode || 'alert',
-    subscriberScope,
-  ];
+  const params = [workspaceId, subscriberType, mode || 'alert', subscriberScope];
   let sql = `SELECT *
              FROM subscribers
              WHERE workspace_id = ?
                AND subscriber_type = ?
-               AND normalized_destination = ?
                AND mode = ?
                AND COALESCE(subscriber_scope, 'channel') = ?`;
   if (subscriberScope === WORKSPACE_SUBSCRIBER_SCOPE) {
@@ -618,7 +611,11 @@ async function findSubscriberByDestination({
     sql += ' AND channel_id = ?';
     params.push(channelId);
   }
-  const matches = await allRows(db, sql, params);
+  let matches = await allRows(db, sql, params);
+  matches = matches.filter((row) => {
+    const normalizedStored = normalizeEmailAddress(row.normalized_destination || row.destination_url || '');
+    return normalizedStored === normalizedDestination;
+  });
   if (!matches.length) return null;
   matches.sort((a, b) => {
     const aAuthorized = parseJsonField(a.config_json, {}).authorization?.status === 'authorized' ? 1 : 0;
@@ -858,7 +855,10 @@ export async function createAdminSubscriber({ auth, db, input, env = {}, now }) 
   }
   if (existing) {
     if (input.upsert_existing === true) {
-      if (existing.subscriber_type === 'email' && existing.normalized_destination !== built.row.normalized_destination) {
+      const existingNormalizedDestination = existing.subscriber_type === 'email'
+        ? normalizeEmailAddress(existing.normalized_destination || existing.destination_url || '')
+        : existing.normalized_destination;
+      if (existing.subscriber_type === 'email' && existingNormalizedDestination !== built.row.normalized_destination) {
         return validationError(
           action,
           'destination_url',
@@ -886,7 +886,7 @@ export async function createAdminSubscriber({ auth, db, input, env = {}, now }) 
       const unchanged =
         existing.name === built.row.name &&
         existing.destination_url === built.row.destination_url &&
-        existing.normalized_destination === built.row.normalized_destination &&
+        existingNormalizedDestination === built.row.normalized_destination &&
         JSON.stringify(existingConfig) === JSON.stringify(nextConfig) &&
         Number(existing.enabled) === Number(nextEnabled) &&
         (existing.external_resource_id || null) === (built.row.external_resource_id || null);
