@@ -26,6 +26,7 @@
     "smoke:channel-contracts": "node scripts/channel-contracts-smoke.mjs",
     "smoke:aggregate-forward-dimensions": "node scripts/aggregate-forward-dimensions-smoke.mjs",
     "smoke:advanced-watches": "node scripts/advanced-watches-smoke.mjs",
+    "smoke:trend-up-down": "node scripts/trend-up-down-smoke.mjs",
     "smoke:operator-observability": "node scripts/operator-observability-smoke.mjs",
     "smoke:email-subscriber": "node scripts/email-subscriber-smoke.mjs",
     "smoke:email-real": "node scripts/email-subscriber-smoke.mjs",
@@ -40,6 +41,7 @@
     "smoke:workspace-subscriber": "node scripts/workspace-subscriber-smoke.mjs",
     "smoke:subscriber-filters": "node scripts/subscriber-filters-smoke.mjs",
     "smoke:subscriber-lifecycle": "node scripts/subscriber-lifecycle-smoke.mjs",
+    "smoke:proof-runtime": "npm run smoke:trend-up-down && npm run smoke:advanced-watches && npm run smoke:event-occurrence && npm run smoke:valueless-event && npm run smoke:delivery-retry",
     "release:verify-env": "node scripts/verify-release-env.mjs --slack-required",
     "release:verify-schema": "node scripts/verify-d1-schema.mjs",
     "provision:generic-smoke": "node scripts/provision-generic-smoke.mjs"

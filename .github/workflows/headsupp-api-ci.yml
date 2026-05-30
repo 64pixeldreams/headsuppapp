@@ -119,6 +119,15 @@ jobs:
       - name: Advanced watches smoke
         run: npm run smoke:advanced-watches
 
+      - name: Trend up/down smoke
+        run: npm run smoke:trend-up-down
+
+      - name: Event occurrence smoke
+        run: npm run smoke:event-occurrence
+
+      - name: Valueless event smoke
+        run: npm run smoke:valueless-event
+
       - name: Verify bootstrap token matches deployed Worker
         if: ${{ env.HEADSUPP_BOOTSTRAP_TOKEN != '' }}
         run: node scripts/verify-bootstrap-auth.mjs

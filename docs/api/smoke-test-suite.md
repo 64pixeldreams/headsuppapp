@@ -44,6 +44,7 @@ npm run smoke:action-controls
 npm run smoke:channel-contracts
 npm run smoke:aggregate-forward-dimensions
 npm run smoke:advanced-watches
+npm run smoke:trend-up-down
 npm run smoke:operator-observability
 npm run smoke:email-subscriber
 npm run smoke:watch-email-matrix
@@ -54,6 +55,12 @@ npm run smoke:valueless-event
 npm run smoke:subscriber-lifecycle
 npm run smoke:subscriber-dimension-filters
 npm run soak:release
+```
+
+For a fast post-edit runtime proof focused on real event -> alert behavior (including trend up/down, event-occurrence regression guards, and delivery retry paths), run:
+
+```bash
+npm run smoke:proof-runtime
 ```
 
 If Slack is unavailable, do not claim human notification proof. You can still run the non-Slack deployed smokes to prove scheduler, retry, and tenant isolation behavior in D1.
@@ -91,6 +98,7 @@ smoke:action-controls    Slack + deployed  snooze, resume, mute, and ignored del
 smoke:channel-contracts  API/D1 + deployed channel contracts, inherited signal defaults, read API safe shapes
 smoke:aggregate-forward-dimensions D1 + deployed dimension-filtered aggregate forwarding and no duplicate second pass
 smoke:advanced-watches   D1 + deployed     WINDOW, DELTA, relative change, trend, reminders, recurring expectations, rich digest
+smoke:trend-up-down      D1 + deployed     TREND_UP_GT and TREND_DOWN_GT each triggered by real signed ingest events with sent deliveries
 smoke:operator-observability API + deployed key lifecycle, audit read, observability overview, redaction
 smoke:email-subscriber  Email + deployed  provisions email subscriber, renders {value} title template and action buttons, triggers coffee highest-purchase alert, verifies sent delivery
 smoke:watch-email-matrix Email + deployed real email proof for threshold, window, delta, percent change, trend, forecast template, and grouped winner alerts
@@ -621,9 +629,10 @@ Run this checklist before calling a deployment proven:
 11. npm run smoke:channel-contracts passes
 12. npm run smoke:aggregate-forward-dimensions passes
 13. npm run smoke:advanced-watches passes
-14. npm run smoke:operator-observability passes when operator secrets are configured
-15. npm run smoke:email-subscriber passes when SEND_EMAIL and recipient env are configured
-16. npm run soak:release passes
-17. docs mention any intentionally skipped smoke and why
-18. secret scan finds no real Slack webhook URLs, API tokens, or connector secrets
+14. npm run smoke:trend-up-down passes
+15. npm run smoke:operator-observability passes when operator secrets are configured
+16. npm run smoke:email-subscriber passes when SEND_EMAIL and recipient env are configured
+17. npm run soak:release passes
+18. docs mention any intentionally skipped smoke and why
+19. secret scan finds no real Slack webhook URLs, API tokens, or connector secrets
 ```

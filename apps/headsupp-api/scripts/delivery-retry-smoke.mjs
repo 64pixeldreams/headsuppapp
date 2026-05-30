@@ -33,6 +33,11 @@ async function triggerAlert({ runId, value, idempotencySuffix }) {
         signalKey,
         value,
         source: 'delivery-retry-smoke',
+        fields: {
+          // Keep transient/permanent smoke scenarios from collapsing under
+          // attention-level dedupe when they land in the same minute bucket.
+          attention_family: `delivery_retry:${idempotencySuffix}`,
+        },
       }),
     ],
   });

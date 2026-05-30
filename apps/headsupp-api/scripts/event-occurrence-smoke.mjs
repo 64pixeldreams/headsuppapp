@@ -65,6 +65,7 @@ async function sendGoalReached({ name, idempotencyKey, goalId, headline = '£10,
           icon_variant: 'trophy',
           forecast_id: 'forecast_123',
           goal_id: goalId,
+          attention_family: `goal:${goalId}`,
           forecast_name: 'Q2 Revenue',
           resource_name: 'Q2 Revenue',
           notification: {
