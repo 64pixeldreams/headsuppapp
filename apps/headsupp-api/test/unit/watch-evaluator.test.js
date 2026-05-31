@@ -273,4 +273,57 @@ test('event occurrence watch alerts once per occurrence key and links occurrence
   assert.equal(second.occurrence_key, 'goal_789');
   assert.equal(batchItems.length, 6);
   assert.equal(db.updates.length, 2);
+  const watchStateStatements = batchItems.filter((item) => /INSERT INTO watch_states/.test(item.sql));
+  assert.equal(watchStateStatements.every((item) => item.params[6] === null), true);
+});
+
+test('test event occurrence does not suppress production occurrence for same goal id', async () => {
+  const batchItems = [];
+  const db = createOccurrenceEvaluatorDb({ batchItems });
+  const baseInput = {
+    watchId: 'watch_goal_reached',
+    reason: 'aggregate_updated',
+    signalId: 'sig_goal',
+    bucketType: 'minute',
+    bucketStartAt: '2026-05-24T10:00:00.000Z',
+    eventContext: {
+      idempotency_key: 'foretic:forecast_123:goal_reached:goal_456:test',
+      value: { num: 1 },
+      fields: {
+        event_type: 'goal_reached',
+        goal_id: 'goal_456',
+        test: true,
+        notification: { summary: '[TEST] Goal reached.' },
+      },
+    },
+    now: '2026-05-24T10:05:00.000Z',
+  };
+
+  const testEvent = await evaluateWatchRequest({ db, input: baseInput });
+  const duplicateTestEvent = await evaluateWatchRequest({
+    db,
+    input: { ...baseInput, now: '2026-05-24T10:06:00.000Z' },
+  });
+  const productionEvent = await evaluateWatchRequest({
+    db,
+    input: {
+      ...baseInput,
+      eventContext: {
+        ...baseInput.eventContext,
+        idempotency_key: 'foretic:forecast_123:goal_reached:goal_456',
+        fields: {
+          event_type: 'goal_reached',
+          goal_id: 'goal_456',
+          notification: { summary: 'Goal reached.' },
+        },
+      },
+      now: '2026-05-24T10:07:00.000Z',
+    },
+  });
+
+  assert.equal(testEvent.action, 'alert');
+  assert.equal(duplicateTestEvent.action, 'none');
+  assert.equal(duplicateTestEvent.reason, 'OCCURRENCE_ALREADY_PROCESSED');
+  assert.equal(productionEvent.action, 'alert');
+  assert.equal(productionEvent.occurrence_key, 'goal_456');
 });

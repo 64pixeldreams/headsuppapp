@@ -26,7 +26,19 @@ function occurrenceId({ watch, occurrenceKey }) {
   return `occ_${shortHash(seed)}_${String(occurrenceKey).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 44) || 'event'}`;
 }
 
-async function reserveWatchOccurrence({ db, watch, occurrenceKey, now }) {
+function eventOccurrenceScope(eventContext = {}) {
+  const fields = eventContext?.fields && typeof eventContext.fields === 'object' ? eventContext.fields : {};
+  return fields.test === true || fields.test_mode === true || eventContext.test === true || eventContext.test_mode === true
+    ? 'test'
+    : 'production';
+}
+
+function occurrenceStorageKey({ occurrenceKey, scope }) {
+  return scope === 'test' ? `test:${occurrenceKey}` : String(occurrenceKey);
+}
+
+async function reserveWatchOccurrence({ db, watch, occurrenceKey, occurrenceScope = 'production', now }) {
+  const storedOccurrenceKey = occurrenceStorageKey({ occurrenceKey, scope: occurrenceScope });
   const existing = await db
     .prepare(
       `SELECT *
@@ -34,11 +46,11 @@ async function reserveWatchOccurrence({ db, watch, occurrenceKey, now }) {
        WHERE workspace_id = ? AND channel_id = ? AND watch_id = ? AND occurrence_key = ?
        LIMIT 1`,
     )
-    .bind(watch.workspace_id, watch.channel_id, watch.id || watch.watch_id, occurrenceKey)
+    .bind(watch.workspace_id, watch.channel_id, watch.id || watch.watch_id, storedOccurrenceKey)
     .first();
   if (existing) return { reserved: false, occurrence: existing };
 
-  const id = occurrenceId({ watch, occurrenceKey });
+  const id = occurrenceId({ watch, occurrenceKey: storedOccurrenceKey });
   const result = await db
     .prepare(
       `INSERT OR IGNORE INTO watch_occurrences (
@@ -51,7 +63,7 @@ async function reserveWatchOccurrence({ db, watch, occurrenceKey, now }) {
       watch.workspace_id,
       watch.channel_id,
       watch.id || watch.watch_id,
-      occurrenceKey,
+      storedOccurrenceKey,
       null,
       now,
       now,
@@ -66,7 +78,7 @@ async function reserveWatchOccurrence({ db, watch, occurrenceKey, now }) {
       .first();
     return { reserved: false, occurrence: duplicate || { id, occurrence_key: occurrenceKey } };
   }
-  return { reserved: true, occurrence: { id, occurrence_key: occurrenceKey } };
+  return { reserved: true, occurrence: { id, occurrence_key: storedOccurrenceKey } };
 }
 
 async function linkWatchOccurrenceAlert({ db, occurrenceId: id, alertId, now }) {
@@ -183,6 +195,7 @@ export async function evaluateWatchRequest({ db, env = {}, input, now = input.no
       db,
       watch,
       occurrenceKey: evaluation.occurrence_key,
+      occurrenceScope: eventOccurrenceScope(input.eventContext || {}),
       now,
     });
     if (!reservation.reserved) {

@@ -379,7 +379,12 @@ export async function traceAdminEvent({ auth, db, input }) {
     });
   }
   const latestDelivery = deliveries[0] || null;
-  const cooldownState = watchStates.find((state) => state.cooldown_until && state.cooldown_until > new Date().toISOString());
+  const cooldownState = watchStates.find(
+    (state) =>
+      state.watch_type !== 'EVENT_OCCURRENCE' &&
+      state.cooldown_until &&
+      state.cooldown_until > new Date().toISOString(),
+  );
 
   return {
     ok: true,

@@ -403,7 +403,10 @@ function alertStatement(db, alert) {
 }
 
 function watchStateStatement(db, { watch, decision, now }) {
-  const cooldown = decision.action === 'recovery' ? null : cooldownUntil(now, watch.cooldown_seconds ?? 86400);
+  const isEventOccurrence = watch.watch_type === 'EVENT_OCCURRENCE';
+  const cooldown = decision.action === 'recovery' || isEventOccurrence
+    ? null
+    : cooldownUntil(now, watch.cooldown_seconds ?? 86400);
   return db
     .prepare(
       `INSERT INTO watch_states (
@@ -431,7 +434,12 @@ function watchStateStatement(db, { watch, decision, now }) {
       decision.severity,
       cooldown,
       decision.action === 'recovery' ? now : null,
-      JSON.stringify({ action: decision.action, current_value: decision.current_value }),
+      JSON.stringify({
+        action: decision.action,
+        current_value: decision.current_value,
+        occurrence_key: decision.occurrence_key || null,
+        cooldown_scoped_by_occurrence: isEventOccurrence,
+      }),
       now,
     );
 }
