@@ -293,7 +293,7 @@ retry processing does not duplicate the alert
 
 ## Email Subscriber Smoke
 
-This deployed smoke provisions an email subscriber and triggers one simple coffee alert (`LAST_VALUE_GT` on `coffee.highest_purchase`).
+This deployed smoke provisions an email subscriber and triggers one simple sample alert (`LAST_VALUE_GT` on `sample.highest_purchase`). It disables the smoke watch and subscriber after proof.
 
 ```powershell
 cd apps/headsupp-api
@@ -310,7 +310,7 @@ Expected:
 normal value events create zero alerts
 trigger event (> threshold) creates one warning alert
 latest alert delivery status becomes sent for subscriber_type email
-email subject/heading uses the configured title template: Highest coffee purchase: $9.50
+email subject/heading uses the configured title template: Highest sample purchase: $9.50
 email response body includes action buttons: snooze_1h, snooze_1d, stop_watching
 ```
 

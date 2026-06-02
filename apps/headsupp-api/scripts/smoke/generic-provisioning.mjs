@@ -1,5 +1,11 @@
 import { redactUrl } from './runtime.mjs';
 
+// Escape SQLite LIKE special characters so underscores and percent signs in
+// scenario IDs are matched literally, not as wildcards.
+function escapeLike(str) {
+  return String(str).replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
 export function genericSmokeIds(scenarioId) {
   const normalized = String(scenarioId || 'generic')
     .trim()
@@ -26,13 +32,13 @@ export function genericSmokeIds(scenarioId) {
 export async function cleanupGenericScenario(client, ids) {
   const statements = [
     ['DELETE FROM alert_deliveries WHERE alert_id IN (SELECT id FROM alerts WHERE channel_id = ?)', [ids.channel]],
-    ['DELETE FROM email_test_messages WHERE run_id LIKE ? OR delivery_id LIKE ?', [`%${ids.scenarioId}%`, `%${ids.scenarioId}%`]],
+    [`DELETE FROM email_test_messages WHERE run_id LIKE ? ESCAPE '\\' OR delivery_id LIKE ? ESCAPE '\\'`, [`%${escapeLike(ids.scenarioId)}%`, `%${escapeLike(ids.scenarioId)}%`]],
     ['DELETE FROM watch_occurrences WHERE channel_id = ?', [ids.channel]],
     ['DELETE FROM alerts WHERE channel_id = ?', [ids.channel]],
     ['DELETE FROM quiet_summary_deliveries WHERE channel_id = ?', [ids.channel]],
     ['DELETE FROM watch_states WHERE watch_id = ? OR watch_id LIKE ?', [ids.watch, `${ids.watch}_%`]],
     ['DELETE FROM watch_group_states WHERE watch_group_id = ? OR watch_group_id LIKE ?', [`${ids.watch}_group`, `${ids.watch}_group%`]],
-    ['DELETE FROM raw_event_dedupe WHERE idempotency_key LIKE ?', [`generic-smoke:${ids.scenarioId}:%`]],
+    [`DELETE FROM raw_event_dedupe WHERE idempotency_key LIKE ? ESCAPE '\\'`, [`generic-smoke:${escapeLike(ids.scenarioId)}:%`]],
     ['DELETE FROM aggregate_deliveries WHERE signal_id = ?', [ids.signal]],
     ['DELETE FROM aggregates WHERE signal_id = ?', [ids.signal]],
     ['DELETE FROM subscribers WHERE channel_id = ?', [ids.channel]],

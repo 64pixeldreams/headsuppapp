@@ -100,7 +100,7 @@ smoke:aggregate-forward-dimensions D1 + deployed dimension-filtered aggregate fo
 smoke:advanced-watches   D1 + deployed     WINDOW, DELTA, relative change, trend, reminders, recurring expectations, rich digest
 smoke:trend-up-down      D1 + deployed     TREND_UP_GT and TREND_DOWN_GT each triggered by real signed ingest events with sent deliveries
 smoke:operator-observability API + deployed key lifecycle, audit read, observability overview, redaction
-smoke:email-subscriber  Email + deployed  provisions email subscriber, renders {value} title template and action buttons, triggers coffee highest-purchase alert, verifies sent delivery
+smoke:email-subscriber  Email + deployed  provisions email subscriber, renders {value} title template and action buttons, triggers sample highest-purchase alert, verifies sent delivery, disables smoke watch/subscriber
 smoke:watch-email-matrix Email + deployed real email proof for threshold, window, delta, percent change, trend, forecast template, and grouped winner alerts
 smoke:scheduled-email Email + deployed real email proof for MISSING_EXPECTED, REMINDER_DUE, and DIGEST scheduled alert emails
 smoke:email-inbox-loop Email + deployed automated inbox receipt proof through tester@aibox.headsupp.io and email_test_messages

@@ -324,3 +324,70 @@ test('event occurrence watch ignores non-matching event types and missing dedupe
   assert.equal(missingKey.triggered, false);
   assert.equal(missingKey.reason, 'OCCURRENCE_KEY_MISSING');
 });
+
+// ── Aggregate field selection (LAST_VALUE_GT/LT with field config) ────────────
+
+test('LAST_VALUE_GT with field:max_value fires when period high exceeds threshold even if last_value does not', () => {
+  const result = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'LAST_VALUE_GT',
+      config_json: JSON.stringify({ threshold: 100, severity: 'warning', field: 'max_value' }),
+    },
+    [{ last_value: 60, max_value: 150 }],
+  );
+
+  assert.equal(result.triggered, true);
+  assert.equal(result.current_value, 150);
+});
+
+test('LAST_VALUE_GT with field:max_value stays silent when max_value is below threshold', () => {
+  const result = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'LAST_VALUE_GT',
+      config_json: JSON.stringify({ threshold: 100, severity: 'warning', field: 'max_value' }),
+    },
+    [{ last_value: 60, max_value: 80 }],
+  );
+
+  assert.equal(result.triggered, false);
+  assert.equal(result.current_value, 80);
+});
+
+test('LAST_VALUE_LT with field:min_value fires when period low drops below threshold', () => {
+  const result = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'LAST_VALUE_LT',
+      config_json: JSON.stringify({ threshold: 10, severity: 'warning', field: 'min_value' }),
+    },
+    [{ last_value: 50, min_value: 5 }],
+  );
+
+  assert.equal(result.triggered, true);
+  assert.equal(result.current_value, 5);
+});
+
+test('LAST_VALUE_GT with field:sum_value fires when bucket total exceeds threshold', () => {
+  const result = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'LAST_VALUE_GT',
+      config_json: JSON.stringify({ threshold: 200, severity: 'warning', field: 'sum_value' }),
+    },
+    [{ last_value: 50, sum_value: 250 }],
+  );
+
+  assert.equal(result.triggered, true);
+  assert.equal(result.current_value, 250);
+});
+
+test('LAST_VALUE_GT with unknown field falls back to last_value', () => {
+  const result = evaluateWatchAgainstAggregates(
+    {
+      watch_type: 'LAST_VALUE_GT',
+      config_json: JSON.stringify({ threshold: 100, severity: 'warning', field: 'nonexistent_field' }),
+    },
+    [{ last_value: 150, max_value: 200 }],
+  );
+
+  assert.equal(result.triggered, true);
+  assert.equal(result.current_value, 150);
+});

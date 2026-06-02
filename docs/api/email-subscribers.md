@@ -504,7 +504,7 @@ Remove-Item Env:CLOUDFLARE_API_TOKEN
 Remove-Item Env:HEADSUPP_SMOKE_EMAIL_DESTINATION
 ```
 
-The smoke provisions an email subscriber, sends normal coffee events that stay silent, then sends one `coffee.highest_purchase` trigger event. Passing output means one alert row was created and the latest email delivery reached `sent`.
+The smoke provisions an email subscriber, sends normal sample events that stay silent, then sends one `sample.highest_purchase` trigger event. Passing output means one alert row was created, the latest email delivery reached `sent`, and the smoke watch/subscriber were disabled after proof.
 
 For design review, send a single rich event that triggers immediately:
 

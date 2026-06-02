@@ -24,6 +24,7 @@ on:
         type: choice
         options:
           - "none"
+          - "certify"
           - "proof-runtime"
           - "delivery-retry"
           - "trend-up-down"
@@ -98,6 +99,9 @@ jobs:
 
       - name: Verify deployed D1 schema
         run: npm run release:verify-schema
+
+      - name: Behavioral certification
+        run: npm run smoke:certify
 
       - name: Generic Slack smoke
         run: npm run smoke:generic-slack
@@ -210,6 +214,9 @@ jobs:
       - name: Run selected smoke job
         run: |
           case "${{ inputs.smoke_job }}" in
+            "certify")
+              npm run smoke:certify
+              ;;
             "proof-runtime")
               npm run smoke:proof-runtime
               ;;

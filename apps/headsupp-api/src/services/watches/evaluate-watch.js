@@ -212,7 +212,9 @@ export function evaluateWatchAgainstAggregates(watch, aggregates = []) {
   let fields = null;
 
   if (watch.watch_type === 'LAST_VALUE_LT' || watch.watch_type === 'LAST_VALUE_GT') {
-    currentValue = latest ? Number(latest.last_value) : null;
+    const AGGREGATE_FIELDS = new Set(['last_value', 'max_value', 'min_value', 'sum_value', 'count_value', 'avg_value']);
+    const fieldName = AGGREGATE_FIELDS.has(config.field) ? config.field : 'last_value';
+    currentValue = latest ? Number(latest[fieldName]) : null;
     triggered =
       currentValue !== null &&
       (watch.watch_type === 'LAST_VALUE_LT' ? currentValue < config.threshold : currentValue > config.threshold);

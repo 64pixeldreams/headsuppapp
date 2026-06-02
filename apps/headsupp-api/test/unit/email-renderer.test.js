@@ -6,14 +6,14 @@ import { renderAlertEmail } from '../../src/services/email/render-alert-email.js
 const baseAlert = {
   id: 'alert_123',
   severity: 'critical',
-  summary_text: 'Weekly coffee budget exceeded.',
+  summary_text: 'Weekly sample budget exceeded.',
   current_value: 126.4,
   threshold_value: 100,
-  cta_label: 'View coffee spend',
-  cta_url: 'https://example.com/coffee/spend',
+  cta_label: 'View sample spend',
+  cta_url: 'https://example.com/sample/spend',
   payload_json: JSON.stringify({
     fields: {
-      merchant: 'Blue Bottle',
+      merchant: 'Demo Merchant',
     },
   }),
 };
@@ -34,14 +34,14 @@ test('renders fallback template with formatting profile', () => {
   });
 
   assert.match(rendered.subject, /^Critical:/);
-  assert.match(rendered.subject, /Weekly coffee budget exceeded\.: £126\.40/);
+  assert.match(rendered.subject, /Weekly sample budget exceeded\.: £126\.40/);
   assert.match(rendered.text, /£126\.40/);
   assert.match(rendered.text, /Unsubscribe:/);
   assert.match(rendered.text, /Signal reached £126\.40/);
   assert.match(rendered.html, /href="https:\/\/headsupp\.io\/v1\/subscribers\/unsubscribe\?token=test"/);
   assert.match(rendered.html, /Critical/);
   assert.match(rendered.html, /background:#FEE2E2/);
-  assert.match(rendered.html, /View coffee spend/);
+  assert.match(rendered.html, /View sample spend/);
   assert.match(rendered.html, /min-width:148px;background:#212529;color:#ffffff/);
   assert.match(rendered.html, /max-width:560px/);
   assert.match(rendered.html, /border:1px solid #d0d7de/);
@@ -56,7 +56,7 @@ test('renders notification overrides and escapes HTML content', () => {
       payload_json: JSON.stringify({
         fields: {
           notification: {
-            title: 'Coffee <Budget> exceeded',
+            title: 'Sample <Budget> exceeded',
             summary: 'Reached <b>126.40</b> this week.',
             detail: 'Use card less often.',
           },
@@ -67,8 +67,8 @@ test('renders notification overrides and escapes HTML content', () => {
     channel: {},
   });
 
-  assert.equal(rendered.subject, 'Critical: Coffee <Budget> exceeded');
-  assert.match(rendered.html, /Coffee &lt;Budget&gt; exceeded/);
+  assert.equal(rendered.subject, 'Critical: Sample <Budget> exceeded');
+  assert.match(rendered.html, /Sample &lt;Budget&gt; exceeded/);
   assert.doesNotMatch(rendered.html, /<b>126\.40<\/b>/);
 });
 
@@ -80,7 +80,7 @@ test('uses explicit email subject override from event payload', () => {
         fields: {
           email_subject: 'Forecast digest for finance team',
           notification: {
-            title: 'Coffee budget monitor',
+            title: 'Sample budget monitor',
             summary: 'Current spend is elevated.',
           },
         },
@@ -127,14 +127,14 @@ test('omits CTA button when URL is invalid', () => {
     subscriber: { config_json: '{}' },
     channel: {},
   });
-  assert.doesNotMatch(rendered.html, /View coffee spend/);
+  assert.doesNotMatch(rendered.html, /View sample spend/);
 });
 
 test('uses email-derived recipient name when subscriber label is generic', () => {
   const rendered = renderAlertEmail({
     alert: baseAlert,
     subscriber: {
-      name: 'Coffee Email Alerts',
+      name: 'Smoke Email Alerts',
       destination_url: 'martin@inc64.com',
       config_json: '{}',
     },
@@ -149,7 +149,7 @@ test('normalizes title by removing status and trailing high/low suffix', () => {
     alert: {
       ...baseAlert,
       severity: 'warning',
-      summary_text: 'Highest coffee purchase high is warning at 9.5.',
+      summary_text: 'Highest sample purchase high is warning at 9.5.',
     },
     subscriber: {
       destination_url: 'martin@inc64.com',
@@ -158,7 +158,7 @@ test('normalizes title by removing status and trailing high/low suffix', () => {
     channel: {},
   });
 
-  assert.equal(rendered.subject, 'Warning: Highest coffee purchase: 126.40');
+  assert.equal(rendered.subject, 'Warning: Highest sample purchase: 126.40');
 });
 
 test('renders configured title template placeholders with formatted values', () => {
@@ -166,7 +166,7 @@ test('renders configured title template placeholders with formatted values', () 
     alert: {
       ...baseAlert,
       severity: 'warning',
-      summary_text: 'Highest coffee purchase high is warning at 9.5.',
+      summary_text: 'Highest sample purchase high is warning at 9.5.',
       current_value: 9.5,
       threshold_value: 8,
     },
@@ -176,16 +176,16 @@ test('renders configured title template placeholders with formatted values', () 
         value_format: 'money_usd_2',
         locale: 'en-US',
         labels: {
-          title_template: 'Highest coffee purchase: {value}',
-          summary_template: 'Your highest coffee purchase reached {value}; threshold is {threshold}.',
+          title_template: 'Highest sample purchase: {value}',
+          summary_template: 'Your highest sample purchase reached {value}; threshold is {threshold}.',
         },
       }),
     },
     channel: {},
   });
 
-  assert.equal(rendered.subject, 'Warning: Highest coffee purchase: $9.50');
-  assert.match(rendered.text, /Your highest coffee purchase reached \$9\.50; threshold is \$8\.00\./);
+  assert.equal(rendered.subject, 'Warning: Highest sample purchase: $9.50');
+  assert.match(rendered.text, /Your highest sample purchase reached \$9\.50; threshold is \$8\.00\./);
 });
 
 test('renders configured alert action links in html and text', () => {

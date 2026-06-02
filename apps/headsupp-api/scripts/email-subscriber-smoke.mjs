@@ -18,10 +18,23 @@ requireEnv('HEADSUPP_SMOKE_EMAIL_DESTINATION', emailDestination);
 
 const client = createCloudflareClient(runtime);
 const ids = genericSmokeIds('email_subscriber');
-const signalKey = 'coffee.highest_purchase';
+const signalKey = 'sample.highest_purchase';
 const startedAt = new Date().toISOString();
 const runId = `${ids.scenarioId}:${Date.now()}`;
 const health = await checkHealth(runtime.baseUrl);
+
+async function disableEmailSubscriberProof() {
+  const now = new Date().toISOString();
+  await client.d1Query('UPDATE watches SET enabled = 0, updated_at = ? WHERE channel_id = ?', [now, ids.channel]);
+  await client.d1Query('UPDATE subscribers SET enabled = 0, updated_at = ? WHERE channel_id = ?', [now, ids.channel]);
+  await client.d1Query(
+    `UPDATE alert_deliveries
+     SET status = 'ignored', updated_at = ?
+     WHERE alert_id IN (SELECT id FROM alerts WHERE channel_id = ?)
+       AND status IN ('pending', 'retrying')`,
+    [now, ids.channel],
+  );
+}
 
 const setup = await provisionGenericScenario({
   client,
@@ -29,9 +42,9 @@ const setup = await provisionGenericScenario({
   subscriberUrl: emailDestination,
   subscriberType: 'email',
   subscriberMode: 'alert',
-  subscriberName: 'Coffee Email Alerts',
+  subscriberName: 'Smoke Email Alerts',
   signalKey,
-  watchName: 'Highest coffee purchase high',
+  watchName: 'Highest sample purchase high',
   watchType: 'LAST_VALUE_GT',
   watchConfig: {
     threshold: 8,
@@ -48,8 +61,8 @@ await client.d1Query('UPDATE subscribers SET config_json = ?, destination_url_re
     locale: 'en-US',
     timezone: 'UTC',
     labels: {
-      title_template: 'Highest coffee purchase: {value}',
-      summary_template: 'Your highest coffee purchase reached {value}; threshold is {threshold}.',
+      title_template: 'Highest sample purchase: {value}',
+      summary_template: 'Your highest sample purchase reached {value}; threshold is {threshold}.',
       current_label: 'Highest purchase',
       threshold_label: 'Alert threshold',
     },
@@ -59,6 +72,7 @@ await client.d1Query('UPDATE subscribers SET config_json = ?, destination_url_re
   ids.subscriber,
 ]);
 
+try {
 const before = await smokeCounts(client, ids);
 const normalAccepted = await sendSignedEvents({
   baseUrl: runtime.baseUrl,
@@ -93,11 +107,11 @@ const triggerAccepted = await sendSignedEvents({
       value: 9.5,
       source: 'email-subscriber-smoke',
       fields: {
-        merchant: 'Blue Bottle',
+        merchant: 'Demo Merchant',
       },
       cta: {
-        label: 'View coffee spend',
-        url: 'https://example.com/coffee/spend',
+        label: 'View sample spend',
+        url: 'https://example.com/sample/spend',
       },
     }),
   ],
@@ -153,6 +167,10 @@ console.log(
       latest_delivery: delivered.delivery,
       expected_action_buttons: expectedActions,
       recipient_hint: `${String(emailDestination).slice(0, 2)}***`,
+      cleanup: {
+        smoke_watch_disabled: true,
+        subscriber_disabled: true,
+      },
       expected_email_behavior: 'One warning email after trigger event value > 8 with SNOOZE 1H, SNOOZE 1D, and STOP WATCHING buttons.',
       health: {
         status: health.status,
@@ -163,3 +181,6 @@ console.log(
     2,
   ),
 );
+} finally {
+  await disableEmailSubscriberProof();
+}

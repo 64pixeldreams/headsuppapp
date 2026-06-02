@@ -23,11 +23,11 @@ function fakeDb(calls = []) {
 const alert = {
   id: 'alert_1',
   severity: 'warning',
-  summary_text: 'Coffee spend warning',
+  summary_text: 'Sample spend warning',
   current_value: 92,
   threshold_value: 100,
-  cta_label: 'View coffee spend',
-  cta_url: 'https://example.com/coffee',
+  cta_label: 'View sample spend',
+  cta_url: 'https://example.com/sample',
   payload_json: JSON.stringify({ fields: {} }),
 };
 
